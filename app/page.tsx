@@ -159,4 +159,173 @@ function ListingTool() {
   const [productName, setProductName] = useState('')
   const [details, setDetails] = useState('')
   const [platform, setPlatform] = useState('Etsy')
-  const [audience, setAudience] = useState('Women aged 22–40 who lov
+  const [audience, setAudience] = useState('Women aged 22–40 who love fashion and luxury aesthetics')
+  const [output, setOutput] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function run() {
+    setLoading(true); setOutput('')
+    try { setOutput(await callAPI('listing', { productName, details, platform, targetAudience: audience })) }
+    catch (e) { setOutput(`Error: ${(e as Error).message}`) }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <div className="pg-in">
+      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Product <span style={{ color: 'var(--c)' }}>Listing Writer</span></div>
+      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '24px', lineHeight: '1.6' }}>AI writes your full title, description, bullet points, SEO tags, and TikTok caption in one click.</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <Panel hi>
+          <PTitle>Product details</PTitle>
+          <F label="Product name"><input style={inp} placeholder="e.g. Luxe Floral Crop Tee" value={productName} onChange={e => setProductName(e.target.value)} /></F>
+          <F label="Details"><textarea style={ta} placeholder="Material, colors, style, what makes it special..." value={details} onChange={e => setDetails(e.target.value)} /></F>
+          <F label="Platform">
+            <select style={sel} value={platform} onChange={e => setPlatform(e.target.value)}>
+              {['Etsy','Shopify','TikTok Shop','Amazon'].map(p => <option key={p}>{p}</option>)}
+            </select>
+          </F>
+          <F label="Target audience"><input style={inp} value={audience} onChange={e => setAudience(e.target.value)} /></F>
+          <GenBtn loading={loading} onClick={run}>Write full listing ↗</GenBtn>
+          <Output text={output} loading={loading} />
+        </Panel>
+        <Panel>
+          <PTitle>What gets written</PTitle>
+          {[['Title','SEO-optimised platform-specific title'],['Description','Lifestyle-led copy that converts'],['Key Features','5 benefit-first bullet points'],['SEO Tags','13 search tags or keywords'],['TikTok Caption','Hook + product + CTA']].map(([l,d]) => (
+            <div key={l} style={{ marginBottom: '12px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--w)', marginBottom: '2px' }}>{l}</div>
+              <div style={{ fontSize: '11px', color: 'var(--mu3)', lineHeight: '1.5' }}>{d}</div>
+            </div>
+          ))}
+        </Panel>
+      </div>
+    </div>
+  )
+}
+
+function DescriptionTool() {
+  const [product, setProduct] = useState('')
+  const [niche, setNiche] = useState('luxury fashion')
+  const [tone, setTone] = useState('elevated, aspirational, confident')
+  const [audience, setAudience] = useState('Black women aged 22–40 who love fashion and lifestyle')
+  const [output, setOutput] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function run() {
+    setLoading(true); setOutput('')
+    try { setOutput(await callAPI('description', { product, niche, tone, audience })) }
+    catch (e) { setOutput(`Error: ${(e as Error).message}`) }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <div className="pg-in">
+      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Description <span style={{ color: 'var(--c)' }}>Writer</span></div>
+      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '24px', lineHeight: '1.6' }}>Three description variants plus a power tagline in one click.</div>
+      <Panel hi>
+        <PTitle>Your product</PTitle>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <F label="Product"><input style={inp} placeholder="e.g. Luxe Floral Crop Tee" value={product} onChange={e => setProduct(e.target.value)} /></F>
+          <F label="Niche"><input style={inp} value={niche} onChange={e => setNiche(e.target.value)} /></F>
+          <F label="Brand tone"><input style={inp} value={tone} onChange={e => setTone(e.target.value)} /></F>
+          <F label="Target audience"><input style={inp} value={audience} onChange={e => setAudience(e.target.value)} /></F>
+        </div>
+        <GenBtn loading={loading} onClick={run}>Write 3 descriptions + tagline ↗</GenBtn>
+        <Output text={output} loading={loading} />
+      </Panel>
+    </div>
+  )
+}
+
+function ImagePromptTool() {
+  const [subject, setSubject] = useState('')
+  const [style, setStyle] = useState('editorial fashion photography, luxury aesthetic')
+  const [mood, setMood] = useState('powerful, confident, aspirational')
+  const [platform, setPlatform] = useState('midjourney')
+  const [extras, setExtras] = useState('')
+  const [output, setOutput] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function run() {
+    setLoading(true); setOutput('')
+    try { setOutput(await callAPI('image-prompt', { subject, style, mood, platform, extras })) }
+    catch (e) { setOutput(`Error: ${(e as Error).message}`) }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <div className="pg-in">
+      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>AI Image <span style={{ color: 'var(--c)' }}>Prompt Builder</span></div>
+      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '24px', lineHeight: '1.6' }}>Describe your scene — AI writes a complete prompt for your chosen platform.</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <Panel hi>
+          <PTitle>Prompt setup</PTitle>
+          <F label="Subject / scene"><textarea style={ta} placeholder="e.g. Black woman in a white luxury crop tee, NYC rooftop at golden hour" value={subject} onChange={e => setSubject(e.target.value)} /></F>
+          <F label="Visual style"><input style={inp} value={style} onChange={e => setStyle(e.target.value)} /></F>
+          <F label="Mood"><input style={inp} value={mood} onChange={e => setMood(e.target.value)} /></F>
+          <F label="Target platform">
+            <select style={sel} value={platform} onChange={e => setPlatform(e.target.value)}>
+              {[['midjourney','Midjourney v6'],['dalle','DALL-E 3'],['kling','Kling AI (video)'],['runway','Runway Gen-3'],['stable','Stable Diffusion XL']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </F>
+          <F label="Extra details"><input style={inp} placeholder="Props, camera settings, references..." value={extras} onChange={e => setExtras(e.target.value)} /></F>
+          <GenBtn loading={loading} onClick={run}>Build image prompt ↗</GenBtn>
+          <Output text={output} loading={loading} />
+        </Panel>
+        <Panel>
+          <PTitle>Platform guide</PTitle>
+          {[['Midjourney v6','Best for fashion mockups. Includes --ar and --v 6 flags.'],['DALL-E 3','Natural language. No comma tags needed.'],['Kling AI','Best for video. Focus on motion and camera movement.'],['Runway Gen-3','Cinematic transitions and lighting changes.'],['Stable Diffusion','Keyword-dense. Quality boosters included.']].map(([n,t]) => (
+            <div key={n} style={{ marginBottom: '12px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--c)', marginBottom: '2px', fontFamily: "'DM Mono',monospace" }}>{n}</div>
+              <div style={{ fontSize: '11px', color: 'var(--mu3)', lineHeight: '1.5' }}>{t}</div>
+            </div>
+          ))}
+        </Panel>
+      </div>
+    </div>
+  )
+}
+
+const TOOLS: { label: string; icon: string; tool: Tool }[] = [
+  { label: 'Mockup Generator', icon: '◈', tool: 'mockup' },
+  { label: 'Product Listing', icon: '⊹', tool: 'listing' },
+  { label: 'Description Writer', icon: '◷', tool: 'description' },
+  { label: 'AI Image Prompts', icon: '◉', tool: 'image-prompt' },
+]
+
+export default function Page() {
+  const [active, setActive] = useState<Tool>('mockup')
+  const [hovered, setHovered] = useState<Tool | null>(null)
+
+  return (
+    <>
+      <style dangerouslySetInnerHTML={{ __html: css }} />
+      <div style={{ display: 'flex', minHeight: '100vh', position: 'relative', zIndex: 1 }}>
+        <aside style={{ width: '220px', background: 'var(--bg2)', borderRight: '0.5px solid var(--b)', padding: '14px 10px', flexShrink: 0, height: '100vh', position: 'sticky', top: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <div style={{ padding: '10px 10px 14px', borderBottom: '0.5px solid var(--b)', marginBottom: '8px' }}>
+            <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '14px', fontWeight: 800, color: 'var(--w)' }}>POD Pro <span style={{ color: 'var(--c)' }}>Studio™</span></div>
+            <div style={{ fontSize: '9px', color: 'var(--mu)', fontFamily: "'DM Mono',monospace", textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>Envi Lee AI Creator Suite</div>
+          </div>
+          <div style={{ fontSize: '9px', fontWeight: 600, color: 'var(--mu)', textTransform: 'uppercase', letterSpacing: '1.2px', padding: '4px 10px 8px', fontFamily: "'DM Mono',monospace" }}>Tools</div>
+          {TOOLS.map(({ label, icon, tool }) => (
+            <button key={tool} onClick={() => setActive(tool)}
+              onMouseEnter={() => setHovered(tool)}
+              onMouseLeave={() => setHovered(null)}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '7px', cursor: 'pointer', fontSize: '12px', border: `0.5px solid ${active === tool ? 'var(--bc)' : 'transparent'}`, background: active === tool ? 'var(--c2)' : hovered === tool ? 'var(--s1)' : 'none', color: active === tool ? 'var(--c)' : hovered === tool ? 'var(--w)' : 'var(--mu2)', width: '100%', textAlign: 'left', fontFamily: "'DM Sans',sans-serif", transition: 'all .2s' }}>
+              <span style={{ fontFamily: "'DM Mono',monospace" }}>{icon}</span>{label}
+            </button>
+          ))}
+          <div style={{ fontSize: '9px', fontWeight: 600, color: 'var(--mu)', textTransform: 'uppercase', letterSpacing: '1.2px', padding: '14px 10px 8px', fontFamily: "'DM Mono',monospace" }}>Coming Soon</div>
+          {['Collection Builder','Profit Calculator','Brand Deals'].map(l => (
+            <button key={l} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '7px', fontSize: '12px', border: '0.5px solid transparent', background: 'none', color: 'var(--mu)', width: '100%', textAlign: 'left', fontFamily: "'DM Sans',sans-serif", opacity: 0.4, cursor: 'default' }}>◌ {l}</button>
+          ))}
+        </aside>
+        <main style={{ flex: 1, overflowY: 'auto', padding: '28px' }}>
+          {active === 'mockup' && <MockupTool />}
+          {active === 'listing' && <ListingTool />}
+          {active === 'description' && <DescriptionTool />}
+          {active === 'image-prompt' && <ImagePromptTool />}
+        </main>
+      </div>
+    </>
+  )
+}
