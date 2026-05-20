@@ -78,8 +78,8 @@ function PTitle({ children, cf }: { children: React.ReactNode; cf?: boolean }) {
   return <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', fontWeight: 500, color: cf ? 'var(--cf)' : 'var(--pn)', textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>{children}</div>
 }
 
-function Panel({ children, hi, mb, cf }: { children: React.ReactNode; hi?: boolean; mb?: boolean; cf?: boolean }) {
-  return <div style={{ background: 'var(--s1)', border: `0.5px solid ${cf ? 'rgba(0,200,83,0.2)' : hi ? 'var(--b2)' : 'var(--b)'}`, borderRadius: 'var(--r2)', padding: '18px', marginBottom: mb ? '14px' : 0 }}>{children}</div>
+function Panel({ children, hi, mb, cf, neon }: { children: React.ReactNode; hi?: boolean; mb?: boolean; cf?: boolean; neon?: boolean }) {
+  return <div style={{ background: 'var(--s1)', border: `0.5px solid ${neon ? "rgba(155,109,255,0.3)" : cf ? "rgba(0,200,83,0.2)" : hi ? "var(--b2)" : "var(--b)"}`, borderRadius: 'var(--r2)', padding: '18px', marginBottom: mb ? '14px' : 0 }}>{children}</div>
 }
 
 function GenBtn({ loading, onClick, children, cf }: { loading: boolean; onClick: () => void; children: React.ReactNode; cf?: boolean }) {
