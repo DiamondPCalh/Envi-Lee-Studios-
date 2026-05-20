@@ -434,7 +434,7 @@ function TryOnTool() {
           </Panel>
         </div>
       </div>
-      <Panel style={{ borderColor: 'rgba(155,109,255,0.3)' } as React.CSSProperties}>
+      <Panel mb neon>
         <PTitle>Content generator</PTitle>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <div>
