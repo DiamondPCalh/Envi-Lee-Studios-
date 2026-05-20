@@ -1,11 +1,11 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 
-type Tool = 'mockup' | 'listing' | 'description' | 'image-prompt'
+type Tool = 'mockup' | 'listing' | 'description' | 'image-prompt' | 'tryon'
 
-async function callAPI(endpoint: Tool, body: Record<string, string>): Promise<string> {
-  const res = await fetch(`/api/generate/${endpoint}`, {
-    method: 'POST',
+async function callAPI(endpoint: string, body: Record<string, string>, method = 'POST'): Promise<string> {
+  const res = await fetch(`/api/${endpoint}`, {
+    method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
@@ -14,14 +14,24 @@ async function callAPI(endpoint: Tool, body: Record<string, string>): Promise<st
   return data.result
 }
 
+async function callTryOn(body: Record<string, string>) {
+  const res = await fetch('/api/tryon', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return await res.json()
+}
+
 const css = `
   :root {
-    --bg:#000;--bg2:#080808;--bg3:#0f0f12;--bg4:#141418;
-    --s1:#18181e;--s2:#202028;--s3:#282832;
-    --w:#f4f4ff;--w2:#ccccee;--w3:#9898cc;
-    --mu:#44445a;--mu2:#66667a;--mu3:#88889a;
-    --b:rgba(255,255,255,0.07);--b2:rgba(255,255,255,0.12);
-    --c:#00f5ff;--c2:rgba(0,245,255,0.12);--bc:rgba(0,245,255,0.25);
+    --bg:#000;--bg2:#05020a;--bg3:#0a0510;--bg4:#0f0818;
+    --s1:#130d1a;--s2:#1a1224;--s3:#21182e;
+    --w:#f8f0ff;--w2:#d8c8f0;--w3:#a888cc;
+    --mu:#3a2850;--mu2:#5a4070;--mu3:#8060a0;
+    --b:rgba(108,86,126,0.15);--b2:rgba(108,86,126,0.3);--b3:rgba(108,86,126,0.5);
+    --c:#6c567e;--c2:rgba(108,86,126,0.15);--bc:rgba(108,86,126,0.4);
+    --pn:#9b6dff;--pn2:rgba(155,109,255,0.15);--pn3:rgba(155,109,255,0.08);
     --r:8px;--r2:12px;
   }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -30,17 +40,22 @@ const css = `
   ::-webkit-scrollbar{width:4px}
   ::-webkit-scrollbar-track{background:var(--bg)}
   ::-webkit-scrollbar-thumb{background:var(--s3);border-radius:2px}
-  body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,245,255,0.012) 1px,transparent 1px),linear-gradient(90deg,rgba(0,245,255,0.012) 1px,transparent 1px);background-size:44px 44px;pointer-events:none;z-index:0}
+  body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 20% 20%,rgba(108,86,126,0.1) 0%,transparent 50%),radial-gradient(ellipse at 80% 80%,rgba(155,109,255,0.07) 0%,transparent 50%);pointer-events:none;z-index:0}
+  body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(108,86,126,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(108,86,126,0.04) 1px,transparent 1px);background-size:44px 44px;pointer-events:none;z-index:0}
   @keyframes lbar{0%{background-position:200% 0}100%{background-position:-200% 0}}
   @keyframes aip{0%,100%{opacity:1}50%{opacity:.2}}
   @keyframes pgIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
   .pg-in{animation:pgIn .3s ease}
-  .lbar-fill{height:100%;border-radius:1px;background:linear-gradient(90deg,var(--c),#0ff4c6,var(--c));background-size:200% 100%;animation:lbar 1.6s linear infinite}
-  .ai-pulse{width:6px;height:6px;border-radius:50%;background:var(--c);display:inline-block;animation:aip 1.8s ease infinite;margin-right:7px}
+  .lbar-fill{height:100%;border-radius:1px;background:linear-gradient(90deg,var(--c),var(--pn),var(--c));background-size:200% 100%;animation:lbar 1.6s linear infinite}
+  .ai-pulse{width:6px;height:6px;border-radius:50%;background:var(--pn);display:inline-block;animation:aip 1.8s ease infinite;margin-right:7px;box-shadow:0 0 6px rgba(155,109,255,0.5)}
+  .upload-zone{border:1.5px dashed var(--b2);border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg3);position:relative}
+  .upload-zone:hover{border-color:var(--pn);background:var(--pn3)}
+  .upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+  .preview-img{width:100%;border-radius:8px;object-fit:cover;max-height:180px;margin-top:8px}
 `
 
 const inp: React.CSSProperties = { background: 'var(--bg3)', border: '0.5px solid var(--b)', borderRadius: '7px', padding: '9px 12px', fontSize: '12px', color: 'var(--w)', fontFamily: "'DM Sans',sans-serif", width: '100%', outline: 'none' }
-const ta: React.CSSProperties = { ...inp, resize: 'vertical' as const, minHeight: '80px', lineHeight: '1.6' }
+const ta: React.CSSProperties = { ...inp, resize: 'vertical' as const, minHeight: '78px', lineHeight: '1.6' }
 const sel: React.CSSProperties = { ...inp, padding: '8px 10px' }
 
 function F({ label, children }: { label: string; children: React.ReactNode }) {
@@ -52,18 +67,18 @@ function F({ label, children }: { label: string; children: React.ReactNode }) {
   )
 }
 
-function PTitle({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', fontWeight: 500, color: 'var(--c)', textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>{children}</div>
+function PTitle({ children, color }: { children: React.ReactNode; color?: string }) {
+  return <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', fontWeight: 500, color: color ?? 'var(--pn)', textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)', textShadow: '0 0 10px rgba(155,109,255,0.3)' }}>{children}</div>
 }
 
-function Panel({ children, hi, mb }: { children: React.ReactNode; hi?: boolean; mb?: boolean }) {
-  return <div style={{ background: 'var(--s1)', border: `0.5px solid ${hi ? 'var(--b2)' : 'var(--b)'}`, borderRadius: 'var(--r2)', padding: '18px', marginBottom: mb ? '14px' : 0 }}>{children}</div>
+function Panel({ children, hi, mb, neon }: { children: React.ReactNode; hi?: boolean; mb?: boolean; neon?: boolean }) {
+  return <div style={{ background: 'var(--s1)', border: `0.5px solid ${neon ? 'rgba(155,109,255,0.3)' : hi ? 'var(--b2)' : 'var(--b)'}`, borderRadius: 'var(--r2)', padding: '18px', marginBottom: mb ? '14px' : 0, boxShadow: neon ? '0 0 20px rgba(155,109,255,0.06)' : 'none' }}>{children}</div>
 }
 
 function GenBtn({ loading, onClick, children }: { loading: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button onClick={onClick} disabled={loading}
-      style={{ padding: '10px 16px', borderRadius: '7px', fontSize: '12px', fontWeight: 500, cursor: loading ? 'default' : 'pointer', border: '0.5px solid var(--c)', background: loading ? 'var(--c2)' : 'var(--c)', color: '#000', fontFamily: "'DM Sans',sans-serif", width: '100%', opacity: loading ? 0.7 : 1, transition: 'all .2s' }}>
+      style={{ padding: '10px 16px', borderRadius: '7px', fontSize: '12px', fontWeight: 700, cursor: loading ? 'default' : 'pointer', border: 'none', background: loading ? 'rgba(155,109,255,0.3)' : 'linear-gradient(135deg,var(--c),var(--pn))', color: '#fff', fontFamily: "'DM Sans',sans-serif", width: '100%', opacity: loading ? 0.7 : 1, transition: 'all .2s', boxShadow: loading ? 'none' : '0 0 20px rgba(155,109,255,0.3)' }}>
       {loading ? 'Generating…' : children}
     </button>
   )
@@ -73,20 +88,22 @@ function Output({ text, loading }: { text: string; loading: boolean }) {
   if (!text && !loading) return null
   return (
     <div style={{ background: 'var(--bg4)', border: '0.5px solid var(--b2)', borderRadius: 'var(--r2)', padding: '14px', marginTop: '12px' }}>
-      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '9px', color: 'var(--c)', textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '9px', display: 'flex', alignItems: 'center' }}>
+      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '9px', color: 'var(--pn)', textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '9px', display: 'flex', alignItems: 'center', textShadow: '0 0 8px rgba(155,109,255,0.4)' }}>
         <span className="ai-pulse" />AI Output
       </div>
-      {loading && <div style={{ height: '2px', background: 'rgba(0,245,255,0.08)', overflow: 'hidden', margin: '8px 0', borderRadius: '1px' }}><div className="lbar-fill" /></div>}
+      {loading && <div style={{ height: '2px', background: 'rgba(155,109,255,0.1)', overflow: 'hidden', margin: '8px 0', borderRadius: '1px' }}><div className="lbar-fill" /></div>}
       {text && <>
         <div style={{ fontSize: '12px', color: 'var(--w2)', lineHeight: '1.85', whiteSpace: 'pre-wrap' as const }}>{text}</div>
         <button onClick={() => navigator.clipboard.writeText(text)}
-          style={{ marginTop: '10px', padding: '7px 14px', borderRadius: '7px', fontSize: '11px', cursor: 'pointer', border: '0.5px solid var(--b2)', background: 'var(--s2)', color: 'var(--w2)', fontFamily: "'DM Sans',sans-serif" }}>
+          style={{ marginTop: '10px', padding: '7px 14px', borderRadius: '7px', fontSize: '11px', cursor: 'pointer', border: '0.5px solid var(--b2)', background: 'var(--s2)', color: 'var(--pn)', fontFamily: "'DM Sans',sans-serif" }}>
           Copy ↗
         </button>
       </>}
     </div>
   )
 }
+
+// ── TOOL COMPONENTS ───────────────────────────────────────────
 
 function MockupTool() {
   const [product, setProduct] = useState('T-Shirt')
@@ -98,14 +115,14 @@ function MockupTool() {
 
   async function run(body?: Record<string, string>) {
     setLoading(true); setOutput('')
-    try { setOutput(await callAPI('mockup', body ?? { product, design, setting, style })) }
+    try { setOutput(await callAPI('generate/mockup', body ?? { product, design, setting, style })) }
     catch (e) { setOutput(`Error: ${(e as Error).message}`) }
     finally { setLoading(false) }
   }
 
   return (
     <div className="pg-in">
-      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Mockup <span style={{ color: 'var(--c)' }}>Generator</span></div>
+      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Mockup <span style={{ color: 'var(--pn)', textShadow: '0 0 20px rgba(155,109,255,0.4)' }}>Generator</span></div>
       <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '24px', lineHeight: '1.6' }}>Describe your product — AI writes a complete prompt package for Midjourney, DALL-E, and Kling AI.</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
         <Panel hi>
@@ -138,7 +155,7 @@ function MockupTool() {
               { label: 'Clean studio tee', product: 'T-Shirt', design: 'Minimal embroidered logo, white tee', setting: 'Flat lay — clean marble surface, minimal props', style: 'Minimal studio flat lay' },
             ].map(q => (
               <button key={q.label} onClick={() => run(q)}
-                style={{ display: 'block', width: '100%', marginBottom: '8px', padding: '9px 12px', background: 'var(--bg3)', border: '0.5px solid var(--b)', borderRadius: '7px', fontSize: '12px', color: 'var(--mu3)', cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans',sans-serif" }}>
+                style={{ display: 'block', width: '100%', marginBottom: '8px', padding: '9px 12px', background: 'var(--bg3)', border: '0.5px solid var(--b)', borderRadius: '7px', fontSize: '12px', color: 'var(--mu3)', cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans',sans-serif", transition: 'all .2s' }}>
                 {q.label} ↗
               </button>
             ))}
@@ -165,14 +182,14 @@ function ListingTool() {
 
   async function run() {
     setLoading(true); setOutput('')
-    try { setOutput(await callAPI('listing', { productName, details, platform, targetAudience: audience })) }
+    try { setOutput(await callAPI('generate/listing', { productName, details, platform, targetAudience: audience })) }
     catch (e) { setOutput(`Error: ${(e as Error).message}`) }
     finally { setLoading(false) }
   }
 
   return (
     <div className="pg-in">
-      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Product <span style={{ color: 'var(--c)' }}>Listing Writer</span></div>
+      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Product <span style={{ color: 'var(--pn)', textShadow: '0 0 20px rgba(155,109,255,0.4)' }}>Listing Writer</span></div>
       <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '24px', lineHeight: '1.6' }}>AI writes your full title, description, bullet points, SEO tags, and TikTok caption in one click.</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
         <Panel hi>
@@ -212,14 +229,14 @@ function DescriptionTool() {
 
   async function run() {
     setLoading(true); setOutput('')
-    try { setOutput(await callAPI('description', { product, niche, tone, audience })) }
+    try { setOutput(await callAPI('generate/description', { product, niche, tone, audience })) }
     catch (e) { setOutput(`Error: ${(e as Error).message}`) }
     finally { setLoading(false) }
   }
 
   return (
     <div className="pg-in">
-      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Description <span style={{ color: 'var(--c)' }}>Writer</span></div>
+      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Description <span style={{ color: 'var(--pn)', textShadow: '0 0 20px rgba(155,109,255,0.4)' }}>Writer</span></div>
       <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '24px', lineHeight: '1.6' }}>Three description variants plus a power tagline in one click.</div>
       <Panel hi>
         <PTitle>Your product</PTitle>
@@ -247,14 +264,14 @@ function ImagePromptTool() {
 
   async function run() {
     setLoading(true); setOutput('')
-    try { setOutput(await callAPI('image-prompt', { subject, style, mood, platform, extras })) }
+    try { setOutput(await callAPI('generate/image-prompt', { subject, style, mood, platform, extras })) }
     catch (e) { setOutput(`Error: ${(e as Error).message}`) }
     finally { setLoading(false) }
   }
 
   return (
     <div className="pg-in">
-      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>AI Image <span style={{ color: 'var(--c)' }}>Prompt Builder</span></div>
+      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>AI Image <span style={{ color: 'var(--pn)', textShadow: '0 0 20px rgba(155,109,255,0.4)' }}>Prompt Builder</span></div>
       <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '24px', lineHeight: '1.6' }}>Describe your scene — AI writes a complete prompt for your chosen platform.</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
         <Panel hi>
@@ -275,7 +292,7 @@ function ImagePromptTool() {
           <PTitle>Platform guide</PTitle>
           {[['Midjourney v6','Best for fashion mockups. Includes --ar and --v 6 flags.'],['DALL-E 3','Natural language. No comma tags needed.'],['Kling AI','Best for video. Focus on motion and camera movement.'],['Runway Gen-3','Cinematic transitions and lighting changes.'],['Stable Diffusion','Keyword-dense. Quality boosters included.']].map(([n,t]) => (
             <div key={n} style={{ marginBottom: '12px' }}>
-              <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--c)', marginBottom: '2px', fontFamily: "'DM Mono',monospace" }}>{n}</div>
+              <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--pn)', marginBottom: '2px', fontFamily: "'DM Mono',monospace" }}>{n}</div>
               <div style={{ fontSize: '11px', color: 'var(--mu3)', lineHeight: '1.5' }}>{t}</div>
             </div>
           ))}
@@ -285,11 +302,200 @@ function ImagePromptTool() {
   )
 }
 
+function TryOnTool() {
+  const [modelImage, setModelImage] = useState<string | null>(null)
+  const [garmentImage, setGarmentImage] = useState<string | null>(null)
+  const [productName, setProductName] = useState('')
+  const [brand, setBrand] = useState('Custom Design')
+  const [platform, setPlatform] = useState('TikTok')
+  const [result, setResult] = useState<{message?: string; imageUrl?: string} | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [contentOutput, setContentOutput] = useState('')
+  const [contentLoading, setContentLoading] = useState(false)
+  const [activeContent, setActiveContent] = useState('caption')
+
+  function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>, type: 'model' | 'garment') {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => {
+      if (type === 'model') setModelImage(ev.target?.result as string)
+      else setGarmentImage(ev.target?.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  async function generateTryOn() {
+    if (!modelImage) { alert('Please upload a model or person photo'); return }
+    setLoading(true); setResult(null)
+    try {
+      const data = await callTryOn({ personImage: modelImage, garmentImage: garmentImage ?? '', productName, brand })
+      setResult(data)
+    } catch(e) {
+      setResult({ message: `Error: ${(e as Error).message}` })
+    } finally { setLoading(false) }
+  }
+
+  async function generateContent(type: string) {
+    setContentLoading(true); setContentOutput(''); setActiveContent(type)
+    try { setContentOutput(await callAPI('tryon', { productName: productName || 'Fashion item', brand, platform, contentType: type }, 'PUT')) }
+    catch(e) { setContentOutput(`Error: ${(e as Error).message}`) }
+    finally { setContentLoading(false) }
+  }
+
+  return (
+    <div className="pg-in">
+      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Creator <span style={{ color: 'var(--pn)', textShadow: '0 0 20px rgba(155,109,255,0.4)' }}>Try-On Studio</span></div>
+      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '8px', lineHeight: '1.6' }}>Upload a model + clothing image, generate try-on photos, and create all the content you need to sell it — captions, hashtags, scripts, and product descriptions.</div>
+      <div style={{ background: 'var(--pn3)', border: '0.5px solid rgba(155,109,255,0.25)', borderRadius: '8px', padding: '10px 14px', marginBottom: '20px', fontSize: '11px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace" }}>
+        ✦ Connect FASHN, Genlook, or OpenArt in Vercel env vars to enable real try-on · Content generation works now
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+
+        {/* LEFT — INPUTS */}
+        <div>
+          <Panel hi mb>
+            <PTitle>Model / person photo</PTitle>
+            <div className="upload-zone">
+              <input type="file" accept="image/*" onChange={e => handleImageUpload(e, 'model')} />
+              {!modelImage ? (
+                <div>
+                  <div style={{ fontSize: '28px', marginBottom: '6px' }}>🤳</div>
+                  <div style={{ fontSize: '12px', color: 'var(--w2)', marginBottom: '3px' }}>Upload model or AI twin photo</div>
+                  <div style={{ fontSize: '10px', color: 'var(--mu3)' }}>Real model, AI character, or influencer photo</div>
+                </div>
+              ) : (
+                <img src={modelImage} className="preview-img" alt="model" />
+              )}
+            </div>
+          </Panel>
+
+          <Panel hi>
+            <PTitle>Clothing / garment image</PTitle>
+            <div className="upload-zone">
+              <input type="file" accept="image/*" onChange={e => handleImageUpload(e, 'garment')} />
+              {!garmentImage ? (
+                <div>
+                  <div style={{ fontSize: '28px', marginBottom: '6px' }}>👗</div>
+                  <div style={{ fontSize: '12px', color: 'var(--w2)', marginBottom: '3px' }}>Upload clothing image</div>
+                  <div style={{ fontSize: '10px', color: 'var(--mu3)' }}>Product photo, screenshot, or flat lay</div>
+                </div>
+              ) : (
+                <img src={garmentImage} className="preview-img" alt="garment" />
+              )}
+            </div>
+            <div style={{ marginTop: '12px' }}>
+              <F label="Product name"><input style={inp} placeholder="e.g. Luxe Floral Crop Tee" value={productName} onChange={e => setProductName(e.target.value)} /></F>
+              <F label="Brand / source">
+                <select style={sel} value={brand} onChange={e => setBrand(e.target.value)}>
+                  {['Envi Lee','TikTok Shop','Amazon','Fashion Nova','Instagram Brand','Custom Design','Other'].map(b => <option key={b}>{b}</option>)}
+                </select>
+              </F>
+            </div>
+            <GenBtn loading={loading} onClick={generateTryOn}>✦ Generate Try-On</GenBtn>
+          </Panel>
+        </div>
+
+        {/* RIGHT — RESULT */}
+        <div>
+          <Panel neon mb>
+            <PTitle>Try-on preview</PTitle>
+            <div style={{ background: 'var(--bg3)', borderRadius: '10px', minHeight: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '0.5px solid var(--b2)', marginBottom: '12px', overflow: 'hidden' }}>
+              {loading ? (
+                <div style={{ textAlign: 'center', padding: '30px' }}>
+                  <div style={{ fontSize: '32px', marginBottom: '10px' }}>✦</div>
+                  <div style={{ fontSize: '13px', color: 'var(--pn)', marginBottom: '6px' }}>Generating try-on…</div>
+                  <div style={{ height: '2px', background: 'rgba(155,109,255,0.1)', overflow: 'hidden', borderRadius: '1px', width: '120px', margin: '0 auto' }}><div className="lbar-fill" /></div>
+                </div>
+              ) : result ? (
+                <div style={{ width: '100%', padding: '16px' }}>
+                  {result.imageUrl ? (
+                    <img src={result.imageUrl} alt="try-on result" style={{ width: '100%', borderRadius: '8px' }} />
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '20px' }}>
+                      <div style={{ fontSize: '32px', marginBottom: '8px' }}>✦</div>
+                      <div style={{ fontSize: '13px', color: 'var(--pn)', marginBottom: '8px', fontWeight: 600 }}>Demo Mode Active</div>
+                      <div style={{ fontSize: '11px', color: 'var(--mu3)', lineHeight: '1.7', marginBottom: '12px' }}>{result.message}</div>
+                      <div style={{ background: 'var(--pn3)', border: '0.5px solid rgba(155,109,255,0.3)', borderRadius: '8px', padding: '12px', fontSize: '11px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace", textAlign: 'left', lineHeight: '1.8' }}>
+                        Product: {result.product || productName || 'Not set'}<br/>
+                        Brand: {result.brand || brand}<br/>
+                        Model: {modelImage ? '✓ Uploaded' : '✗ Missing'}<br/>
+                        Garment: {garmentImage ? '✓ Uploaded' : '✗ Missing'}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '30px', color: 'var(--mu3)' }}>
+                  <div style={{ fontSize: '40px', marginBottom: '10px' }}>✦</div>
+                  <div style={{ fontSize: '13px', color: 'var(--pn)' }}>Try-on will appear here</div>
+                  <div style={{ fontSize: '11px', marginTop: '6px' }}>Upload photos and click Generate</div>
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <button onClick={() => alert('Save — connect image storage')} style={{ padding: '8px', borderRadius: '7px', border: '0.5px solid var(--b2)', background: 'var(--s2)', color: 'var(--pn)', fontSize: '11px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>⬇ Save photo</button>
+              <button onClick={() => navigator.share?.({ url: window.location.href })} style={{ padding: '8px', borderRadius: '7px', border: '0.5px solid var(--b2)', background: 'var(--s2)', color: 'var(--pn)', fontSize: '11px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>↗ Share</button>
+            </div>
+          </Panel>
+
+          {/* API CONNECTION INFO */}
+          <Panel>
+            <PTitle>Connect a try-on API</PTitle>
+            {[['FASHN','fashn.ai','FASHN_API_KEY','Best quality'],['Genlook','genlook.ai','GENLOOK_API_KEY','Fast results'],['OpenArt','openart.ai','OPENART_API_KEY','Free credits']].map(([name,url,key,note]) => (
+              <div key={name} style={{ padding: '9px 12px', background: 'var(--bg3)', borderRadius: 'var(--r)', marginBottom: '7px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--w)' }}>{name}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace" }}>{key}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '10px', color: 'var(--pn)' }}>{note}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--mu3)' }}>{url}</div>
+                </div>
+              </div>
+            ))}
+            <div style={{ fontSize: '10px', color: 'var(--mu3)', marginTop: '6px', fontFamily: "'DM Mono',monospace', lineHeight: '1.7" }}>
+              Add TRYON_PROVIDER + your key to Vercel Environment Variables to activate
+            </div>
+          </Panel>
+        </div>
+      </div>
+
+      {/* CONTENT GENERATOR */}
+      <Panel neon>
+        <PTitle>Content generator</PTitle>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div>
+            <F label="Platform">
+              <select style={sel} value={platform} onChange={e => setPlatform(e.target.value)}>
+                {['TikTok','Instagram','Amazon','TikTok Shop','Pinterest'].map(p => <option key={p}>{p}</option>)}
+              </select>
+            </F>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              {[['caption','Caption'],['hashtags','Hashtags'],['script','TikTok Script'],['description','Description']].map(([type, label]) => (
+                <button key={type} onClick={() => generateContent(type)}
+                  style={{ padding: '10px', borderRadius: '7px', border: `0.5px solid ${activeContent === type ? 'rgba(155,109,255,0.5)' : 'var(--b)'}`, background: activeContent === type ? 'var(--pn3)' : 'var(--bg3)', color: activeContent === type ? 'var(--pn)' : 'var(--mu3)', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", fontWeight: activeContent === type ? 600 : 400, transition: 'all .2s' }}>
+                  {label} ↗
+                </button>
+              ))}
+            </div>
+          </div>
+          <Output text={contentOutput} loading={contentLoading} />
+        </div>
+      </Panel>
+    </div>
+  )
+}
+
+// ── MAIN PAGE ─────────────────────────────────────────────────
+
 const TOOLS: { label: string; icon: string; tool: Tool }[] = [
   { label: 'Mockup Generator', icon: '◈', tool: 'mockup' },
   { label: 'Product Listing', icon: '⊹', tool: 'listing' },
   { label: 'Description Writer', icon: '◷', tool: 'description' },
   { label: 'AI Image Prompts', icon: '◉', tool: 'image-prompt' },
+  { label: 'Creator Try-On Studio', icon: '✦', tool: 'tryon' },
 ]
 
 export default function Page() {
@@ -300,18 +506,19 @@ export default function Page() {
     <>
       <style dangerouslySetInnerHTML={{ __html: css }} />
       <div style={{ display: 'flex', minHeight: '100vh', position: 'relative', zIndex: 1 }}>
-        <aside style={{ width: '220px', background: 'var(--bg2)', borderRight: '0.5px solid var(--b)', padding: '14px 10px', flexShrink: 0, height: '100vh', position: 'sticky', top: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        <aside style={{ width: '224px', background: 'var(--bg2)', borderRight: '0.5px solid var(--b)', padding: '14px 10px', flexShrink: 0, height: '100vh', position: 'sticky', top: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2px' }}>
           <div style={{ padding: '10px 10px 14px', borderBottom: '0.5px solid var(--b)', marginBottom: '8px' }}>
-            <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '14px', fontWeight: 800, color: 'var(--w)' }}>POD Pro <span style={{ color: 'var(--c)' }}>Studio™</span></div>
-            <div style={{ fontSize: '9px', color: 'var(--mu)', fontFamily: "'DM Mono',monospace", textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>Envi Lee AI Creator Suite</div>
+            <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '14px', fontWeight: 800, color: 'var(--w)' }}>Envi Lee <span style={{ color: 'var(--pn)', textShadow: '0 0 12px rgba(155,109,255,0.5)' }}>Creator Suite™</span></div>
+            <div style={{ fontSize: '9px', color: 'var(--mu)', fontFamily: "'DM Mono',monospace", textTransform: 'uppercase', letterSpacing: '1px', marginTop: '2px' }}>AI-Powered Tools</div>
           </div>
           <div style={{ fontSize: '9px', fontWeight: 600, color: 'var(--mu)', textTransform: 'uppercase', letterSpacing: '1.2px', padding: '4px 10px 8px', fontFamily: "'DM Mono',monospace" }}>Tools</div>
           {TOOLS.map(({ label, icon, tool }) => (
             <button key={tool} onClick={() => setActive(tool)}
               onMouseEnter={() => setHovered(tool)}
               onMouseLeave={() => setHovered(null)}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '7px', cursor: 'pointer', fontSize: '12px', border: `0.5px solid ${active === tool ? 'var(--bc)' : 'transparent'}`, background: active === tool ? 'var(--c2)' : hovered === tool ? 'var(--s1)' : 'none', color: active === tool ? 'var(--c)' : hovered === tool ? 'var(--w)' : 'var(--mu2)', width: '100%', textAlign: 'left', fontFamily: "'DM Sans',sans-serif", transition: 'all .2s' }}>
-              <span style={{ fontFamily: "'DM Mono',monospace" }}>{icon}</span>{label}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '7px', cursor: 'pointer', fontSize: '12px', border: `0.5px solid ${active === tool ? 'rgba(155,109,255,0.4)' : 'transparent'}`, background: active === tool ? 'var(--pn3)' : hovered === tool ? 'var(--s1)' : 'none', color: active === tool ? 'var(--pn)' : hovered === tool ? 'var(--w)' : 'var(--mu2)', width: '100%', textAlign: 'left', fontFamily: "'DM Sans',sans-serif", transition: 'all .2s', boxShadow: active === tool ? '0 0 10px rgba(155,109,255,0.1)' : 'none' }}>
+              <span style={{ fontFamily: "'DM Mono',monospace", textShadow: active === tool ? '0 0 8px rgba(155,109,255,0.5)' : 'none' }}>{icon}</span>{label}
+              {tool === 'tryon' && <span style={{ marginLeft: 'auto', fontSize: '9px', padding: '1px 6px', background: 'rgba(155,109,255,0.15)', color: 'var(--pn)', borderRadius: '4px', fontFamily: "'DM Mono',monospace" }}>New</span>}
             </button>
           ))}
           <div style={{ fontSize: '9px', fontWeight: 600, color: 'var(--mu)', textTransform: 'uppercase', letterSpacing: '1.2px', padding: '14px 10px 8px', fontFamily: "'DM Mono',monospace" }}>Coming Soon</div>
@@ -324,6 +531,7 @@ export default function Page() {
           {active === 'listing' && <ListingTool />}
           {active === 'description' && <DescriptionTool />}
           {active === 'image-prompt' && <ImagePromptTool />}
+          {active === 'tryon' && <TryOnTool />}
         </main>
       </div>
     </>
