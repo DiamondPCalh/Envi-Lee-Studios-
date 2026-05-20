@@ -1,8 +1,8 @@
 'use client'
 import { useState, useRef } from 'react'
-
+ 
 type Tool = 'mockup' | 'listing' | 'description' | 'image-prompt' | 'tryon'
-
+ 
 async function callAPI(endpoint: string, body: Record<string, string>, method = 'POST'): Promise<string> {
   const res = await fetch(`/api/${endpoint}`, {
     method,
@@ -13,7 +13,7 @@ async function callAPI(endpoint: string, body: Record<string, string>, method = 
   if (!res.ok) throw new Error(data.error ?? 'Generation failed')
   return data.result
 }
-
+ 
 async function callTryOn(body: Record<string, string>) {
   const res = await fetch('/api/tryon', {
     method: 'POST',
@@ -22,7 +22,7 @@ async function callTryOn(body: Record<string, string>) {
   })
   return await res.json()
 }
-
+ 
 const css = `
   :root {
     --bg:#000;--bg2:#05020a;--bg3:#0a0510;--bg4:#0f0818;
@@ -53,11 +53,11 @@ const css = `
   .upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
   .preview-img{width:100%;border-radius:8px;object-fit:cover;max-height:180px;margin-top:8px}
 `
-
+ 
 const inp: React.CSSProperties = { background: 'var(--bg3)', border: '0.5px solid var(--b)', borderRadius: '7px', padding: '9px 12px', fontSize: '12px', color: 'var(--w)', fontFamily: "'DM Sans',sans-serif", width: '100%', outline: 'none' }
 const ta: React.CSSProperties = { ...inp, resize: 'vertical' as const, minHeight: '78px', lineHeight: '1.6' }
 const sel: React.CSSProperties = { ...inp, padding: '8px 10px' }
-
+ 
 function F({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '5px', marginBottom: '12px' }}>
@@ -66,15 +66,15 @@ function F({ label, children }: { label: string; children: React.ReactNode }) {
     </div>
   )
 }
-
+ 
 function PTitle({ children, color }: { children: React.ReactNode; color?: string }) {
   return <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', fontWeight: 500, color: color ?? 'var(--pn)', textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)', textShadow: '0 0 10px rgba(155,109,255,0.3)' }}>{children}</div>
 }
-
+ 
 function Panel({ children, hi, mb, neon }: { children: React.ReactNode; hi?: boolean; mb?: boolean; neon?: boolean }) {
   return <div style={{ background: 'var(--s1)', border: `0.5px solid ${neon ? 'rgba(155,109,255,0.3)' : hi ? 'var(--b2)' : 'var(--b)'}`, borderRadius: 'var(--r2)', padding: '18px', marginBottom: mb ? '14px' : 0, boxShadow: neon ? '0 0 20px rgba(155,109,255,0.06)' : 'none' }}>{children}</div>
 }
-
+ 
 function GenBtn({ loading, onClick, children }: { loading: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button onClick={onClick} disabled={loading}
@@ -83,7 +83,7 @@ function GenBtn({ loading, onClick, children }: { loading: boolean; onClick: () 
     </button>
   )
 }
-
+ 
 function Output({ text, loading }: { text: string; loading: boolean }) {
   if (!text && !loading) return null
   return (
@@ -102,9 +102,9 @@ function Output({ text, loading }: { text: string; loading: boolean }) {
     </div>
   )
 }
-
+ 
 // ── TOOL COMPONENTS ───────────────────────────────────────────
-
+ 
 function MockupTool() {
   const [product, setProduct] = useState('T-Shirt')
   const [design, setDesign] = useState('')
@@ -112,14 +112,14 @@ function MockupTool() {
   const [style, setStyle] = useState('Editorial fashion photography')
   const [output, setOutput] = useState('')
   const [loading, setLoading] = useState(false)
-
+ 
   async function run(body?: Record<string, string>) {
     setLoading(true); setOutput('')
     try { setOutput(await callAPI('generate/mockup', body ?? { product, design, setting, style })) }
     catch (e) { setOutput(`Error: ${(e as Error).message}`) }
     finally { setLoading(false) }
   }
-
+ 
   return (
     <div className="pg-in">
       <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Mockup <span style={{ color: 'var(--pn)', textShadow: '0 0 20px rgba(155,109,255,0.4)' }}>Generator</span></div>
@@ -171,7 +171,7 @@ function MockupTool() {
     </div>
   )
 }
-
+ 
 function ListingTool() {
   const [productName, setProductName] = useState('')
   const [details, setDetails] = useState('')
@@ -179,14 +179,14 @@ function ListingTool() {
   const [audience, setAudience] = useState('Women aged 22–40 who love fashion and luxury aesthetics')
   const [output, setOutput] = useState('')
   const [loading, setLoading] = useState(false)
-
+ 
   async function run() {
     setLoading(true); setOutput('')
     try { setOutput(await callAPI('generate/listing', { productName, details, platform, targetAudience: audience })) }
     catch (e) { setOutput(`Error: ${(e as Error).message}`) }
     finally { setLoading(false) }
   }
-
+ 
   return (
     <div className="pg-in">
       <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Product <span style={{ color: 'var(--pn)', textShadow: '0 0 20px rgba(155,109,255,0.4)' }}>Listing Writer</span></div>
@@ -218,7 +218,7 @@ function ListingTool() {
     </div>
   )
 }
-
+ 
 function DescriptionTool() {
   const [product, setProduct] = useState('')
   const [niche, setNiche] = useState('luxury fashion')
@@ -226,14 +226,14 @@ function DescriptionTool() {
   const [audience, setAudience] = useState('Black women aged 22–40 who love fashion and lifestyle')
   const [output, setOutput] = useState('')
   const [loading, setLoading] = useState(false)
-
+ 
   async function run() {
     setLoading(true); setOutput('')
     try { setOutput(await callAPI('generate/description', { product, niche, tone, audience })) }
     catch (e) { setOutput(`Error: ${(e as Error).message}`) }
     finally { setLoading(false) }
   }
-
+ 
   return (
     <div className="pg-in">
       <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Description <span style={{ color: 'var(--pn)', textShadow: '0 0 20px rgba(155,109,255,0.4)' }}>Writer</span></div>
@@ -252,7 +252,7 @@ function DescriptionTool() {
     </div>
   )
 }
-
+ 
 function ImagePromptTool() {
   const [subject, setSubject] = useState('')
   const [style, setStyle] = useState('editorial fashion photography, luxury aesthetic')
@@ -261,14 +261,14 @@ function ImagePromptTool() {
   const [extras, setExtras] = useState('')
   const [output, setOutput] = useState('')
   const [loading, setLoading] = useState(false)
-
+ 
   async function run() {
     setLoading(true); setOutput('')
     try { setOutput(await callAPI('generate/image-prompt', { subject, style, mood, platform, extras })) }
     catch (e) { setOutput(`Error: ${(e as Error).message}`) }
     finally { setLoading(false) }
   }
-
+ 
   return (
     <div className="pg-in">
       <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>AI Image <span style={{ color: 'var(--pn)', textShadow: '0 0 20px rgba(155,109,255,0.4)' }}>Prompt Builder</span></div>
@@ -301,7 +301,7 @@ function ImagePromptTool() {
     </div>
   )
 }
-
+ 
 function TryOnTool() {
   const [modelImage, setModelImage] = useState<string | null>(null)
   const [garmentImage, setGarmentImage] = useState<string | null>(null)
@@ -313,7 +313,7 @@ function TryOnTool() {
   const [contentOutput, setContentOutput] = useState('')
   const [contentLoading, setContentLoading] = useState(false)
   const [activeContent, setActiveContent] = useState('caption')
-
+ 
   function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>, type: 'model' | 'garment') {
     const file = e.target.files?.[0]
     if (!file) return
@@ -324,7 +324,7 @@ function TryOnTool() {
     }
     reader.readAsDataURL(file)
   }
-
+ 
   async function generateTryOn() {
     if (!modelImage) { alert('Please upload a model or person photo'); return }
     setLoading(true); setResult(null)
@@ -335,14 +335,14 @@ function TryOnTool() {
       setResult({ message: `Error: ${(e as Error).message}` })
     } finally { setLoading(false) }
   }
-
+ 
   async function generateContent(type: string) {
     setContentLoading(true); setContentOutput(''); setActiveContent(type)
     try { setContentOutput(await callAPI('tryon', { productName: productName || 'Fashion item', brand, platform, contentType: type }, 'PUT')) }
     catch(e) { setContentOutput(`Error: ${(e as Error).message}`) }
     finally { setContentLoading(false) }
   }
-
+ 
   return (
     <div className="pg-in">
       <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Creator <span style={{ color: 'var(--pn)', textShadow: '0 0 20px rgba(155,109,255,0.4)' }}>Try-On Studio</span></div>
@@ -350,9 +350,9 @@ function TryOnTool() {
       <div style={{ background: 'var(--pn3)', border: '0.5px solid rgba(155,109,255,0.25)', borderRadius: '8px', padding: '10px 14px', marginBottom: '20px', fontSize: '11px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace" }}>
         ✦ Connect FASHN, Genlook, or OpenArt in Vercel env vars to enable real try-on · Content generation works now
       </div>
-
+ 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-
+ 
         {/* LEFT — INPUTS */}
         <div>
           <Panel hi mb>
@@ -370,7 +370,7 @@ function TryOnTool() {
               )}
             </div>
           </Panel>
-
+ 
           <Panel hi>
             <PTitle>Clothing / garment image</PTitle>
             <div className="upload-zone">
@@ -396,7 +396,7 @@ function TryOnTool() {
             <GenBtn loading={loading} onClick={generateTryOn}>✦ Generate Try-On</GenBtn>
           </Panel>
         </div>
-
+ 
         {/* RIGHT — RESULT */}
         <div>
           <Panel neon mb>
@@ -439,7 +439,7 @@ function TryOnTool() {
               <button onClick={() => navigator.share?.({ url: window.location.href })} style={{ padding: '8px', borderRadius: '7px', border: '0.5px solid var(--b2)', background: 'var(--s2)', color: 'var(--pn)', fontSize: '11px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>↗ Share</button>
             </div>
           </Panel>
-
+ 
           {/* API CONNECTION INFO */}
           <Panel>
             <PTitle>Connect a try-on API</PTitle>
@@ -461,7 +461,7 @@ function TryOnTool() {
           </Panel>
         </div>
       </div>
-
+ 
       {/* CONTENT GENERATOR */}
       <Panel neon>
         <PTitle>Content generator</PTitle>
@@ -487,9 +487,9 @@ function TryOnTool() {
     </div>
   )
 }
-
+ 
 // ── MAIN PAGE ─────────────────────────────────────────────────
-
+ 
 const TOOLS: { label: string; icon: string; tool: Tool }[] = [
   { label: 'Mockup Generator', icon: '◈', tool: 'mockup' },
   { label: 'Product Listing', icon: '⊹', tool: 'listing' },
@@ -497,11 +497,11 @@ const TOOLS: { label: string; icon: string; tool: Tool }[] = [
   { label: 'AI Image Prompts', icon: '◉', tool: 'image-prompt' },
   { label: 'Creator Try-On Studio', icon: '✦', tool: 'tryon' },
 ]
-
+ 
 export default function Page() {
   const [active, setActive] = useState<Tool>('mockup')
   const [hovered, setHovered] = useState<Tool | null>(null)
-
+ 
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: css }} />
