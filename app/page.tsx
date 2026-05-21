@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 type Tool = 'mockup' | 'listing' | 'description' | 'image-prompt' | 'tryon' | 'cineflow' | 'studios' | 'deals' | 'lipsync' | 'collection' | 'profit' | 'imagegen' | 'saved'
 
@@ -97,29 +97,30 @@ function Output({ text, loading, cf, tool, prompt }: { text: string; loading: bo
 
   function copy() {
     if (!text) return
+    // Method 1: Modern clipboard API
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      }).catch(() => fallbackCopy())
+    } else {
+      fallbackCopy()
+    }
+  }
+
+  function fallbackCopy() {
     const textArea = document.createElement('textarea')
     textArea.value = text
-    textArea.style.position = 'fixed'
-    textArea.style.left = '-9999px'
-    textArea.style.top = '-9999px'
+    textArea.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0'
     document.body.appendChild(textArea)
     textArea.focus()
     textArea.select()
-    try {
-      document.execCommand('copy')
+    const success = document.execCommand('copy')
+    document.body.removeChild(textArea)
+    if (success) {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } catch {
-      try {
-        navigator.clipboard.writeText(text).then(() => {
-          setCopied(true)
-          setTimeout(() => setCopied(false), 2000)
-        })
-      } catch {
-        alert('Copy failed — please select the text and copy manually')
-      }
     }
-    document.body.removeChild(textArea)
   }
 
   async function save() {
@@ -1872,14 +1873,24 @@ function SavedWorkTool() {
   }
 
   function copy(text: string, id: number) {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(() => {
+        setCopied(id)
+        setTimeout(() => setCopied(null), 2000)
+      }).catch(() => fallbackCopy(text, id))
+    } else {
+      fallbackCopy(text, id)
+    }
+  }
+
+  function fallbackCopy(text: string, id: number) {
     const textArea = document.createElement('textarea')
     textArea.value = text
-    textArea.style.position = 'fixed'
-    textArea.style.left = '-9999px'
+    textArea.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0'
     document.body.appendChild(textArea)
     textArea.focus()
     textArea.select()
-    try { document.execCommand('copy') } catch { navigator.clipboard.writeText(text) }
+    document.execCommand('copy')
     document.body.removeChild(textArea)
     setCopied(id)
     setTimeout(() => setCopied(null), 2000)
@@ -1893,7 +1904,7 @@ function SavedWorkTool() {
   }
 
   // Load on mount
-  useState(() => { load() })
+  useEffect(() => { load() }, [])
 
   const tools = ['all', ...Array.from(new Set(savedItems.map(i => i.tool)))]
   const filtered = filter === 'all' ? savedItems : savedItems.filter(i => i.tool === filter)
@@ -1975,7 +1986,7 @@ export default function Page() {
   const [hovered, setHovered] = useState<Tool | null>(null)
 
   // Listen for cross-tool navigation events
-  useState(() => {
+  useEffect(() => {
     const handler = (e: Event) => {
       const tool = (e as CustomEvent).detail as Tool
       setActive(tool)
