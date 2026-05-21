@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
  
-type Tool = 'mockup' | 'listing' | 'description' | 'image-prompt' | 'tryon' | 'cineflow' | 'studios' | 'deals'
+type Tool = 'mockup' | 'listing' | 'description' | 'image-prompt' | 'tryon' | 'cineflow' | 'studios' | 'deals' | 'lipsync'
  
 async function callAPI(endpoint: string, body: Record<string, string>, method = 'POST'): Promise<string> {
   const res = await fetch(`/api/${endpoint}`, {
@@ -1238,6 +1238,226 @@ function BrandDealsTool() {
   )
 }
  
+// ── LIP SYNC STUDIO ──────────────────────────────────────────
+ 
+function LipSyncTool() {
+  const [activeTab, setActiveTab] = useState('single')
+  const [output, setOutput] = useState('')
+  const [loading, setLoading] = useState(false)
+ 
+  // Single character
+  const [character, setCharacter] = useState('Luxe Envi — luxury lifestyle creator, 28, Black woman, natural locs')
+  const [purpose, setPurpose] = useState('TikTok promotional video')
+  const [topic, setTopic] = useState('')
+  const [length, setLength] = useState('30 seconds')
+  const [tone, setTone] = useState('Confident and empowering')
+ 
+  // Multi character
+  const [c1Name, setC1Name] = useState('Luxe Envi')
+  const [c1Desc, setC1Desc] = useState('Black woman, 28, luxury lifestyle creator, confident and powerful')
+  const [c2Name, setC2Name] = useState('Marcus Reed')
+  const [c2Desc, setC2Desc] = useState('Black man, 32, drama lead, deep voice, commanding')
+  const [c3Name, setC3Name] = useState('')
+  const [c3Desc, setC3Desc] = useState('')
+  const [mcScene, setMcScene] = useState('Reality TV confrontation / drama')
+  const [mcSetting, setMcSetting] = useState('')
+  const [mcStory, setMcStory] = useState('')
+  const [mcLength, setMcLength] = useState('Medium — 10 to 14 exchanges')
+ 
+  // Voice script
+  const [voiceType, setVoiceType] = useState('Confident Black woman — warm, powerful, commanding')
+  const [voicePurpose, setVoicePurpose] = useState('TikTok voiceover')
+  const [voiceMessage, setVoiceMessage] = useState('')
+ 
+  async function gen(params: Record<string, string>) {
+    setLoading(true); setOutput('')
+    try { setOutput(await callAPI('generate/lipsync', params)) }
+    catch (e) { setOutput(`Error: ${(e as Error).message}`) }
+    finally { setLoading(false) }
+  }
+ 
+  const lsTabs = [
+    { id: 'single', label: '◈ Single Character' },
+    { id: 'multi', label: '⊹ Multi-Character' },
+    { id: 'voice', label: '◷ Voice Script' },
+  ]
+ 
+  const purpleNeon = '#b06cff'
+ 
+  return (
+    <div className="pg-in">
+      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Lip Sync <span style={{ color: purpleNeon }}>Studio</span></div>
+      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '16px', lineHeight: '1.6' }}>Generate scripts, voice packages, and multi-character dialogues ready for HeyGen, D-ID, ElevenLabs, and InfiniteTalk.</div>
+ 
+      {/* TABS */}
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '20px' }}>
+        {lsTabs.map(t => (
+          <button key={t.id} onClick={() => { setActiveTab(t.id); setOutput('') }}
+            style={{ padding: '7px 14px', borderRadius: '7px', fontSize: '11px', fontWeight: 500, cursor: 'pointer', border: `0.5px solid ${activeTab === t.id ? 'rgba(176,108,255,0.4)' : 'var(--b)'}`, background: activeTab === t.id ? 'rgba(176,108,255,0.12)' : 'var(--s1)', color: activeTab === t.id ? purpleNeon : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif", transition: 'all .2s' }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+ 
+      {/* SINGLE CHARACTER */}
+      {activeTab === 'single' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <Panel hi>
+            <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: purpleNeon, textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Lip Sync Script Generator</div>
+            <F label="Character">
+              <select style={sel} value={character} onChange={e => setCharacter(e.target.value)}>
+                {['Luxe Envi — luxury lifestyle creator, 28, Black woman, natural locs','Baddie Nova — streetwear and POD, 24, bold and confident','Nova Star — AI pop artist, 23, glamorous performer','Marcus Reed — drama lead, 32, deep voice, commanding'].map(c => <option key={c}>{c}</option>)}
+              </select>
+            </F>
+            <F label="Video purpose">
+              <select style={sel} value={purpose} onChange={e => setPurpose(e.target.value)}>
+                {['TikTok promotional video','Instagram Reel','Product launch announcement','Brand deal sponsored content','Course or academy intro','Reality show monologue','Music video lip sync','AI influencer talking head','Sales page video'].map(p => <option key={p}>{p}</option>)}
+              </select>
+            </F>
+            <F label="Topic / message"><textarea style={ta} placeholder="What does the character say? What is the video about?" value={topic} onChange={e => setTopic(e.target.value)} /></F>
+            <F label="Length">
+              <select style={sel} value={length} onChange={e => setLength(e.target.value)}>
+                {['15 seconds','30 seconds','60 seconds','90 seconds','2-3 minutes'].map(l => <option key={l}>{l}</option>)}
+              </select>
+            </F>
+            <F label="Tone">
+              <select style={sel} value={tone} onChange={e => setTone(e.target.value)}>
+                {['Confident and empowering','Luxury and aspirational','Fun and energetic','Emotional and personal','Professional and authoritative','Hype and excited'].map(t => <option key={t}>{t}</option>)}
+              </select>
+            </F>
+            <button onClick={() => gen({ tool: 'single', character, purpose, topic, length, tone })} disabled={loading}
+              style={{ padding: '10px 16px', borderRadius: '7px', fontSize: '12px', fontWeight: 700, cursor: loading ? 'default' : 'pointer', border: 'none', background: loading ? 'rgba(176,108,255,0.2)' : purpleNeon, color: '#000', fontFamily: "'DM Sans',sans-serif", width: '100%', opacity: loading ? 0.7 : 1, transition: 'all .2s', boxShadow: loading ? 'none' : '0 0 20px rgba(176,108,255,0.3)' }}>
+              {loading ? 'Generating…' : 'Generate lip sync package ↗'}
+            </button>
+            <Output text={output} loading={loading} />
+          </Panel>
+          <div>
+            <Panel mb>
+              <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: purpleNeon, textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Quick-starts</div>
+              {[
+                { label: 'Luxe Envi — product promo', character: 'Luxe Envi — luxury lifestyle creator, 28, Black woman, natural locs', purpose: 'TikTok promotional video', topic: 'Promoting my POD fashion collection — luxury swim set just dropped, link in bio to shop', length: '30 seconds', tone: 'Confident and empowering' },
+                { label: 'Nova Star — music video', character: 'Nova Star — AI pop artist, 23, glamorous performer', purpose: 'Music video lip sync', topic: 'Singing the chorus of a brand new pop anthem about being unstoppable and living in luxury', length: '30 seconds', tone: 'Hype and excited' },
+                { label: 'Academy welcome video', character: 'Luxe Envi — luxury lifestyle creator, 28, Black woman, natural locs', purpose: 'Course or academy intro', topic: 'Welcome to Baddie Academy — inside you will learn how to build a POD business and AI influencer brand from scratch', length: '60 seconds', tone: 'Professional and authoritative' },
+                { label: 'Brand deal content', character: 'Baddie Nova — streetwear and POD, 24, bold and confident', purpose: 'Brand deal sponsored content', topic: 'Talking about a fashion brand partnership — authentic, showing off the product naturally', length: '30 seconds', tone: 'Fun and energetic' },
+              ].map(q => (
+                <button key={q.label} onClick={() => { setCharacter(q.character); setPurpose(q.purpose); setTopic(q.topic); setLength(q.length); setTone(q.tone); gen({ tool: 'single', ...q }) }}
+                  style={{ display: 'block', width: '100%', marginBottom: '7px', padding: '8px 11px', background: 'var(--bg3)', border: '0.5px solid var(--b)', borderRadius: '7px', fontSize: '12px', color: 'var(--mu3)', cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans',sans-serif" }}>
+                  {q.label} ↗
+                </button>
+              ))}
+            </Panel>
+            <Panel>
+              <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: purpleNeon, textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Free lip sync tools</div>
+              {[['HeyGen','heygen.com','Best quality AI lip sync'],['D-ID','d-id.com','Talking avatar creator'],['Runway Gen-3','runwayml.com','Cinematic lip sync'],['ElevenLabs','elevenlabs.io','AI voice cloning']].map(([n,u,d]) => (
+                <a key={n} href={`https://${u}`} target="_blank" rel="noreferrer"
+                  style={{ padding: '9px 12px', background: 'var(--bg3)', border: '0.5px solid var(--b)', borderRadius: 'var(--r)', textDecoration: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '7px' }}>
+                  <div><div style={{ fontSize: '12px', color: 'var(--w)', fontWeight: 500 }}>{n}</div><div style={{ fontSize: '10px', color: 'var(--mu3)', marginTop: '2px' }}>{d}</div></div>
+                  <span style={{ color: purpleNeon, fontSize: '10px', fontFamily: "'DM Mono',monospace" }}>Free ↗</span>
+                </a>
+              ))}
+            </Panel>
+          </div>
+        </div>
+      )}
+ 
+      {/* MULTI CHARACTER */}
+      {activeTab === 'multi' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <Panel hi>
+            <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: purpleNeon, textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Multi-Character Dialogue</div>
+            <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '12px', marginBottom: '10px', border: '0.5px solid rgba(176,108,255,0.15)' }}>
+              <div style={{ fontSize: '10px', color: purpleNeon, fontFamily: "'DM Mono',monospace", marginBottom: '8px' }}>CHARACTER 1</div>
+              <F label="Name"><input style={inp} value={c1Name} onChange={e => setC1Name(e.target.value)} /></F>
+              <F label="Description"><input style={inp} value={c1Desc} onChange={e => setC1Desc(e.target.value)} /></F>
+            </div>
+            <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '12px', marginBottom: '10px', border: '0.5px solid rgba(176,108,255,0.15)' }}>
+              <div style={{ fontSize: '10px', color: purpleNeon, fontFamily: "'DM Mono',monospace", marginBottom: '8px' }}>CHARACTER 2</div>
+              <F label="Name"><input style={inp} value={c2Name} onChange={e => setC2Name(e.target.value)} /></F>
+              <F label="Description"><input style={inp} value={c2Desc} onChange={e => setC2Desc(e.target.value)} /></F>
+            </div>
+            <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '12px', marginBottom: '10px', border: '0.5px solid var(--b)' }}>
+              <div style={{ fontSize: '10px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace", marginBottom: '8px' }}>CHARACTER 3 (optional)</div>
+              <F label="Name"><input style={inp} placeholder="Leave blank if only 2 characters" value={c3Name} onChange={e => setC3Name(e.target.value)} /></F>
+              <F label="Description"><input style={inp} value={c3Desc} onChange={e => setC3Desc(e.target.value)} /></F>
+            </div>
+            <F label="Scene type">
+              <select style={sel} value={mcScene} onChange={e => setMcScene(e.target.value)}>
+                {['Reality TV confrontation / drama','Friendship conversation','Business negotiation','Romantic tension','Comedy / funny dialogue','Interview / podcast','Mentor and student','Music video interlude','Motivational conversation','Argument / conflict'].map(s => <option key={s}>{s}</option>)}
+              </select>
+            </F>
+            <F label="Setting"><input style={inp} placeholder="e.g. rooftop party NYC, luxury penthouse, backstage concert" value={mcSetting} onChange={e => setMcSetting(e.target.value)} /></F>
+            <F label="What happens"><textarea style={ta} placeholder="Describe the situation and what you want to happen..." value={mcStory} onChange={e => setMcStory(e.target.value)} /></F>
+            <F label="Length">
+              <select style={sel} value={mcLength} onChange={e => setMcLength(e.target.value)}>
+                {['Short — 6 to 8 exchanges (30 sec)','Medium — 10 to 14 exchanges (60 sec)','Long — 16 to 20 exchanges (90 sec)'].map(l => <option key={l}>{l}</option>)}
+              </select>
+            </F>
+            <button onClick={() => gen({ tool: 'multi', c1name: c1Name, c1desc: c1Desc, c2name: c2Name, c2desc: c2Desc, c3name: c3Name, c3desc: c3Desc, scene: mcScene, setting: mcSetting, story: mcStory, length: mcLength })} disabled={loading}
+              style={{ padding: '10px 16px', borderRadius: '7px', fontSize: '12px', fontWeight: 700, cursor: loading ? 'default' : 'pointer', border: 'none', background: loading ? 'rgba(176,108,255,0.2)' : purpleNeon, color: '#000', fontFamily: "'DM Sans',sans-serif", width: '100%', opacity: loading ? 0.7 : 1, transition: 'all .2s', boxShadow: loading ? 'none' : '0 0 20px rgba(176,108,255,0.3)' }}>
+              {loading ? 'Generating…' : 'Generate multi-character dialogue ↗'}
+            </button>
+            <Output text={output} loading={loading} />
+          </Panel>
+          <div>
+            <Panel mb>
+              <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: purpleNeon, textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Quick-starts</div>
+              {[
+                { label: 'Baddie House rooftop drama', c1name: 'Luxe Envi', c1desc: 'Black woman, 28, luxury lifestyle creator, confident and powerful', c2name: 'Marcus Reed', c2desc: 'Black man, 32, drama lead, deep voice, commanding', c3name: '', c3desc: '', scene: 'Reality TV confrontation / drama', setting: 'luxury rooftop penthouse NYC night', story: 'Luxe confronts Marcus about leaking her business plans to a competitor — tension is high', length: 'Medium — 10 to 14 exchanges (60 sec)' },
+                { label: 'Mentor and student', c1name: 'Luxe Envi', c1desc: 'Black woman, 28, powerful mentor energy', c2name: 'Jade', c2desc: 'Black woman, 22, aspiring creator, eager to learn', c3name: '', c3desc: '', scene: 'Mentor and student', setting: 'modern coworking space with floor to ceiling windows', story: 'Luxe mentors Jade on how to build her AI influencer brand and stop playing small', length: 'Medium — 10 to 14 exchanges (60 sec)' },
+                { label: '3-character podcast', c1name: 'Luxe Envi', c1desc: 'Black woman, 28, warm and inspiring host', c2name: 'Baddie Nova', c2desc: 'Black woman, 24, bold and real', c3name: 'Nova Star', c3desc: 'AI pop artist, 23, glamorous and energetic', scene: 'Interview / podcast', setting: 'podcast studio with moody lighting and ring lights', story: 'Roundtable on how they each built their AI empires and what advice they would give other Black women creators', length: 'Long — 16 to 20 exchanges (90 sec)' },
+              ].map(q => (
+                <button key={q.label} onClick={() => { setC1Name(q.c1name); setC1Desc(q.c1desc); setC2Name(q.c2name); setC2Desc(q.c2desc); setC3Name(q.c3name); setC3Desc(q.c3desc); setMcScene(q.scene); setMcSetting(q.setting); setMcStory(q.story); setMcLength(q.length); gen({ tool: 'multi', c1name: q.c1name, c1desc: q.c1desc, c2name: q.c2name, c2desc: q.c2desc, c3name: q.c3name, c3desc: q.c3desc, scene: q.scene, setting: q.setting, story: q.story, length: q.length }) }}
+                  style={{ display: 'block', width: '100%', marginBottom: '7px', padding: '8px 11px', background: 'var(--bg3)', border: '0.5px solid var(--b)', borderRadius: '7px', fontSize: '12px', color: 'var(--mu3)', cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans',sans-serif" }}>
+                  {q.label} ↗
+                </button>
+              ))}
+            </Panel>
+            <Panel>
+              <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: purpleNeon, textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Multi-character workflow</div>
+              <div style={{ fontSize: '12px', color: 'var(--mu3)', lineHeight: '2.2', fontFamily: "'DM Mono',monospace" }}>
+                <span style={{ color: purpleNeon }}>Step 1</span> — Generate dialogue here<br/>
+                <span style={{ color: purpleNeon }}>Step 2</span> — Generate character images in Midjourney<br/>
+                <span style={{ color: purpleNeon }}>Step 3</span> — Generate audio per character in ElevenLabs<br/>
+                <span style={{ color: purpleNeon }}>Step 4</span> — Upload to InfiniteTalk Multi or Dzine AI<br/>
+                <span style={{ color: purpleNeon }}>Step 5</span> — Generate → download → post
+              </div>
+            </Panel>
+          </div>
+        </div>
+      )}
+ 
+      {/* VOICE SCRIPT */}
+      {activeTab === 'voice' && (
+        <Panel hi>
+          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: purpleNeon, textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Voice Script Generator</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div>
+              <F label="Voice type">
+                <select style={sel} value={voiceType} onChange={e => setVoiceType(e.target.value)}>
+                  {['Confident Black woman — warm, powerful, commanding','Luxurious female — soft, elevated, aspirational','Energetic creator — fun, fast, relatable','Male — deep, authoritative, calm','Young female — bright, excited, trendy'].map(v => <option key={v}>{v}</option>)}
+                </select>
+              </F>
+              <F label="Purpose"><input style={inp} placeholder="e.g. TikTok voiceover, podcast intro, ad narration" value={voicePurpose} onChange={e => setVoicePurpose(e.target.value)} /></F>
+              <F label="Key message"><textarea style={ta} placeholder="What do you want the voiceover to say? Key points, feeling, CTA..." value={voiceMessage} onChange={e => setVoiceMessage(e.target.value)} /></F>
+              <button onClick={() => gen({ tool: 'voice', voice: voiceType, purpose: voicePurpose, message: voiceMessage })} disabled={loading}
+                style={{ padding: '10px 16px', borderRadius: '7px', fontSize: '12px', fontWeight: 700, cursor: loading ? 'default' : 'pointer', border: 'none', background: loading ? 'rgba(176,108,255,0.2)' : purpleNeon, color: '#000', fontFamily: "'DM Sans',sans-serif", width: '100%', opacity: loading ? 0.7 : 1, transition: 'all .2s', boxShadow: loading ? 'none' : '0 0 20px rgba(176,108,255,0.3)' }}>
+                {loading ? 'Writing…' : 'Generate voice script ↗'}
+              </button>
+            </div>
+            <div>
+              <Output text={output} loading={loading} />
+              <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(176,108,255,0.08)', border: '0.5px solid rgba(176,108,255,0.2)', borderRadius: 'var(--r)', fontSize: '11px', color: purpleNeon, lineHeight: '1.8' }}>
+                <strong>ElevenLabs tip:</strong><br/>
+                Copy your script → go to elevenlabs.io → paste into the text box → pick a voice or clone your own → generate → download the audio → use in your videos.
+              </div>
+            </div>
+          </div>
+        </Panel>
+      )}
+    </div>
+  )
+}
+ 
 // ── SIDEBAR + PAGE ────────────────────────────────────────────
  
 const TOOLS: { label: string; icon: string; tool: Tool; isNew?: boolean }[] = [
@@ -1249,6 +1469,7 @@ const TOOLS: { label: string; icon: string; tool: Tool; isNew?: boolean }[] = [
   { label: 'CineFlow AI™', icon: '⊳', tool: 'cineflow', isNew: true },
   { label: 'AI Studios™', icon: '◉', tool: 'studios', isNew: true },
   { label: 'Brand Deals', icon: '◎', tool: 'deals', isNew: true },
+  { label: 'Lip Sync Studio', icon: '◈', tool: 'lipsync', isNew: true },
 ]
  
 export default function Page() {
@@ -1276,7 +1497,7 @@ export default function Page() {
             </button>
           ))}
           <div style={{ fontSize: '9px', fontWeight: 600, color: 'var(--mu)', textTransform: 'uppercase', letterSpacing: '1.2px', padding: '14px 10px 8px', fontFamily: "'DM Mono',monospace" }}>Coming Soon</div>
-          {['Lip Sync Studio'].map(l => (
+          {['Collection Builder','Profit Calculator'].map(l => (
             <button key={l} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '7px', fontSize: '12px', border: '0.5px solid transparent', background: 'none', color: 'var(--mu)', width: '100%', textAlign: 'left', fontFamily: "'DM Sans',sans-serif", opacity: 0.4, cursor: 'default' }}>◌ {l}</button>
           ))}
         </aside>
@@ -1289,6 +1510,7 @@ export default function Page() {
           {active === 'cineflow' && <CineFlowTool />}
           {active === 'studios' && <AIStudiosTool />}
           {active === 'deals' && <BrandDealsTool />}
+          {active === 'lipsync' && <LipSyncTool />}
         </main>
       </div>
     </>
