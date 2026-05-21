@@ -969,7 +969,7 @@ function AIStudiosTool() {
           <Panel hi>
             <PTitle>Multi-Character Dialogue</PTitle>
             <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '12px', marginBottom: '12px', border: '0.5px solid rgba(155,109,255,0.15)' }}>
-              <div style={{ fontSize: '10px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace', textTransform:'uppercase", letterSpacing: '.7px', marginBottom: '8px' }}>Character 1</div>
+              <div style={{ fontSize: '10px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace", textTransform: 'uppercase' as const, letterSpacing: '.7px', marginBottom: '8px' }}>Character 1</div>
               <F label="Name"><input style={inp} value={mc1Name} onChange={e => setMc1Name(e.target.value)} /></F>
               <F label="Description"><input style={inp} value={mc1Desc} onChange={e => setMc1Desc(e.target.value)} /></F>
             </div>
@@ -1702,3 +1702,5 @@ export default function Page() {
       </div>
     </>
   )
+}
+ 
