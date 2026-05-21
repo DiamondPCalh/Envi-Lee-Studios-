@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
  
-type Tool = 'mockup' | 'listing' | 'description' | 'image-prompt' | 'tryon' | 'cineflow' | 'studios'
+type Tool = 'mockup' | 'listing' | 'description' | 'image-prompt' | 'tryon' | 'cineflow' | 'studios' | 'deals'
  
 async function callAPI(endpoint: string, body: Record<string, string>, method = 'POST'): Promise<string> {
   const res = await fetch(`/api/${endpoint}`, {
@@ -1022,6 +1022,222 @@ function AIStudiosTool() {
   )
 }
  
+// ── BRAND DEALS ──────────────────────────────────────────────
+ 
+function BrandDealsTool() {
+  const [activeTab, setActiveTab] = useState('pitch')
+  const [output, setOutput] = useState('')
+  const [loading, setLoading] = useState(false)
+ 
+  // Pitch
+  const [brand, setBrand] = useState('')
+  const [dealType, setDealType] = useState('Sponsored content (paid posts)')
+  const [audience, setAudience] = useState('TikTok 85k, Instagram 42k, avg 8% engagement')
+  const [rate, setRate] = useState('')
+  const [fit, setFit] = useState('')
+  const [tone, setTone] = useState('Confident and professional')
+ 
+  // Rate card
+  const [platforms, setPlatforms] = useState('TikTok 85k, Instagram 42k')
+  const [niche, setNiche] = useState('POD fashion and AI influencer creator')
+ 
+  // Follow up
+  const [fuBrand, setFuBrand] = useState('')
+  const [fuPrevious, setFuPrevious] = useState('sent initial pitch 1 week ago')
+  const [fuTone, setFuTone] = useState('Confident and professional')
+ 
+  // Counter
+  const [coBrand, setCoBrand] = useState('')
+  const [coOffer, setCoOffer] = useState('')
+  const [coCounter, setCoCounter] = useState('')
+  const [coTone, setCoTone] = useState('Confident and professional')
+ 
+  // Contract
+  const [ctBrand, setCtBrand] = useState('')
+  const [ctType, setCtType] = useState('Sponsored content')
+  const [ctRate, setCtRate] = useState('')
+  const [ctDeliverables, setCtDeliverables] = useState('')
+ 
+  async function gen(params: Record<string, string>) {
+    setLoading(true); setOutput('')
+    try { setOutput(await callAPI('generate/deals', params)) }
+    catch (e) { setOutput(`Error: ${(e as Error).message}`) }
+    finally { setLoading(false) }
+  }
+ 
+  const tabs = [
+    { id: 'pitch', label: '◎ Pitch Email' },
+    { id: 'ratecard', label: '⊹ Rate Card' },
+    { id: 'followup', label: '◷ Follow Up' },
+    { id: 'counter', label: '⊳ Counter Offer' },
+    { id: 'contract', label: '◈ Contract' },
+  ]
+ 
+  const goldStyle = { color: '#e8c76a' }
+  const goldBorder = { borderColor: 'rgba(232,199,106,0.3)' }
+ 
+  return (
+    <div className="pg-in">
+      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Brand <span style={{ color: '#e8c76a' }}>Deals</span></div>
+      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '16px', lineHeight: '1.6' }}>Pitch emails, rate cards, follow-ups, counter offers, and contract outlines. Close deals like a pro.</div>
+ 
+      {/* TABS */}
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', flexWrap: 'wrap' as const }}>
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => { setActiveTab(t.id); setOutput('') }}
+            style={{ padding: '7px 12px', borderRadius: '7px', fontSize: '11px', fontWeight: 500, cursor: 'pointer', border: `0.5px solid ${activeTab === t.id ? 'rgba(232,199,106,0.4)' : 'var(--b)'}`, background: activeTab === t.id ? 'rgba(232,199,106,0.1)' : 'var(--s1)', color: activeTab === t.id ? '#e8c76a' : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif", transition: 'all .2s' }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+ 
+      {/* PITCH EMAIL */}
+      {activeTab === 'pitch' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <Panel hi>
+            <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', fontWeight: 500, color: '#e8c76a', textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Pitch Email Generator</div>
+            <F label="Brand name"><input style={inp} placeholder="e.g. FashionNova, Target, Shein, Nike" value={brand} onChange={e => setBrand(e.target.value)} /></F>
+            <F label="Deal type">
+              <select style={sel} value={dealType} onChange={e => setDealType(e.target.value)}>
+                {['Sponsored content (paid posts)','Brand ambassador','Collection collaboration','UGC content package','Affiliate partnership'].map(d => <option key={d}>{d}</option>)}
+              </select>
+            </F>
+            <F label="Your audience and platforms"><input style={inp} value={audience} onChange={e => setAudience(e.target.value)} /></F>
+            <F label="Your rate ask"><input style={inp} placeholder="e.g. $2,500 per post, $5k for 3-post campaign" value={rate} onChange={e => setRate(e.target.value)} /></F>
+            <F label="Why this brand fits your audience"><input style={inp} placeholder="e.g. My audience is 80% Black women 25-40 who love fashion" value={fit} onChange={e => setFit(e.target.value)} /></F>
+            <F label="Tone">
+              <select style={sel} value={tone} onChange={e => setTone(e.target.value)}>
+                {['Confident and professional','Warm and personal','Bold and direct'].map(t => <option key={t}>{t}</option>)}
+              </select>
+            </F>
+            <button onClick={() => gen({ tool: 'pitch', brand, type: dealType, audience, rate, fit, tone })} disabled={loading}
+              style={{ padding: '10px 16px', borderRadius: '7px', fontSize: '12px', fontWeight: 700, cursor: loading ? 'default' : 'pointer', border: 'none', background: loading ? 'rgba(232,199,106,0.2)' : '#e8c76a', color: '#000', fontFamily: "'DM Sans',sans-serif", width: '100%', opacity: loading ? 0.7 : 1, transition: 'all .2s', boxShadow: loading ? 'none' : '0 0 20px rgba(232,199,106,0.3)' }}>
+              {loading ? 'Writing…' : 'Generate pitch email ↗'}
+            </button>
+            <Output text={output} loading={loading} />
+          </Panel>
+          <div>
+            <Panel mb>
+              <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: '#e8c76a', textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Quick-starts</div>
+              {[
+                { label: 'FashionNova pitch', brand: 'FashionNova', type: 'Sponsored content (paid posts)', audience: 'TikTok 85k, Instagram 42k, 8% engagement', rate: '$3,500 for 4-post monthly campaign', fit: 'My audience is 80% Black women 25-40 who love fast fashion trends', tone: 'Confident and professional' },
+                { label: 'Printify ambassador', brand: 'Printify', type: 'Brand ambassador', audience: 'TikTok 85k, POD creator audience', rate: '$2,000 per month plus affiliate commission', fit: 'My entire audience are POD sellers — they are your perfect customer', tone: 'Warm and personal' },
+                { label: 'Shein collab', brand: 'Shein', type: 'Collection collaboration', audience: 'TikTok 85k, Instagram 42k', rate: '$5,800 flat for campaign', fit: 'My aesthetic and audience aligns perfectly with Shein target demographic', tone: 'Bold and direct' },
+              ].map(q => (
+                <button key={q.label} onClick={() => { setBrand(q.brand); setDealType(q.type); setAudience(q.audience); setRate(q.rate); setFit(q.fit); setTone(q.tone); gen({ tool: 'pitch', ...q }) }}
+                  style={{ display: 'block', width: '100%', marginBottom: '7px', padding: '8px 11px', background: 'var(--bg3)', border: '0.5px solid var(--b)', borderRadius: '7px', fontSize: '12px', color: 'var(--mu3)', cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans',sans-serif" }}>
+                  {q.label} ↗
+                </button>
+              ))}
+            </Panel>
+            <Panel>
+              <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: '#e8c76a', textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Deal tips</div>
+              {[['Always state your rate upfront','Never ask what their budget is — you set the price'],['Lead with your audience','Brands care about who watches you, not just how many'],['Follow up exactly once','Wait 7 days then send one confident follow-up'],['Counter every low offer','Never accept the first offer — always counter']].map(([t,d]) => (
+                <div key={t} style={{ marginBottom: '10px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 500, color: '#e8c76a', marginBottom: '2px' }}>{t}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--mu3)', lineHeight: '1.5' }}>{d}</div>
+                </div>
+              ))}
+            </Panel>
+          </div>
+        </div>
+      )}
+ 
+      {/* RATE CARD */}
+      {activeTab === 'ratecard' && (
+        <Panel hi>
+          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: '#e8c76a', textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Rate Card Builder</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div>
+              <F label="Your platforms and following"><input style={inp} value={platforms} onChange={e => setPlatforms(e.target.value)} /></F>
+              <F label="Your niche"><input style={inp} value={niche} onChange={e => setNiche(e.target.value)} /></F>
+              <button onClick={() => gen({ tool: 'ratecard', platforms, niche })} disabled={loading}
+                style={{ padding: '10px 16px', borderRadius: '7px', fontSize: '12px', fontWeight: 700, cursor: loading ? 'default' : 'pointer', border: 'none', background: loading ? 'rgba(232,199,106,0.2)' : '#e8c76a', color: '#000', fontFamily: "'DM Sans',sans-serif", width: '100%', opacity: loading ? 0.7 : 1, transition: 'all .2s' }}>
+                {loading ? 'Building…' : 'Build my rate card ↗'}
+              </button>
+            </div>
+            <Output text={output} loading={loading} />
+          </div>
+        </Panel>
+      )}
+ 
+      {/* FOLLOW UP */}
+      {activeTab === 'followup' && (
+        <Panel hi>
+          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: '#e8c76a', textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Follow Up Email</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div>
+              <F label="Brand name"><input style={inp} placeholder="e.g. FashionNova" value={fuBrand} onChange={e => setFuBrand(e.target.value)} /></F>
+              <F label="Previous contact"><input style={inp} value={fuPrevious} onChange={e => setFuPrevious(e.target.value)} /></F>
+              <F label="Tone">
+                <select style={sel} value={fuTone} onChange={e => setFuTone(e.target.value)}>
+                  {['Confident and professional','Warm and personal','Bold and direct'].map(t => <option key={t}>{t}</option>)}
+                </select>
+              </F>
+              <button onClick={() => gen({ tool: 'followup', brand: fuBrand, previous: fuPrevious, tone: fuTone })} disabled={loading}
+                style={{ padding: '10px 16px', borderRadius: '7px', fontSize: '12px', fontWeight: 700, cursor: loading ? 'default' : 'pointer', border: 'none', background: loading ? 'rgba(232,199,106,0.2)' : '#e8c76a', color: '#000', fontFamily: "'DM Sans',sans-serif", width: '100%', opacity: loading ? 0.7 : 1, transition: 'all .2s' }}>
+                {loading ? 'Writing…' : 'Write follow up ↗'}
+              </button>
+            </div>
+            <Output text={output} loading={loading} />
+          </div>
+        </Panel>
+      )}
+ 
+      {/* COUNTER OFFER */}
+      {activeTab === 'counter' && (
+        <Panel hi>
+          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: '#e8c76a', textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Counter Offer Email</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div>
+              <F label="Brand name"><input style={inp} placeholder="e.g. FashionNova" value={coBrand} onChange={e => setCoBrand(e.target.value)} /></F>
+              <F label="Their offer"><input style={inp} placeholder="e.g. $500 for 2 posts" value={coOffer} onChange={e => setCoOffer(e.target.value)} /></F>
+              <F label="Your counter"><input style={inp} placeholder="e.g. $2,500 for 2 posts" value={coCounter} onChange={e => setCoCounter(e.target.value)} /></F>
+              <F label="Tone">
+                <select style={sel} value={coTone} onChange={e => setCoTone(e.target.value)}>
+                  {['Confident and professional','Warm and personal','Bold and direct'].map(t => <option key={t}>{t}</option>)}
+                </select>
+              </F>
+              <button onClick={() => gen({ tool: 'counter', brand: coBrand, offer: coOffer, counter: coCounter, tone: coTone })} disabled={loading}
+                style={{ padding: '10px 16px', borderRadius: '7px', fontSize: '12px', fontWeight: 700, cursor: loading ? 'default' : 'pointer', border: 'none', background: loading ? 'rgba(232,199,106,0.2)' : '#e8c76a', color: '#000', fontFamily: "'DM Sans',sans-serif", width: '100%', opacity: loading ? 0.7 : 1, transition: 'all .2s' }}>
+                {loading ? 'Writing…' : 'Write counter offer ↗'}
+              </button>
+            </div>
+            <Output text={output} loading={loading} />
+          </div>
+        </Panel>
+      )}
+ 
+      {/* CONTRACT */}
+      {activeTab === 'contract' && (
+        <Panel hi>
+          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: '#e8c76a', textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Contract Outline</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div>
+              <F label="Brand name"><input style={inp} placeholder="e.g. FashionNova" value={ctBrand} onChange={e => setCtBrand(e.target.value)} /></F>
+              <F label="Deal type">
+                <select style={sel} value={ctType} onChange={e => setCtType(e.target.value)}>
+                  {['Sponsored content','Brand ambassador','Collection collaboration','UGC package','Affiliate deal'].map(t => <option key={t}>{t}</option>)}
+                </select>
+              </F>
+              <F label="Agreed rate"><input style={inp} placeholder="e.g. $3,500 for 4 posts" value={ctRate} onChange={e => setCtRate(e.target.value)} /></F>
+              <F label="Deliverables"><input style={inp} placeholder="e.g. 4 TikTok videos, 2 Instagram Reels over 30 days" value={ctDeliverables} onChange={e => setCtDeliverables(e.target.value)} /></F>
+              <button onClick={() => gen({ tool: 'contract', brand: ctBrand, type: ctType, rate: ctRate, deliverables: ctDeliverables })} disabled={loading}
+                style={{ padding: '10px 16px', borderRadius: '7px', fontSize: '12px', fontWeight: 700, cursor: loading ? 'default' : 'pointer', border: 'none', background: loading ? 'rgba(232,199,106,0.2)' : '#e8c76a', color: '#000', fontFamily: "'DM Sans',sans-serif", width: '100%', opacity: loading ? 0.7 : 1, transition: 'all .2s' }}>
+                {loading ? 'Writing…' : 'Generate contract outline ↗'}
+              </button>
+              <div style={{ marginTop: '10px', padding: '10px 12px', background: 'rgba(232,199,106,0.08)', border: '0.5px solid rgba(232,199,106,0.2)', borderRadius: 'var(--r)', fontSize: '11px', color: '#e8c76a', lineHeight: '1.6' }}>
+                ⚠ This is a template outline for reference only. Always have a lawyer review any contract before signing.
+              </div>
+            </div>
+            <Output text={output} loading={loading} />
+          </div>
+        </Panel>
+      )}
+    </div>
+  )
+}
+ 
 // ── SIDEBAR + PAGE ────────────────────────────────────────────
  
 const TOOLS: { label: string; icon: string; tool: Tool; isNew?: boolean }[] = [
@@ -1032,6 +1248,7 @@ const TOOLS: { label: string; icon: string; tool: Tool; isNew?: boolean }[] = [
   { label: 'Creator Try-On Studio', icon: '✦', tool: 'tryon', isNew: true },
   { label: 'CineFlow AI™', icon: '⊳', tool: 'cineflow', isNew: true },
   { label: 'AI Studios™', icon: '◉', tool: 'studios', isNew: true },
+  { label: 'Brand Deals', icon: '◎', tool: 'deals', isNew: true },
 ]
  
 export default function Page() {
@@ -1059,7 +1276,7 @@ export default function Page() {
             </button>
           ))}
           <div style={{ fontSize: '9px', fontWeight: 600, color: 'var(--mu)', textTransform: 'uppercase', letterSpacing: '1.2px', padding: '14px 10px 8px', fontFamily: "'DM Mono',monospace" }}>Coming Soon</div>
-          {['Brand Deals','Lip Sync Studio'].map(l => (
+          {['Lip Sync Studio'].map(l => (
             <button key={l} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '7px', fontSize: '12px', border: '0.5px solid transparent', background: 'none', color: 'var(--mu)', width: '100%', textAlign: 'left', fontFamily: "'DM Sans',sans-serif", opacity: 0.4, cursor: 'default' }}>◌ {l}</button>
           ))}
         </aside>
@@ -1071,6 +1288,7 @@ export default function Page() {
           {active === 'tryon' && <TryOnTool />}
           {active === 'cineflow' && <CineFlowTool />}
           {active === 'studios' && <AIStudiosTool />}
+          {active === 'deals' && <BrandDealsTool />}
         </main>
       </div>
     </>
