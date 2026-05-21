@@ -1,8 +1,8 @@
 'use client'
 import { useState } from 'react'
- 
-type Tool = 'mockup' | 'listing' | 'description' | 'image-prompt' | 'tryon' | 'cineflow' | 'studios' | 'deals' | 'lipsync' | 'collection' | 'profit'
- 
+
+type Tool = 'mockup' | 'listing' | 'description' | 'image-prompt' | 'tryon' | 'cineflow' | 'studios' | 'deals' | 'lipsync' | 'collection' | 'profit' | 'imagegen' | 'saved'
+
 async function callAPI(endpoint: string, body: Record<string, string>, method = 'POST'): Promise<string> {
   const res = await fetch(`/api/${endpoint}`, {
     method,
@@ -13,7 +13,7 @@ async function callAPI(endpoint: string, body: Record<string, string>, method = 
   if (!res.ok) throw new Error(data.error ?? 'Generation failed')
   return data.result
 }
- 
+
 async function callTryOn(body: Record<string, string>) {
   const res = await fetch('/api/tryon', {
     method: 'POST',
@@ -22,7 +22,7 @@ async function callTryOn(body: Record<string, string>) {
   })
   return await res.json()
 }
- 
+
 const css = `
   :root {
     --bg:#000;--bg2:#05020a;--bg3:#0a0510;--bg4:#0f0818;
@@ -60,11 +60,11 @@ const css = `
   .msg.user{background:rgba(0,200,83,0.12);border:0.5px solid rgba(0,200,83,0.3);color:var(--w2);align-self:flex-end;border-radius:12px 12px 2px 12px;margin-left:auto}
   .msg.bot{background:var(--s2);border:0.5px solid var(--b);color:var(--w2);align-self:flex-start;border-radius:12px 12px 12px 2px}
 `
- 
+
 const inp: React.CSSProperties = { background: 'var(--bg3)', border: '0.5px solid var(--b)', borderRadius: '7px', padding: '9px 12px', fontSize: '12px', color: 'var(--w)', fontFamily: "'DM Sans',sans-serif", width: '100%', outline: 'none' }
 const ta: React.CSSProperties = { ...inp, resize: 'vertical' as const, minHeight: '78px', lineHeight: '1.6' }
 const sel: React.CSSProperties = { ...inp, padding: '8px 10px' }
- 
+
 function F({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '5px', marginBottom: '12px' }}>
@@ -73,15 +73,15 @@ function F({ label, children }: { label: string; children: React.ReactNode }) {
     </div>
   )
 }
- 
+
 function PTitle({ children, cf }: { children: React.ReactNode; cf?: boolean }) {
   return <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', fontWeight: 500, color: cf ? 'var(--cf)' : 'var(--pn)', textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>{children}</div>
 }
- 
+
 function Panel({ children, hi, mb, cf, neon }: { children: React.ReactNode; hi?: boolean; mb?: boolean; cf?: boolean; neon?: boolean }) {
   return <div style={{ background: 'var(--s1)', border: `0.5px solid ${neon ? "rgba(155,109,255,0.3)" : cf ? "rgba(0,200,83,0.2)" : hi ? "var(--b2)" : "var(--b)"}`, borderRadius: 'var(--r2)', padding: '18px', marginBottom: mb ? '14px' : 0 }}>{children}</div>
 }
- 
+
 function GenBtn({ loading, onClick, children, cf }: { loading: boolean; onClick: () => void; children: React.ReactNode; cf?: boolean }) {
   return (
     <button onClick={onClick} disabled={loading}
@@ -90,8 +90,64 @@ function GenBtn({ loading, onClick, children, cf }: { loading: boolean; onClick:
     </button>
   )
 }
- 
-function Output({ text, loading, cf }: { text: string; loading: boolean; cf?: boolean }) {
+
+function Output({ text, loading, cf, tool, prompt }: { text: string; loading: boolean; cf?: boolean; tool?: string; prompt?: string }) {
+  const [copied, setCopied] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  function copy() {
+    if (!text) return
+    const textArea = document.createElement('textarea')
+    textArea.value = text
+    textArea.style.position = 'fixed'
+    textArea.style.left = '-9999px'
+    textArea.style.top = '-9999px'
+    document.body.appendChild(textArea)
+    textArea.focus()
+    textArea.select()
+    try {
+      document.execCommand('copy')
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      try {
+        navigator.clipboard.writeText(text).then(() => {
+          setCopied(true)
+          setTimeout(() => setCopied(false), 2000)
+        })
+      } catch {
+        alert('Copy failed — please select the text and copy manually')
+      }
+    }
+    document.body.removeChild(textArea)
+  }
+
+  async function save() {
+    if (!text) return
+    try {
+      const res = await fetch('/api/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tool: tool || 'output', content: text, prompt: prompt || '' }),
+      })
+      if (res.ok) {
+        // Also save to localStorage as backup
+        const existing = JSON.parse(localStorage.getItem('savedWork') || '[]')
+        existing.unshift({ id: Date.now(), tool: tool || 'output', content: text, prompt: prompt || '', savedAt: new Date().toISOString() })
+        localStorage.setItem('savedWork', JSON.stringify(existing.slice(0, 100)))
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2000)
+      }
+    } catch {
+      // Fallback to localStorage only
+      const existing = JSON.parse(localStorage.getItem('savedWork') || '[]')
+      existing.unshift({ id: Date.now(), tool: tool || 'output', content: text, prompt: prompt || '', savedAt: new Date().toISOString() })
+      localStorage.setItem('savedWork', JSON.stringify(existing.slice(0, 100)))
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    }
+  }
+
   if (!text && !loading) return null
   return (
     <div style={{ background: 'var(--bg4)', border: '0.5px solid var(--b2)', borderRadius: 'var(--r2)', padding: '14px', marginTop: '12px' }}>
@@ -101,17 +157,23 @@ function Output({ text, loading, cf }: { text: string; loading: boolean; cf?: bo
       {loading && <div style={{ height: '2px', background: 'rgba(0,0,0,0.2)', overflow: 'hidden', margin: '8px 0', borderRadius: '1px' }}>{cf ? <div className="lbar-fill-cf" /> : <div className="lbar-fill" />}</div>}
       {text && <>
         <div style={{ fontSize: '12px', color: 'var(--w2)', lineHeight: '1.85', whiteSpace: 'pre-wrap' as const }}>{text}</div>
-        <button onClick={() => navigator.clipboard.writeText(text)}
-          style={{ marginTop: '10px', padding: '7px 14px', borderRadius: '7px', fontSize: '11px', cursor: 'pointer', border: '0.5px solid var(--b2)', background: 'var(--s2)', color: cf ? 'var(--cf)' : 'var(--pn)', fontFamily: "'DM Sans',sans-serif" }}>
-          Copy ↗
-        </button>
+        <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+          <button onClick={copy}
+            style={{ padding: '7px 14px', borderRadius: '7px', fontSize: '11px', cursor: 'pointer', border: `0.5px solid ${copied ? 'var(--cf)' : 'var(--b2)'}`, background: copied ? 'var(--cf2)' : 'var(--s2)', color: copied ? 'var(--cf)' : cf ? 'var(--cf)' : 'var(--pn)', fontFamily: "'DM Sans',sans-serif", transition: 'all .2s' }}>
+            {copied ? '✓ Copied!' : 'Copy ↗'}
+          </button>
+          <button onClick={save}
+            style={{ padding: '7px 14px', borderRadius: '7px', fontSize: '11px', cursor: 'pointer', border: `0.5px solid ${saved ? 'var(--pn)' : 'var(--b2)'}`, background: saved ? 'var(--pn3)' : 'var(--s2)', color: saved ? 'var(--pn)' : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif", transition: 'all .2s' }}>
+            {saved ? '✓ Saved!' : '⊹ Save'}
+          </button>
+        </div>
       </>}
     </div>
   )
 }
- 
+
 // ── POD TOOLS ─────────────────────────────────────────────────
- 
+
 function MockupTool() {
   const [product, setProduct] = useState('T-Shirt')
   const [design, setDesign] = useState('')
@@ -119,14 +181,14 @@ function MockupTool() {
   const [style, setStyle] = useState('Editorial fashion photography')
   const [output, setOutput] = useState('')
   const [loading, setLoading] = useState(false)
- 
+
   async function run(body?: Record<string, string>) {
     setLoading(true); setOutput('')
     try { setOutput(await callAPI('generate/mockup', body ?? { product, design, setting, style })) }
     catch (e) { setOutput(`Error: ${(e as Error).message}`) }
     finally { setLoading(false) }
   }
- 
+
   return (
     <div className="pg-in">
       <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Mockup <span style={{ color: 'var(--pn)' }}>Generator</span></div>
@@ -178,7 +240,7 @@ function MockupTool() {
     </div>
   )
 }
- 
+
 function ListingTool() {
   const [productName, setProductName] = useState('')
   const [details, setDetails] = useState('')
@@ -186,14 +248,14 @@ function ListingTool() {
   const [audience, setAudience] = useState('Women aged 22–40 who love fashion and luxury aesthetics')
   const [output, setOutput] = useState('')
   const [loading, setLoading] = useState(false)
- 
+
   async function run() {
     setLoading(true); setOutput('')
     try { setOutput(await callAPI('generate/listing', { productName, details, platform, targetAudience: audience })) }
     catch (e) { setOutput(`Error: ${(e as Error).message}`) }
     finally { setLoading(false) }
   }
- 
+
   return (
     <div className="pg-in">
       <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Product <span style={{ color: 'var(--pn)' }}>Listing Writer</span></div>
@@ -205,7 +267,7 @@ function ListingTool() {
           <F label="Details"><textarea style={ta} placeholder="Material, colors, style, what makes it special..." value={details} onChange={e => setDetails(e.target.value)} /></F>
           <F label="Platform">
             <select style={sel} value={platform} onChange={e => setPlatform(e.target.value)}>
-              {['Etsy','Shopify','TikTok Shop','Amazon'].map(p => <option key={p}>{p}</option>)}
+              {['Etsy','Shopify','TikTok Shop','Amazon','WooCommerce/WordPress'].map(p => <option key={p}>{p}</option>)}
             </select>
           </F>
           <F label="Target audience"><input style={inp} value={audience} onChange={e => setAudience(e.target.value)} /></F>
@@ -225,7 +287,7 @@ function ListingTool() {
     </div>
   )
 }
- 
+
 function DescriptionTool() {
   const [product, setProduct] = useState('')
   const [niche, setNiche] = useState('luxury fashion')
@@ -233,14 +295,14 @@ function DescriptionTool() {
   const [audience, setAudience] = useState('Black women aged 22–40 who love fashion and lifestyle')
   const [output, setOutput] = useState('')
   const [loading, setLoading] = useState(false)
- 
+
   async function run() {
     setLoading(true); setOutput('')
     try { setOutput(await callAPI('generate/description', { product, niche, tone, audience })) }
     catch (e) { setOutput(`Error: ${(e as Error).message}`) }
     finally { setLoading(false) }
   }
- 
+
   return (
     <div className="pg-in">
       <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Description <span style={{ color: 'var(--pn)' }}>Writer</span></div>
@@ -259,7 +321,7 @@ function DescriptionTool() {
     </div>
   )
 }
- 
+
 function ImagePromptTool() {
   const [subject, setSubject] = useState('')
   const [style, setStyle] = useState('editorial fashion photography, luxury aesthetic')
@@ -268,14 +330,14 @@ function ImagePromptTool() {
   const [extras, setExtras] = useState('')
   const [output, setOutput] = useState('')
   const [loading, setLoading] = useState(false)
- 
+
   async function run() {
     setLoading(true); setOutput('')
     try { setOutput(await callAPI('generate/image-prompt', { subject, style, mood, platform, extras })) }
     catch (e) { setOutput(`Error: ${(e as Error).message}`) }
     finally { setLoading(false) }
   }
- 
+
   return (
     <div className="pg-in">
       <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>AI Image <span style={{ color: 'var(--pn)' }}>Prompt Builder</span></div>
@@ -308,9 +370,9 @@ function ImagePromptTool() {
     </div>
   )
 }
- 
+
 // ── TRY-ON TOOL ───────────────────────────────────────────────
- 
+
 function TryOnTool() {
   const [modelImage, setModelImage] = useState<string | null>(null)
   const [garmentImage, setGarmentImage] = useState<string | null>(null)
@@ -322,7 +384,7 @@ function TryOnTool() {
   const [contentOutput, setContentOutput] = useState('')
   const [contentLoading, setContentLoading] = useState(false)
   const [activeContent, setActiveContent] = useState('caption')
- 
+
   function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>, type: 'model' | 'garment') {
     const file = e.target.files?.[0]
     if (!file) return
@@ -333,7 +395,7 @@ function TryOnTool() {
     }
     reader.readAsDataURL(file)
   }
- 
+
   async function generateTryOn() {
     if (!modelImage) { alert('Please upload a model or person photo'); return }
     setLoading(true); setResult(null)
@@ -344,14 +406,14 @@ function TryOnTool() {
       setResult({ message: `Error: ${(e as Error).message}` })
     } finally { setLoading(false) }
   }
- 
+
   async function generateContent(type: string) {
     setContentLoading(true); setContentOutput(''); setActiveContent(type)
     try { setContentOutput(await callAPI('tryon', { productName: productName || 'Fashion item', brand, platform, contentType: type }, 'PUT')) }
     catch(e) { setContentOutput(`Error: ${(e as Error).message}`) }
     finally { setContentLoading(false) }
   }
- 
+
   return (
     <div className="pg-in">
       <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Creator <span style={{ color: 'var(--pn)' }}>Try-On Studio</span></div>
@@ -458,52 +520,52 @@ function TryOnTool() {
     </div>
   )
 }
- 
+
 // ── CINEFLOW AI ───────────────────────────────────────────────
- 
+
 function CineFlowTool() {
   const [activeCF, setActiveCF] = useState('prompt')
   const [output, setOutput] = useState('')
   const [loading, setLoading] = useState(false)
- 
+
   // Prompt builder
   const [vpType, setVpType] = useState('UGC product showcase')
   const [vpSubject, setVpSubject] = useState('')
   const [vpCharacter, setVpCharacter] = useState('Black woman, confident, stylish, natural hair')
   const [vpSetting, setVpSetting] = useState('')
   const [vpPlatform, setVpPlatform] = useState('TikTok')
- 
+
   // Calendar
   const [calNiche, setCalNiche] = useState('POD fashion business')
   const [calPlatform, setCalPlatform] = useState('TikTok')
   const [calDays, setCalDays] = useState('7')
   const [calGoal, setCalGoal] = useState('Grow followers and drive sales')
- 
+
   // Hooks
   const [hkNiche, setHkNiche] = useState('POD business')
   const [hkStyle, setHkStyle] = useState('Income reveal')
- 
+
   // Caption
   const [capTopic, setCapTopic] = useState('')
   const [capPlatform, setCapPlatform] = useState('TikTok')
- 
+
   // UGC
   const [ugcProduct, setUgcProduct] = useState('')
   const [ugcPlatform, setUgcPlatform] = useState('TikTok')
   const [ugcBrand, setUgcBrand] = useState('Envi Lee')
- 
+
   // Bot
   const [botMessages, setBotMessages] = useState([{ role: 'bot', text: 'Hey! I\'m your CineFlow AI assistant. Ask me anything about content, video ideas, or what to post today.' }])
   const [botInput, setBotInput] = useState('')
   const [botLoading, setBotLoading] = useState(false)
- 
+
   async function gen(params: Record<string, string>) {
     setLoading(true); setOutput('')
     try { setOutput(await callAPI('generate/cineflow', params)) }
     catch (e) { setOutput(`Error: ${(e as Error).message}`) }
     finally { setLoading(false) }
   }
- 
+
   async function sendBot() {
     if (!botInput.trim()) return
     const msg = botInput.trim()
@@ -518,7 +580,7 @@ function CineFlowTool() {
     }
     setBotLoading(false)
   }
- 
+
   const cfTabs = [
     { id: 'prompt', label: '◈ Video Prompt' },
     { id: 'calendar', label: '◷ Calendar' },
@@ -527,12 +589,12 @@ function CineFlowTool() {
     { id: 'ugc', label: '◉ UGC Ad' },
     { id: 'bot', label: '✦ AI Bot' },
   ]
- 
+
   return (
     <div className="pg-in">
       <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>CineFlow <span style={{ color: 'var(--cf)' }}>AI™</span></div>
       <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '16px', lineHeight: '1.6' }}>Cinematic prompts, content calendars, hooks, UGC ads, captions, and your AI content assistant.</div>
- 
+
       {/* TABS */}
       <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', flexWrap: 'wrap' as const }}>
         {cfTabs.map(t => (
@@ -542,7 +604,7 @@ function CineFlowTool() {
           </button>
         ))}
       </div>
- 
+
       {/* VIDEO PROMPT */}
       {activeCF === 'prompt' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -591,7 +653,7 @@ function CineFlowTool() {
           </div>
         </div>
       )}
- 
+
       {/* CALENDAR */}
       {activeCF === 'calendar' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -631,7 +693,7 @@ function CineFlowTool() {
           </Panel>
         </div>
       )}
- 
+
       {/* HOOKS */}
       {activeCF === 'hooks' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -661,7 +723,7 @@ function CineFlowTool() {
           </Panel>
         </div>
       )}
- 
+
       {/* CAPTION */}
       {activeCF === 'caption' && (
         <Panel cf>
@@ -680,7 +742,7 @@ function CineFlowTool() {
           </div>
         </Panel>
       )}
- 
+
       {/* UGC AD */}
       {activeCF === 'ugc' && (
         <Panel cf>
@@ -700,7 +762,7 @@ function CineFlowTool() {
           </div>
         </Panel>
       )}
- 
+
       {/* AI BOT */}
       {activeCF === 'bot' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -738,21 +800,21 @@ function CineFlowTool() {
     </div>
   )
 }
- 
+
 // ── AI STUDIOS ───────────────────────────────────────────────
- 
+
 function AIStudiosTool() {
   const [activeStu, setActiveStu] = useState('script')
   const [output, setOutput] = useState('')
   const [loading, setLoading] = useState(false)
- 
+
   // Script
   const [ssType, setSsType] = useState('Reality TV episode')
   const [ssTitle, setSsTitle] = useState('')
   const [ssCast, setSsCast] = useState('')
   const [ssStory, setSsStory] = useState('')
   const [ssTone, setSsTone] = useState('Dramatic and tense')
- 
+
   // Character
   const [scName, setScName] = useState('')
   const [scAge, setScAge] = useState('')
@@ -760,24 +822,24 @@ function AIStudiosTool() {
   const [scStyle, setScStyle] = useState('')
   const [scPersonality, setScPersonality] = useState('')
   const [scBackstory, setScBackstory] = useState('')
- 
+
   // Scene
   const [snCharacters, setSnCharacters] = useState('')
   const [snSetting, setSnSetting] = useState('')
   const [snAction, setSnAction] = useState('')
- 
+
   // Podcast
   const [pdType, setPdType] = useState('Podcast episode')
   const [pdShow, setPdShow] = useState('The Creator Files hosted by Luxe Envi')
   const [pdTopic, setPdTopic] = useState('')
- 
+
   // Lip Sync
   const [lsCharacter, setLsCharacter] = useState('Luxe Envi — luxury lifestyle creator, 28, Black woman, natural locs')
   const [lsPurpose, setLsPurpose] = useState('TikTok promotional video')
   const [lsTopic, setLsTopic] = useState('')
   const [lsLength, setLsLength] = useState('30 seconds')
   const [lsTone, setLsTone] = useState('Confident and empowering')
- 
+
   // Multi-character
   const [mc1Name, setMc1Name] = useState('Luxe Envi')
   const [mc1Desc, setMc1Desc] = useState('Black woman, 28, luxury lifestyle creator, confident and powerful')
@@ -789,14 +851,14 @@ function AIStudiosTool() {
   const [mcSetting, setMcSetting] = useState('')
   const [mcStory, setMcStory] = useState('')
   const [mcLength, setMcLength] = useState('Medium — 10 to 14 exchanges')
- 
+
   async function gen(params: Record<string, string>) {
     setLoading(true); setOutput('')
     try { setOutput(await callAPI('generate/studios', params)) }
     catch (e) { setOutput(`Error: ${(e as Error).message}`) }
     finally { setLoading(false) }
   }
- 
+
   const stuTabs = [
     { id: 'script', label: '⊳ Script Writer' },
     { id: 'character', label: '◉ Character Builder' },
@@ -805,12 +867,12 @@ function AIStudiosTool() {
     { id: 'lipsync', label: '✦ Lip Sync' },
     { id: 'multichar', label: '⊹ Multi-Character' },
   ]
- 
+
   return (
     <div className="pg-in">
       <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>AI <span style={{ color: 'var(--pn)' }}>Studios™</span></div>
       <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '16px', lineHeight: '1.6' }}>Write reality shows, build AI characters, create cinematic scenes, podcasts, lip sync scripts, and multi-character dialogues.</div>
- 
+
       {/* TABS */}
       <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', flexWrap: 'wrap' as const }}>
         {stuTabs.map(t => (
@@ -820,7 +882,7 @@ function AIStudiosTool() {
           </button>
         ))}
       </div>
- 
+
       {/* SCRIPT WRITER */}
       {activeStu === 'script' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -860,12 +922,16 @@ function AIStudiosTool() {
             <Panel>
               <PTitle>Export to video</PTitle>
               <div style={{ fontSize: '12px', color: 'var(--mu3)', lineHeight: '1.8', marginBottom: '10px' }}>After generating your script use CineFlow to turn any scene into a cinematic video prompt then paste into Kling AI or Runway.</div>
-              <button onClick={() => {}} style={{ padding: '9px 12px', background: 'var(--cf2)', border: '0.5px solid var(--cfb)', borderRadius: '7px', fontSize: '12px', color: 'var(--cf)', cursor: 'pointer', width: '100%', fontFamily: "'DM Sans',sans-serif" }}>Open CineFlow → Make video prompts ↗</button>
+              <button onClick={() => {
+                // This will be handled by the parent Page component
+                const event = new CustomEvent('switchTool', { detail: 'cineflow' })
+                window.dispatchEvent(event)
+              }} style={{ padding: '9px 12px', background: 'var(--cf2)', border: '0.5px solid var(--cfb)', borderRadius: '7px', fontSize: '12px', color: 'var(--cf)', cursor: 'pointer', width: '100%', fontFamily: "'DM Sans',sans-serif" }}>Open CineFlow → Make video prompts ↗</button>
             </Panel>
           </div>
         </div>
       )}
- 
+
       {/* CHARACTER BUILDER */}
       {activeStu === 'character' && (
         <Panel hi>
@@ -884,7 +950,7 @@ function AIStudiosTool() {
           </div>
         </Panel>
       )}
- 
+
       {/* SCENE BUILDER */}
       {activeStu === 'scene' && (
         <Panel hi>
@@ -900,7 +966,7 @@ function AIStudiosTool() {
           </div>
         </Panel>
       )}
- 
+
       {/* PODCAST */}
       {activeStu === 'podcast' && (
         <Panel hi>
@@ -920,7 +986,7 @@ function AIStudiosTool() {
           </div>
         </Panel>
       )}
- 
+
       {/* LIP SYNC */}
       {activeStu === 'lipsync' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -962,7 +1028,7 @@ function AIStudiosTool() {
           </Panel>
         </div>
       )}
- 
+
       {/* MULTI-CHARACTER */}
       {activeStu === 'multichar' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -1021,14 +1087,14 @@ function AIStudiosTool() {
     </div>
   )
 }
- 
+
 // ── BRAND DEALS ──────────────────────────────────────────────
- 
+
 function BrandDealsTool() {
   const [activeTab, setActiveTab] = useState('pitch')
   const [output, setOutput] = useState('')
   const [loading, setLoading] = useState(false)
- 
+
   // Pitch
   const [brand, setBrand] = useState('')
   const [dealType, setDealType] = useState('Sponsored content (paid posts)')
@@ -1036,35 +1102,35 @@ function BrandDealsTool() {
   const [rate, setRate] = useState('')
   const [fit, setFit] = useState('')
   const [tone, setTone] = useState('Confident and professional')
- 
+
   // Rate card
   const [platforms, setPlatforms] = useState('TikTok 85k, Instagram 42k')
   const [niche, setNiche] = useState('POD fashion and AI influencer creator')
- 
+
   // Follow up
   const [fuBrand, setFuBrand] = useState('')
   const [fuPrevious, setFuPrevious] = useState('sent initial pitch 1 week ago')
   const [fuTone, setFuTone] = useState('Confident and professional')
- 
+
   // Counter
   const [coBrand, setCoBrand] = useState('')
   const [coOffer, setCoOffer] = useState('')
   const [coCounter, setCoCounter] = useState('')
   const [coTone, setCoTone] = useState('Confident and professional')
- 
+
   // Contract
   const [ctBrand, setCtBrand] = useState('')
   const [ctType, setCtType] = useState('Sponsored content')
   const [ctRate, setCtRate] = useState('')
   const [ctDeliverables, setCtDeliverables] = useState('')
- 
+
   async function gen(params: Record<string, string>) {
     setLoading(true); setOutput('')
     try { setOutput(await callAPI('generate/deals', params)) }
     catch (e) { setOutput(`Error: ${(e as Error).message}`) }
     finally { setLoading(false) }
   }
- 
+
   const tabs = [
     { id: 'pitch', label: '◎ Pitch Email' },
     { id: 'ratecard', label: '⊹ Rate Card' },
@@ -1072,15 +1138,15 @@ function BrandDealsTool() {
     { id: 'counter', label: '⊳ Counter Offer' },
     { id: 'contract', label: '◈ Contract' },
   ]
- 
+
   const goldStyle = { color: '#e8c76a' }
   const goldBorder = { borderColor: 'rgba(232,199,106,0.3)' }
- 
+
   return (
     <div className="pg-in">
       <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Brand <span style={{ color: '#e8c76a' }}>Deals</span></div>
       <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '16px', lineHeight: '1.6' }}>Pitch emails, rate cards, follow-ups, counter offers, and contract outlines. Close deals like a pro.</div>
- 
+
       {/* TABS */}
       <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', flexWrap: 'wrap' as const }}>
         {tabs.map(t => (
@@ -1090,7 +1156,7 @@ function BrandDealsTool() {
           </button>
         ))}
       </div>
- 
+
       {/* PITCH EMAIL */}
       {activeTab === 'pitch' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -1142,7 +1208,7 @@ function BrandDealsTool() {
           </div>
         </div>
       )}
- 
+
       {/* RATE CARD */}
       {activeTab === 'ratecard' && (
         <Panel hi>
@@ -1160,7 +1226,7 @@ function BrandDealsTool() {
           </div>
         </Panel>
       )}
- 
+
       {/* FOLLOW UP */}
       {activeTab === 'followup' && (
         <Panel hi>
@@ -1183,7 +1249,7 @@ function BrandDealsTool() {
           </div>
         </Panel>
       )}
- 
+
       {/* COUNTER OFFER */}
       {activeTab === 'counter' && (
         <Panel hi>
@@ -1207,7 +1273,7 @@ function BrandDealsTool() {
           </div>
         </Panel>
       )}
- 
+
       {/* CONTRACT */}
       {activeTab === 'contract' && (
         <Panel hi>
@@ -1237,21 +1303,21 @@ function BrandDealsTool() {
     </div>
   )
 }
- 
+
 // ── LIP SYNC STUDIO ──────────────────────────────────────────
- 
+
 function LipSyncTool() {
   const [activeTab, setActiveTab] = useState('single')
   const [output, setOutput] = useState('')
   const [loading, setLoading] = useState(false)
- 
+
   // Single character
   const [character, setCharacter] = useState('Luxe Envi — luxury lifestyle creator, 28, Black woman, natural locs')
   const [purpose, setPurpose] = useState('TikTok promotional video')
   const [topic, setTopic] = useState('')
   const [length, setLength] = useState('30 seconds')
   const [tone, setTone] = useState('Confident and empowering')
- 
+
   // Multi character
   const [c1Name, setC1Name] = useState('Luxe Envi')
   const [c1Desc, setC1Desc] = useState('Black woman, 28, luxury lifestyle creator, confident and powerful')
@@ -1263,32 +1329,32 @@ function LipSyncTool() {
   const [mcSetting, setMcSetting] = useState('')
   const [mcStory, setMcStory] = useState('')
   const [mcLength, setMcLength] = useState('Medium — 10 to 14 exchanges')
- 
+
   // Voice script
   const [voiceType, setVoiceType] = useState('Confident Black woman — warm, powerful, commanding')
   const [voicePurpose, setVoicePurpose] = useState('TikTok voiceover')
   const [voiceMessage, setVoiceMessage] = useState('')
- 
+
   async function gen(params: Record<string, string>) {
     setLoading(true); setOutput('')
     try { setOutput(await callAPI('generate/lipsync', params)) }
     catch (e) { setOutput(`Error: ${(e as Error).message}`) }
     finally { setLoading(false) }
   }
- 
+
   const lsTabs = [
     { id: 'single', label: '◈ Single Character' },
     { id: 'multi', label: '⊹ Multi-Character' },
     { id: 'voice', label: '◷ Voice Script' },
   ]
- 
+
   const purpleNeon = '#b06cff'
- 
+
   return (
     <div className="pg-in">
       <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Lip Sync <span style={{ color: purpleNeon }}>Studio</span></div>
       <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '16px', lineHeight: '1.6' }}>Generate scripts, voice packages, and multi-character dialogues ready for HeyGen, D-ID, ElevenLabs, and InfiniteTalk.</div>
- 
+
       {/* TABS */}
       <div style={{ display: 'flex', gap: '4px', marginBottom: '20px' }}>
         {lsTabs.map(t => (
@@ -1298,7 +1364,7 @@ function LipSyncTool() {
           </button>
         ))}
       </div>
- 
+
       {/* SINGLE CHARACTER */}
       {activeTab === 'single' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -1359,7 +1425,7 @@ function LipSyncTool() {
           </div>
         </div>
       )}
- 
+
       {/* MULTI CHARACTER */}
       {activeTab === 'multi' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -1425,7 +1491,7 @@ function LipSyncTool() {
           </div>
         </div>
       )}
- 
+
       {/* VOICE SCRIPT */}
       {activeTab === 'voice' && (
         <Panel hi>
@@ -1457,9 +1523,9 @@ function LipSyncTool() {
     </div>
   )
 }
- 
+
 // ── COLLECTION BUILDER ───────────────────────────────────────
- 
+
 function CollectionTool() {
   const [name, setName] = useState('')
   const [theme, setTheme] = useState('luxury fashion')
@@ -1469,14 +1535,14 @@ function CollectionTool() {
   const [priceRange, setPriceRange] = useState('$30–$100')
   const [output, setOutput] = useState('')
   const [loading, setLoading] = useState(false)
- 
+
   async function run(body?: Record<string, string>) {
     setLoading(true); setOutput('')
     try { setOutput(await callAPI('generate/tools', body ?? { tool: 'collection', name, theme, audience, season, pieces, priceRange })) }
     catch (e) { setOutput(`Error: ${(e as Error).message}`) }
     finally { setLoading(false) }
   }
- 
+
   return (
     <div className="pg-in">
       <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Collection <span style={{ color: 'var(--pn)' }}>Builder</span></div>
@@ -1541,9 +1607,9 @@ function CollectionTool() {
     </div>
   )
 }
- 
+
 // ── PROFIT CALCULATOR ─────────────────────────────────────────
- 
+
 function ProfitTool() {
   const [product, setProduct] = useState('T-Shirt')
   const [sellPrice, setSellPrice] = useState('35')
@@ -1553,22 +1619,22 @@ function ProfitTool() {
   const [shipping, setShipping] = useState('4.99')
   const [output, setOutput] = useState('')
   const [loading, setLoading] = useState(false)
- 
+
   async function run() {
     setLoading(true); setOutput('')
     try { setOutput(await callAPI('generate/tools', { tool: 'profit', product, sellPrice, baseCost, platform, monthlySales, shipping })) }
     catch (e) { setOutput(`Error: ${(e as Error).message}`) }
     finally { setLoading(false) }
   }
- 
+
   const profitEstimate = Math.max(0, parseFloat(sellPrice || '0') - parseFloat(baseCost || '0') - (parseFloat(sellPrice || '0') * 0.065) - (parseFloat(sellPrice || '0') * 0.03)).toFixed(2)
   const monthlyEstimate = (parseFloat(profitEstimate) * parseInt(monthlySales || '0')).toFixed(2)
- 
+
   return (
     <div className="pg-in">
       <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Profit <span style={{ color: 'var(--pn)' }}>Calculator</span></div>
       <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '24px', lineHeight: '1.6' }}>Calculate your real profit per sale, monthly income projections, and get a scale strategy to hit your revenue goals.</div>
- 
+
       {/* QUICK ESTIMATE */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
         {[
@@ -1582,7 +1648,7 @@ function ProfitTool() {
           </div>
         ))}
       </div>
- 
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
         <Panel hi>
           <PTitle>Your numbers</PTitle>
@@ -1640,27 +1706,284 @@ function ProfitTool() {
     </div>
   )
 }
- 
+
+// ── IMAGE GENERATOR ───────────────────────────────────────────
+
+function ImageGenTool() {
+  const [prompt, setPrompt] = useState('')
+  const [style, setStyle] = useState('fashion')
+  const [size, setSize] = useState('portrait')
+  const [negativePrompt, setNegativePrompt] = useState('blurry, low quality, distorted, ugly, watermark')
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [saved, setSaved] = useState(false)
+
+  async function generate() {
+    if (!prompt.trim()) { setError('Please enter a prompt first'); return }
+    setLoading(true); setError(''); setImageUrl(null)
+    try {
+      const res = await fetch('/api/generate/image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, style, size, negativePrompt }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Image generation failed')
+      setImageUrl(data.imageUrl)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally { setLoading(false) }
+  }
+
+  async function saveImage() {
+    if (!imageUrl) return
+    const existing = JSON.parse(localStorage.getItem('savedWork') || '[]')
+    existing.unshift({ id: Date.now(), tool: 'Image Generator', content: '', prompt, imageUrl, savedAt: new Date().toISOString() })
+    localStorage.setItem('savedWork', JSON.stringify(existing.slice(0, 100)))
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  function download() {
+    if (!imageUrl) return
+    const a = document.createElement('a')
+    a.href = imageUrl
+    a.download = `envi-lee-image-${Date.now()}.jpg`
+    a.target = '_blank'
+    a.click()
+  }
+
+  const quickPrompts = [
+    { label: 'Luxury swim set model', prompt: 'Black woman with deep brown skin and natural hair, wearing a black and gold luxury floral swimsuit, standing at a poolside luxury resort in the Maldives, golden hour warm light, editorial fashion photography' },
+    { label: 'Streetwear hoodie', prompt: 'Black woman in an oversized city skyline graphic hoodie, NYC street style, autumn afternoon, confident pose, urban editorial photography' },
+    { label: 'AI influencer portrait', prompt: 'Black woman AI influencer, natural locs, wearing designer luxury streetwear, dramatic studio lighting, powerful confident gaze, high fashion editorial' },
+    { label: 'Product flat lay', prompt: 'Luxury fashion flat lay, white crop tee with minimal gold embroidery, marble surface, gold jewelry props, clean minimal product photography' },
+  ]
+
+  return (
+    <div className="pg-in">
+      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Image <span style={{ color: 'var(--pn)' }}>Generator</span></div>
+      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '8px', lineHeight: '1.6' }}>Generate real AI images directly inside your suite — fashion mockups, model shots, product photos, and more.</div>
+      <div style={{ background: 'var(--pn3)', border: '0.5px solid rgba(155,109,255,0.25)', borderRadius: '8px', padding: '10px 14px', marginBottom: '20px', fontSize: '11px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace" }}>
+        ✦ Powered by FLUX via fal.ai · FAL_API_KEY required in Vercel env vars
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <Panel hi>
+          <PTitle>Image details</PTitle>
+          <F label="Prompt — describe your image"><textarea style={{ ...ta, minHeight: '100px' }} placeholder="e.g. Black woman wearing a luxury floral crop tee, NYC rooftop at golden hour, editorial fashion photography..." value={prompt} onChange={e => setPrompt(e.target.value)} /></F>
+          <F label="Style">
+            <select style={sel} value={style} onChange={e => setStyle(e.target.value)}>
+              {[['fashion','Fashion Editorial'],['luxury','Luxury Lifestyle'],['streetwear','Streetwear Urban'],['product','Product Photography'],['cinematic','Cinematic Film'],['portrait','Portrait']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </F>
+          <F label="Size">
+            <select style={sel} value={size} onChange={e => setSize(e.target.value)}>
+              {[['portrait','Portrait (3:4) — best for fashion'],['square','Square (1:1) — Instagram'],['tiktok','TikTok (9:16) — vertical'],['landscape','Landscape (4:3) — banner']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </F>
+          <F label="Negative prompt (what to exclude)"><input style={inp} value={negativePrompt} onChange={e => setNegativePrompt(e.target.value)} /></F>
+
+          <GenBtn loading={loading} onClick={generate}>
+            {loading ? 'Generating image…' : '✦ Generate Image'}
+          </GenBtn>
+
+          {error && <div style={{ marginTop: '10px', padding: '10px 12px', background: 'rgba(255,45,120,0.1)', border: '0.5px solid rgba(255,45,120,0.3)', borderRadius: '7px', fontSize: '12px', color: '#ff6b9d' }}>{error}</div>}
+
+          {/* IMAGE RESULT */}
+          {loading && (
+            <div style={{ marginTop: '12px', background: 'var(--bg4)', border: '0.5px solid var(--b2)', borderRadius: 'var(--r2)', padding: '30px', textAlign: 'center' }}>
+              <div style={{ fontSize: '32px', marginBottom: '10px' }}>✦</div>
+              <div style={{ fontSize: '13px', color: 'var(--pn)', marginBottom: '8px' }}>Generating your image…</div>
+              <div style={{ height: '2px', background: 'rgba(155,109,255,0.1)', overflow: 'hidden', borderRadius: '1px', width: '120px', margin: '0 auto' }}><div className="lbar-fill" /></div>
+              <div style={{ fontSize: '11px', color: 'var(--mu3)', marginTop: '8px' }}>Usually takes 5–15 seconds</div>
+            </div>
+          )}
+
+          {imageUrl && !loading && (
+            <div style={{ marginTop: '12px', background: 'var(--bg4)', border: '0.5px solid var(--b2)', borderRadius: 'var(--r2)', overflow: 'hidden' }}>
+              <img src={imageUrl} alt="Generated" style={{ width: '100%', display: 'block' }} />
+              <div style={{ padding: '12px', display: 'flex', gap: '8px' }}>
+                <button onClick={download} style={{ flex: 1, padding: '8px', borderRadius: '7px', border: 'none', background: 'linear-gradient(135deg,var(--c),var(--pn))', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>⬇ Download</button>
+                <button onClick={saveImage} style={{ flex: 1, padding: '8px', borderRadius: '7px', border: `0.5px solid ${saved ? 'var(--pn)' : 'var(--b2)'}`, background: saved ? 'var(--pn3)' : 'var(--s2)', color: saved ? 'var(--pn)' : 'var(--mu3)', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", transition: 'all .2s' }}>{saved ? '✓ Saved!' : '⊹ Save'}</button>
+                <button onClick={generate} style={{ flex: 1, padding: '8px', borderRadius: '7px', border: '0.5px solid var(--b2)', background: 'var(--s2)', color: 'var(--pn)', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>↺ Regenerate</button>
+              </div>
+            </div>
+          )}
+        </Panel>
+
+        <div>
+          <Panel mb>
+            <PTitle>Quick-starts</PTitle>
+            {quickPrompts.map(q => (
+              <button key={q.label} onClick={() => setPrompt(q.prompt)}
+                style={{ display: 'block', width: '100%', marginBottom: '7px', padding: '8px 11px', background: 'var(--bg3)', border: '0.5px solid var(--b)', borderRadius: '7px', fontSize: '12px', color: 'var(--mu3)', cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans',sans-serif" }}>
+                {q.label} ↗
+              </button>
+            ))}
+          </Panel>
+          <Panel mb>
+            <PTitle>Prompt tips</PTitle>
+            {[
+              ['Be specific about the person','Include skin tone, hair type, height, expression'],
+              ['Describe the garment clearly','Colors, style, fit, fabric, any graphics or text'],
+              ['Set the scene','Location, time of day, lighting direction, background'],
+              ['Add style keywords','Editorial, cinematic, commercial, lifestyle, runway'],
+              ['Use quality boosters','Already added automatically based on your style choice'],
+            ].map(([t,d]) => (
+              <div key={t} style={{ marginBottom: '10px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--pn)', marginBottom: '2px' }}>{t}</div>
+                <div style={{ fontSize: '11px', color: 'var(--mu3)', lineHeight: '1.5' }}>{d}</div>
+              </div>
+            ))}
+          </Panel>
+          <Panel>
+            <PTitle>Use with AI Image Prompts</PTitle>
+            <div style={{ fontSize: '12px', color: 'var(--mu3)', lineHeight: '1.7', marginBottom: '10px' }}>Generate a detailed prompt in the AI Image Prompts tool first, then paste it here to generate the actual image.</div>
+            <button onClick={() => {}} style={{ padding: '9px 12px', background: 'var(--pn3)', border: '0.5px solid rgba(155,109,255,0.3)', borderRadius: '7px', fontSize: '12px', color: 'var(--pn)', cursor: 'pointer', width: '100%', fontFamily: "'DM Sans',sans-serif" }}>
+              ◉ Go to AI Image Prompts ↗
+            </button>
+          </Panel>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── SAVED WORK ────────────────────────────────────────────────
+
+function SavedWorkTool() {
+  const [savedItems, setSavedItems] = useState<Array<{id: number; tool: string; content: string; prompt: string; imageUrl: string; savedAt: string}>>([])
+  const [filter, setFilter] = useState('all')
+  const [copied, setCopied] = useState<number | null>(null)
+
+  function load() {
+    try {
+      const items = JSON.parse(localStorage.getItem('savedWork') || '[]')
+      setSavedItems(items)
+    } catch { setSavedItems([]) }
+  }
+
+  function deleteItem(id: number) {
+    const updated = savedItems.filter(i => i.id !== id)
+    setSavedItems(updated)
+    localStorage.setItem('savedWork', JSON.stringify(updated))
+  }
+
+  function copy(text: string, id: number) {
+    const textArea = document.createElement('textarea')
+    textArea.value = text
+    textArea.style.position = 'fixed'
+    textArea.style.left = '-9999px'
+    document.body.appendChild(textArea)
+    textArea.focus()
+    textArea.select()
+    try { document.execCommand('copy') } catch { navigator.clipboard.writeText(text) }
+    document.body.removeChild(textArea)
+    setCopied(id)
+    setTimeout(() => setCopied(null), 2000)
+  }
+
+  function clearAll() {
+    if (confirm('Delete all saved work? This cannot be undone.')) {
+      setSavedItems([])
+      localStorage.removeItem('savedWork')
+    }
+  }
+
+  // Load on mount
+  useState(() => { load() })
+
+  const tools = ['all', ...Array.from(new Set(savedItems.map(i => i.tool)))]
+  const filtered = filter === 'all' ? savedItems : savedItems.filter(i => i.tool === filter)
+
+  return (
+    <div className="pg-in">
+      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Saved <span style={{ color: 'var(--pn)' }}>Work</span></div>
+      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '20px', lineHeight: '1.6' }}>All your saved outputs, prompts, and generated images in one place.</div>
+
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' as const, alignItems: 'center' }}>
+        <button onClick={load} style={{ padding: '7px 14px', borderRadius: '7px', border: '0.5px solid var(--b2)', background: 'var(--s2)', color: 'var(--pn)', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>↺ Refresh</button>
+        {tools.map(t => (
+          <button key={t} onClick={() => setFilter(t)}
+            style={{ padding: '6px 12px', borderRadius: '7px', fontSize: '11px', cursor: 'pointer', border: `0.5px solid ${filter === t ? 'rgba(155,109,255,0.4)' : 'var(--b)'}`, background: filter === t ? 'var(--pn3)' : 'var(--s1)', color: filter === t ? 'var(--pn)' : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif", textTransform: 'capitalize' as const }}>
+            {t}
+          </button>
+        ))}
+        {savedItems.length > 0 && (
+          <button onClick={clearAll} style={{ marginLeft: 'auto', padding: '6px 12px', borderRadius: '7px', fontSize: '11px', cursor: 'pointer', border: '0.5px solid rgba(255,45,120,0.3)', background: 'rgba(255,45,120,0.08)', color: '#ff6b9d', fontFamily: "'DM Sans',sans-serif" }}>
+            Clear all
+          </button>
+        )}
+      </div>
+
+      {filtered.length === 0 ? (
+        <Panel>
+          <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+            <div style={{ fontSize: '40px', marginBottom: '12px' }}>◌</div>
+            <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '16px', fontWeight: 700, color: 'var(--pn)', marginBottom: '6px' }}>No saved work yet</div>
+            <div style={{ fontSize: '12px', color: 'var(--mu3)', lineHeight: '1.6' }}>Use any tool and click the Save button to save your outputs here. Your work is stored in your browser.</div>
+          </div>
+        </Panel>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '12px' }}>
+          {filtered.map(item => (
+            <div key={item.id} style={{ background: 'var(--s1)', border: '0.5px solid var(--b)', borderRadius: 'var(--r2)', padding: '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '10px', padding: '2px 8px', background: 'var(--pn3)', color: 'var(--pn)', borderRadius: '4px', fontFamily: "'DM Mono',monospace", textTransform: 'uppercase' as const }}>{item.tool}</span>
+                  <span style={{ fontSize: '10px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace" }}>{new Date(item.savedAt).toLocaleDateString()}</span>
+                </div>
+                <button onClick={() => deleteItem(item.id)} style={{ padding: '4px 10px', borderRadius: '6px', border: '0.5px solid rgba(255,45,120,0.2)', background: 'transparent', color: '#ff6b9d', fontSize: '11px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>Delete</button>
+              </div>
+              {item.imageUrl && <img src={item.imageUrl} alt="saved" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '8px', marginBottom: '10px' }} />}
+              {item.prompt && <div style={{ fontSize: '11px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace", marginBottom: '8px', padding: '8px', background: 'var(--bg3)', borderRadius: '6px' }}>Prompt: {item.prompt.slice(0, 120)}{item.prompt.length > 120 ? '…' : ''}</div>}
+              {item.content && <div style={{ fontSize: '12px', color: 'var(--w2)', lineHeight: '1.7', maxHeight: '120px', overflow: 'hidden', maskImage: 'linear-gradient(to bottom, black 60%, transparent)' }}>{item.content}</div>}
+              <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                {item.content && <button onClick={() => copy(item.content, item.id)} style={{ padding: '6px 12px', borderRadius: '7px', border: `0.5px solid ${copied === item.id ? 'var(--cf)' : 'var(--b2)'}`, background: copied === item.id ? 'var(--cf2)' : 'var(--s2)', color: copied === item.id ? 'var(--cf)' : 'var(--pn)', fontSize: '11px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", transition: 'all .2s' }}>{copied === item.id ? '✓ Copied!' : 'Copy ↗'}</button>}
+                {item.imageUrl && <a href={item.imageUrl} download target="_blank" rel="noreferrer" style={{ padding: '6px 12px', borderRadius: '7px', border: '0.5px solid var(--b2)', background: 'var(--s2)', color: 'var(--pn)', fontSize: '11px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", textDecoration: 'none' }}>⬇ Download</a>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── SIDEBAR + PAGE ────────────────────────────────────────────
- 
+
 const TOOLS: { label: string; icon: string; tool: Tool; isNew?: boolean }[] = [
   { label: 'Mockup Generator', icon: '◈', tool: 'mockup' },
   { label: 'Product Listing', icon: '⊹', tool: 'listing' },
   { label: 'Description Writer', icon: '◷', tool: 'description' },
   { label: 'AI Image Prompts', icon: '◉', tool: 'image-prompt' },
-  { label: 'Creator Try-On Studio', icon: '✦', tool: 'tryon', isNew: true },
-  { label: 'CineFlow AI™', icon: '⊳', tool: 'cineflow', isNew: true },
-  { label: 'AI Studios™', icon: '◉', tool: 'studios', isNew: true },
-  { label: 'Brand Deals', icon: '◎', tool: 'deals', isNew: true },
-  { label: 'Lip Sync Studio', icon: '◈', tool: 'lipsync', isNew: true },
-  { label: 'Collection Builder', icon: '⊹', tool: 'collection', isNew: true },
-  { label: 'Profit Calculator', icon: '◷', tool: 'profit', isNew: true },
+  { label: 'Image Generator', icon: '✦', tool: 'imagegen', isNew: true },
+  { label: 'Creator Try-On Studio', icon: '✦', tool: 'tryon' },
+  { label: 'CineFlow AI™', icon: '⊳', tool: 'cineflow' },
+  { label: 'AI Studios™', icon: '◉', tool: 'studios' },
+  { label: 'Brand Deals', icon: '◎', tool: 'deals' },
+  { label: 'Lip Sync Studio', icon: '◈', tool: 'lipsync' },
+  { label: 'Collection Builder', icon: '⊹', tool: 'collection' },
+  { label: 'Profit Calculator', icon: '◷', tool: 'profit' },
+  { label: 'Saved Work', icon: '◌', tool: 'saved', isNew: true },
 ]
- 
+
 export default function Page() {
   const [active, setActive] = useState<Tool>('mockup')
   const [hovered, setHovered] = useState<Tool | null>(null)
- 
+
+  // Listen for cross-tool navigation events
+  useState(() => {
+    const handler = (e: Event) => {
+      const tool = (e as CustomEvent).detail as Tool
+      setActive(tool)
+    }
+    window.addEventListener('switchTool', handler)
+    return () => window.removeEventListener('switchTool', handler)
+  })
+
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: css }} />
@@ -1698,9 +2021,10 @@ export default function Page() {
           {active === 'lipsync' && <LipSyncTool />}
           {active === 'collection' && <CollectionTool />}
           {active === 'profit' && <ProfitTool />}
+          {active === 'imagegen' && <ImageGenTool />}
+          {active === 'saved' && <SavedWorkTool />}
         </main>
       </div>
     </>
   )
 }
- 
