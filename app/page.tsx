@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { UserButton, useUser } from '@clerk/nextjs'
+import { UserButton, useUser, SignInButton, SignedIn, SignedOut, RedirectToSignIn } from '@clerk/nextjs'
 
 type Tool = 'mockup' | 'listing' | 'description' | 'image-prompt' | 'tryon' | 'cineflow' | 'studios' | 'deals' | 'lipsync' | 'collection' | 'profit' | 'imagegen' | 'saved' | 'video'
 
