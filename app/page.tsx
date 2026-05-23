@@ -1,8 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import dynamic from 'next/dynamic' 
-const UserButton = dynamic(() => import('@clerk/nextjs').then(m => ({ default: m.UserButton })), { ssr: false }) 
-import { useUser } from '@clerk/nextjs'
+import { UserButton, useUser } from '@clerk/nextjs'
 
 type Tool = 'mockup' | 'listing' | 'description' | 'image-prompt' | 'tryon' | 'cineflow' | 'studios' | 'deals' | 'lipsync' | 'collection' | 'profit' | 'imagegen' | 'saved' | 'video'
 
@@ -1975,7 +1973,6 @@ function VideoGenTool() {
   const [mode, setMode] = useState('standard')
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [polling, setPolling] = useState(false)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
 
@@ -1990,54 +1987,27 @@ function VideoGenTool() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Video generation failed')
-
       if (data.videoUrl) {
         setVideoUrl(data.videoUrl)
-        setLoading(false)
       } else if (data.requestId) {
-        // Poll for completion
-        setPolling(true)
         await pollForVideo(data.requestId)
       }
     } catch (e) {
       setError((e as Error).message)
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }
 
   async function pollForVideo(requestId: string) {
-    let attempts = 0
-    const maxAttempts = 60 // 5 minutes max
-
-    while (attempts < maxAttempts) {
-      await new Promise(r => setTimeout(r, 5000)) // Wait 5 seconds between polls
-      attempts++
-
+    for (let i = 0; i < 60; i++) {
+      await new Promise(r => setTimeout(r, 5000))
       try {
         const res = await fetch(`/api/generate/video?requestId=${requestId}`)
         const data = await res.json()
-
-        if (data.status === 'completed' && data.videoUrl) {
-          setVideoUrl(data.videoUrl)
-          setLoading(false)
-          setPolling(false)
-          return
-        }
-
-        if (data.status === 'failed') {
-          throw new Error('Video generation failed on the server')
-        }
-      } catch (e) {
-        setError((e as Error).message)
-        setLoading(false)
-        setPolling(false)
-        return
-      }
+        if (data.status === 'completed' && data.videoUrl) { setVideoUrl(data.videoUrl); return }
+        if (data.status === 'failed') throw new Error('Video generation failed')
+      } catch (e) { setError((e as Error).message); return }
     }
-
-    setError('Video generation timed out. Try again.')
-    setLoading(false)
-    setPolling(false)
+    setError('Timed out — try again')
   }
 
   function saveVideo() {
@@ -2045,30 +2015,28 @@ function VideoGenTool() {
     const existing = JSON.parse(localStorage.getItem('savedWork') || '[]')
     existing.unshift({ id: Date.now(), tool: 'Video Generator', content: '', prompt, imageUrl: videoUrl, savedAt: new Date().toISOString() })
     localStorage.setItem('savedWork', JSON.stringify(existing.slice(0, 100)))
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    setSaved(true); setTimeout(() => setSaved(false), 2000)
   }
 
   const quickPrompts = [
     { label: 'AI influencer walk', prompt: 'Black woman with natural locs wearing luxury designer streetwear, walking confidently through a high-end fashion district in Paris, golden hour sunlight, slow cinematic push-in, 8 seconds' },
     { label: 'Product reveal', prompt: 'Elegant hands slowly unfolding a luxury black and gold swimsuit against a marble surface, soft studio lighting, product reveal shot, cinematic close-up, 6 seconds' },
     { label: 'Rooftop drama scene', prompt: 'Two Black characters in designer clothes face off on an NYC rooftop at night, city lights behind them, dramatic shadows, intense eye contact, slow zoom in, cinematic film quality, 8 seconds' },
-    { label: 'Concert performance', prompt: 'Black female pop star in a sequin outfit performing on a massive concert stage, spectacular lighting show, fog effects, crowd cheering, wide cinematic shot pulling back to reveal the full arena, 10 seconds' },
-    { label: 'TikTok lifestyle POV', prompt: 'POV shot from first person walking into a luxury hotel lobby, marble floors, warm golden lighting, front desk staff smiling, aspirational lifestyle, smooth handheld camera, 6 seconds' },
+    { label: 'Concert performance', prompt: 'Black female pop star in a sequin outfit performing on a massive concert stage, spectacular lighting show, fog effects, crowd cheering, wide cinematic shot pulling back, 10 seconds' },
+    { label: 'TikTok lifestyle POV', prompt: 'POV shot walking into a luxury hotel lobby, marble floors, warm golden lighting, smooth handheld camera, aspirational lifestyle, 6 seconds' },
   ]
 
   return (
     <div className="pg-in">
       <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Video <span style={{ color: 'var(--cf)' }}>Generator</span></div>
-      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '8px', lineHeight: '1.6' }}>Generate cinematic AI videos using Kling AI — fashion content, reality scenes, product reveals, music videos, and more.</div>
+      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '8px', lineHeight: '1.6' }}>Generate cinematic AI videos using Kling AI — fashion content, reality scenes, product reveals, and music videos.</div>
       <div style={{ background: 'rgba(0,200,83,0.08)', border: '0.5px solid rgba(0,200,83,0.25)', borderRadius: '8px', padding: '10px 14px', marginBottom: '20px', fontSize: '11px', color: 'var(--cf)', fontFamily: "'DM Mono',monospace" }}>
-        ✦ Powered by Kling AI via fal.ai · FAL_API_KEY required · Standard ~$0.08/sec · Pro ~$0.11/sec
+        ✦ Powered by Kling AI via fal.ai · FAL_API_KEY required · ~$0.40–$1.12 per video
       </div>
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
         <Panel cf>
           <PTitle cf>Video details</PTitle>
-          <F label="Prompt — describe your video"><textarea style={{ ...ta, minHeight: '120px' }} placeholder="e.g. Black woman in a luxury crop tee walking on NYC rooftop at golden hour, slow cinematic push-in, 8 seconds..." value={prompt} onChange={e => setPrompt(e.target.value)} /></F>
+          <F label="Prompt"><textarea style={{ ...ta, minHeight: '120px' }} placeholder="e.g. Black woman in luxury crop tee on NYC rooftop, golden hour, slow cinematic push-in, 8 seconds..." value={prompt} onChange={e => setPrompt(e.target.value)} /></F>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
             <F label="Duration">
               <select style={sel} value={duration} onChange={e => setDuration(e.target.value)}>
@@ -2076,7 +2044,7 @@ function VideoGenTool() {
                 <option value="10">10 seconds</option>
               </select>
             </F>
-            <F label="Aspect ratio">
+            <F label="Format">
               <select style={sel} value={aspectRatio} onChange={e => setAspectRatio(e.target.value)}>
                 <option value="9:16">9:16 TikTok</option>
                 <option value="16:9">16:9 YouTube</option>
@@ -2090,42 +2058,30 @@ function VideoGenTool() {
               </select>
             </F>
           </div>
-
           <button onClick={generate} disabled={loading}
             style={{ padding: '12px 16px', borderRadius: '7px', fontSize: '13px', fontWeight: 700, cursor: loading ? 'default' : 'pointer', border: 'none', background: loading ? 'rgba(0,200,83,0.2)' : 'var(--cf)', color: '#000', fontFamily: "'DM Sans',sans-serif", width: '100%', opacity: loading ? 0.8 : 1, transition: 'all .2s', boxShadow: loading ? 'none' : '0 0 20px rgba(0,200,83,0.3)' }}>
-            {loading ? (polling ? 'Generating video — this takes 1–3 minutes…' : 'Starting generation…') : '⊳ Generate Video'}
+            {loading ? 'Generating video — takes 1–3 minutes…' : '⊳ Generate Video'}
           </button>
-
           {loading && (
             <div style={{ marginTop: '12px', background: 'var(--bg4)', border: '0.5px solid var(--b2)', borderRadius: 'var(--r2)', padding: '20px', textAlign: 'center' }}>
-              <div style={{ fontSize: '28px', marginBottom: '10px' }}>⊳</div>
+              <div style={{ fontSize: '28px', marginBottom: '8px' }}>⊳</div>
               <div style={{ fontSize: '13px', color: 'var(--cf)', marginBottom: '6px', fontWeight: 600 }}>Kling AI is generating your video</div>
               <div style={{ height: '2px', background: 'rgba(0,200,83,0.1)', overflow: 'hidden', borderRadius: '1px', width: '140px', margin: '0 auto 8px' }}><div className="lbar-fill-cf" /></div>
-              <div style={{ fontSize: '11px', color: 'var(--mu3)' }}>Usually takes 1–3 minutes. Stay on this page.</div>
+              <div style={{ fontSize: '11px', color: 'var(--mu3)' }}>Usually 1–3 minutes. Stay on this page.</div>
             </div>
           )}
-
           {error && <div style={{ marginTop: '10px', padding: '10px 12px', background: 'rgba(255,45,120,0.1)', border: '0.5px solid rgba(255,45,120,0.3)', borderRadius: '7px', fontSize: '12px', color: '#ff6b9d' }}>{error}</div>}
-
           {videoUrl && !loading && (
             <div style={{ marginTop: '12px', background: 'var(--bg4)', border: '0.5px solid var(--b2)', borderRadius: 'var(--r2)', overflow: 'hidden' }}>
               <video src={videoUrl} controls autoPlay loop style={{ width: '100%', display: 'block' }} />
               <div style={{ padding: '12px', display: 'flex', gap: '8px' }}>
-                <a href={videoUrl} download target="_blank" rel="noreferrer"
-                  style={{ flex: 1, padding: '9px', borderRadius: '7px', border: 'none', background: 'var(--cf)', color: '#000', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", textAlign: 'center', textDecoration: 'none', display: 'block' }}>
-                  ⬇ Download
-                </a>
-                <button onClick={saveVideo} style={{ flex: 1, padding: '9px', borderRadius: '7px', border: `0.5px solid ${saved ? 'var(--cf)' : 'var(--b2)'}`, background: saved ? 'var(--cf2)' : 'var(--s2)', color: saved ? 'var(--cf)' : 'var(--mu3)', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", transition: 'all .2s' }}>
-                  {saved ? '✓ Saved!' : '⊹ Save'}
-                </button>
-                <button onClick={generate} style={{ flex: 1, padding: '9px', borderRadius: '7px', border: '0.5px solid var(--b2)', background: 'var(--s2)', color: 'var(--cf)', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
-                  ↺ Regenerate
-                </button>
+                <a href={videoUrl} download target="_blank" rel="noreferrer" style={{ flex: 1, padding: '9px', borderRadius: '7px', border: 'none', background: 'var(--cf)', color: '#000', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", textAlign: 'center', textDecoration: 'none', display: 'block' }}>⬇ Download</a>
+                <button onClick={saveVideo} style={{ flex: 1, padding: '9px', borderRadius: '7px', border: `0.5px solid ${saved ? 'var(--cf)' : 'var(--b2)'}`, background: saved ? 'var(--cf2)' : 'var(--s2)', color: saved ? 'var(--cf)' : 'var(--mu3)', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>{saved ? '✓ Saved!' : '⊹ Save'}</button>
+                <button onClick={generate} style={{ flex: 1, padding: '9px', borderRadius: '7px', border: '0.5px solid var(--b2)', background: 'var(--s2)', color: 'var(--cf)', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>↺ Regenerate</button>
               </div>
             </div>
           )}
         </Panel>
-
         <div>
           <Panel cf mb>
             <PTitle cf>Quick-starts</PTitle>
@@ -2137,36 +2093,23 @@ function VideoGenTool() {
             ))}
           </Panel>
           <Panel cf mb>
-            <PTitle cf>Prompt tips for best videos</PTitle>
-            {[
-              ['Describe the movement','Slow push-in, orbit, handheld, zoom out — cameras matter'],
-              ['Specify duration','End your prompt with "6 seconds" or "10 seconds"'],
-              ['Include lighting','Golden hour, dramatic shadows, studio light, neon'],
-              ['Describe the mood','Cinematic, aspirational, dramatic, energetic, intimate'],
-              ['Use CineFlow first','Generate a detailed prompt in CineFlow then paste it here'],
-            ].map(([t,d]) => (
-              <div key={t} style={{ marginBottom: '10px' }}>
+            <PTitle cf>Prompt tips</PTitle>
+            {[['Describe movement','Slow push-in, orbit, handheld, zoom out'],['Specify duration','End with "6 seconds" or "10 seconds"'],['Include lighting','Golden hour, dramatic shadows, neon'],['Set the mood','Cinematic, aspirational, dramatic, energetic'],['Use CineFlow first','Generate prompt in CineFlow then paste here']].map(([t,d]) => (
+              <div key={t} style={{ marginBottom: '9px' }}>
                 <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--cf)', marginBottom: '2px' }}>{t}</div>
-                <div style={{ fontSize: '11px', color: 'var(--mu3)', lineHeight: '1.5' }}>{d}</div>
+                <div style={{ fontSize: '11px', color: 'var(--mu3)' }}>{d}</div>
               </div>
             ))}
           </Panel>
           <Panel cf>
             <PTitle cf>Estimated costs</PTitle>
-            {[
-              ['5 sec Standard','~$0.40 per video'],
-              ['10 sec Standard','~$0.84 per video'],
-              ['5 sec Pro','~$0.56 per video'],
-              ['10 sec Pro','~$1.12 per video'],
-            ].map(([t,c]) => (
+            {[['5 sec Standard','~$0.40'],['10 sec Standard','~$0.84'],['5 sec Pro','~$0.56'],['10 sec Pro','~$1.12']].map(([t,c]) => (
               <div key={t} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 10px', background: 'var(--bg3)', borderRadius: 'var(--r)', marginBottom: '5px', fontSize: '12px' }}>
                 <span style={{ color: 'var(--w2)' }}>{t}</span>
                 <span style={{ color: 'var(--cf)', fontFamily: "'DM Mono',monospace" }}>{c}</span>
               </div>
             ))}
-            <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--mu3)', lineHeight: '1.6' }}>
-              Charges apply to your fal.ai account. Add credits at fal.ai dashboard.
-            </div>
+            <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--mu3)', lineHeight: '1.6' }}>Charges apply to your fal.ai account.</div>
           </Panel>
         </div>
       </div>
@@ -2194,10 +2137,11 @@ const TOOLS: { label: string; icon: string; tool: Tool; isNew?: boolean }[] = [
 ]
 
 export default function Page() {
+  const { user } = useUser()
   const [active, setActive] = useState<Tool>('mockup')
   const [hovered, setHovered] = useState<Tool | null>(null)
-  const { user } = useUser()
 
+  // Listen for cross-tool navigation events
   useEffect(() => {
     const handler = (e: Event) => {
       const tool = (e as CustomEvent).detail as Tool
@@ -2205,7 +2149,7 @@ export default function Page() {
     }
     window.addEventListener('switchTool', handler)
     return () => window.removeEventListener('switchTool', handler)
-  }, [])
+  })
 
   return (
     <>
@@ -2219,10 +2163,10 @@ export default function Page() {
           {user && (
             <div style={{ padding: '8px 10px', marginBottom: '8px', background: 'var(--pn3)', borderRadius: 'var(--r)', border: '0.5px solid rgba(155,109,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--w)', marginBottom: '1px' }}>{user.firstName || user.emailAddresses[0]?.emailAddress?.split('@')[0]}</div>
-                <div style={{ fontSize: '9px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace" }}>Creator Plan</div>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--w)', marginBottom: '1px' }}>{user.firstName || 'Creator'}</div>
+                <div style={{ fontSize: '9px', color: 'var(--mu3)', fontFamily: '"'"'DM Mono'"'"',monospace' }}>Creator Plan</div>
               </div>
-              <UserButton afterSignOutUrl="/sign-in" appearance={{ elements: { avatarBox: { width: '28px', height: '28px' } } }} />
+              <UserButton afterSignOutUrl="/sign-in" />
             </div>
           )}
           <div style={{ fontSize: '9px', fontWeight: 600, color: 'var(--mu)', textTransform: 'uppercase', letterSpacing: '1.2px', padding: '4px 10px 8px', fontFamily: "'DM Mono',monospace" }}>Tools</div>
@@ -2254,7 +2198,7 @@ export default function Page() {
           {active === 'collection' && <CollectionTool />}
           {active === 'profit' && <ProfitTool />}
           {active === 'imagegen' && <ImageGenTool />}
-          {active === 'video' && <VideoGenTool />}
+          {active === 'video' && <VideoGenTool /> }
           {active === 'saved' && <SavedWorkTool />}
         </main>
       </div>
