@@ -2180,10 +2180,6 @@ export default function Page() {
               {isNew && <span style={{ fontSize: '9px', padding: '1px 5px', background: active === tool ? 'rgba(0,0,0,0.2)' : 'var(--pn3)', color: active === tool ? '#fff' : 'var(--pn)', borderRadius: '4px', fontFamily: "'DM Mono',monospace" }}>New</span>}
             </button>
           ))}
-          <div style={{ fontSize: '9px', fontWeight: 600, color: 'var(--mu)', textTransform: 'uppercase', letterSpacing: '1.2px', padding: '14px 10px 8px', fontFamily: "'DM Mono',monospace" }}>Coming Soon</div>
-          {['Collection Builder','Profit Calculator'].map(l => (
-            <button key={l} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '7px', fontSize: '12px', border: '0.5px solid transparent', background: 'none', color: 'var(--mu)', width: '100%', textAlign: 'left', fontFamily: "'DM Sans',sans-serif", opacity: 0.4, cursor: 'default' }}>◌ {l}</button>
-          ))}
         </aside>
         <main style={{ flex: 1, overflowY: 'auto', padding: '28px' }}>
           {active === 'mockup' && <MockupTool />}
