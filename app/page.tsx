@@ -2164,7 +2164,7 @@ export default function Page() {
             <div style={{ padding: '8px 10px', marginBottom: '8px', background: 'var(--pn3)', borderRadius: 'var(--r)', border: '0.5px solid rgba(155,109,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--w)', marginBottom: '1px' }}>{user.firstName || 'Creator'}</div>
-                <div style={{ fontSize: '9px', color: 'var(--mu3)', fontFamily: '"'"'DM Mono'"'"',monospace' }}>Creator Plan</div>
+                <div style={{ fontSize: '9px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace" }}>Creator Plan</div>
               </div>
               <UserButton afterSignOutUrl="/sign-in" />
             </div>
