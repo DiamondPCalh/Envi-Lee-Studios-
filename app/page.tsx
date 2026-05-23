@@ -1,6 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
-import dynamic from 'next/dynamic' const UserButton = dynamic(() => import('@clerk/nextjs').then(m => ({ default: m.UserButton })), { ssr: false }) import { useUser } from '@clerk/nextjs'
+import dynamic from 'next/dynamic' 
+const UserButton = dynamic(() => import('@clerk/nextjs').then(m => ({ default: m.UserButton })), { ssr: false }) 
+import { useUser } from '@clerk/nextjs'
 
 type Tool = 'mockup' | 'listing' | 'description' | 'image-prompt' | 'tryon' | 'cineflow' | 'studios' | 'deals' | 'lipsync' | 'collection' | 'profit' | 'imagegen' | 'saved' | 'video'
 
