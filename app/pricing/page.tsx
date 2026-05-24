@@ -104,8 +104,14 @@ export default function PricingPage() {
         }),
       })
       const data = await res.json()
-      if (data.url) window.location.href = data.url
+      console.log('Stripe response:', data)
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        alert('Error: ' + (data.error || 'No checkout URL returned'))
+      }
     } catch (e) {
+      alert('Error: ' + (e as Error).message)
       console.error(e)
     }
     setLoading(null)
