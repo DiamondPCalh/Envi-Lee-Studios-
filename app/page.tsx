@@ -2141,6 +2141,9 @@ interface Character {
   phrases: string
   consistencyRule: string
   savedAt: string
+  photo?: string
+  locked?: boolean
+  color?: string
 }
 
 function ConsistentCharactersTool() {
@@ -2150,6 +2153,8 @@ function ConsistentCharactersTool() {
   const [loading, setLoading] = useState(false)
   const [output, setOutput] = useState('')
   const [copied, setCopied] = useState<string | null>(null)
+  const [photo, setPhoto] = useState<string | null>(null)
+  const [charColor, setCharColor] = useState('#9b6dff')
 
   // Form fields
   const [name, setName] = useState('')
@@ -2159,9 +2164,7 @@ function ConsistentCharactersTool() {
   const [personality, setPersonality] = useState('')
   const [backstory, setBackstory] = useState('')
 
-  useEffect(() => {
-    loadCharacters()
-  }, [])
+  useEffect(() => { loadCharacters() }, [])
 
   function loadCharacters() {
     try {
@@ -2170,17 +2173,36 @@ function ConsistentCharactersTool() {
     } catch { setCharacters([]) }
   }
 
-  function saveCharacter(char: Character) {
+  function saveCharacterToStorage(char: Character) {
     const existing = JSON.parse(localStorage.getItem('savedCharacters') || '[]')
-    existing.unshift(char)
-    localStorage.setItem('savedCharacters', JSON.stringify(existing.slice(0, 50)))
-    setCharacters(existing.slice(0, 50))
+    // Remove if exists then add to front
+    const filtered = existing.filter((c: Character) => c.id !== char.id)
+    filtered.unshift(char)
+    localStorage.setItem('savedCharacters', JSON.stringify(filtered.slice(0, 50)))
+    setCharacters(filtered.slice(0, 50))
   }
 
   function deleteCharacter(id: number) {
+    const char = characters.find(c => c.id === id)
+    if (char?.locked) { alert('This character is locked. Unlock it first to delete.'); return }
     const updated = characters.filter(c => c.id !== id)
     setCharacters(updated)
     localStorage.setItem('savedCharacters', JSON.stringify(updated))
+  }
+
+  function toggleLock(id: number) {
+    const updated = characters.map(c => c.id === id ? { ...c, locked: !c.locked } : c)
+    setCharacters(updated)
+    localStorage.setItem('savedCharacters', JSON.stringify(updated))
+    if (selectedChar?.id === id) setSelectedChar(prev => prev ? { ...prev, locked: !prev.locked } : null)
+  }
+
+  function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => setPhoto(ev.target?.result as string)
+    reader.readAsDataURL(file)
   }
 
   function copyText(text: string, field: string) {
@@ -2190,13 +2212,15 @@ function ConsistentCharactersTool() {
       const ta = document.createElement('textarea')
       ta.value = text
       ta.style.cssText = 'position:fixed;left:-9999px'
-      document.body.appendChild(ta)
-      ta.select()
-      document.execCommand('copy')
-      document.body.removeChild(ta)
-      setCopied(field)
-      setTimeout(() => setCopied(null), 2000)
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta)
+      setCopied(field); setTimeout(() => setCopied(null), 2000)
     }
+  }
+
+  function resetForm() {
+    setName(''); setAge(''); setAppearance(''); setStyle('')
+    setPersonality(''); setBackstory(''); setPhoto(null)
+    setCharColor('#9b6dff'); setOutput('')
   }
 
   async function generateCharacter() {
@@ -2213,7 +2237,6 @@ function ConsistentCharactersTool() {
       })
       setOutput(result)
 
-      // Auto-parse and save character
       const char: Character = {
         id: Date.now(),
         name, age, appearance, style, personality, backstory,
@@ -2223,11 +2246,36 @@ function ConsistentCharactersTool() {
         phrases: extractSection(result, 'SIGNATURE PHRASES'),
         consistencyRule: extractSection(result, 'CONSISTENCY RULE'),
         savedAt: new Date().toISOString(),
+        photo: photo ?? undefined,
+        color: charColor,
+        locked: false,
       }
-      saveCharacter(char)
+      saveCharacterToStorage(char)
+      resetForm()
+      setActiveView('library')
     } catch (e) {
       setOutput(`Error: ${(e as Error).message}`)
     } finally { setLoading(false) }
+  }
+
+  function saveManualCharacter() {
+    if (!name.trim()) { alert('Please enter a character name'); return }
+    const char: Character = {
+      id: Date.now(),
+      name, age, appearance, style, personality, backstory,
+      imagePrompt: appearance,
+      videoSeed: `${name}, ${appearance}, ${style}, consistent character, same face every frame`,
+      voiceNotes: personality,
+      phrases: '',
+      consistencyRule: `${name}: ${appearance?.split(',').slice(0, 3).join(', ')}`,
+      savedAt: new Date().toISOString(),
+      photo: photo ?? undefined,
+      color: charColor,
+      locked: false,
+    }
+    saveCharacterToStorage(char)
+    resetForm()
+    setActiveView('library')
   }
 
   function extractSection(text: string, section: string): string {
@@ -2237,15 +2285,16 @@ function ConsistentCharactersTool() {
   }
 
   const purp = '#9b6dff'
+  const colorOptions = ['#9b6dff','#00c853','#e8c76a','#ff2d78','#00f5ff','#ff6b35','#b06cff','#ffffff']
 
   return (
     <div className="pg-in">
       <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Consistent <span style={{ color: purp }}>Characters</span></div>
-      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '20px', lineHeight: '1.6' }}>Save your AI characters once — reuse them across every tool. Same face, same voice, same energy every time.</div>
+      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '20px', lineHeight: '1.6' }}>Save your AI characters once — upload their photo, lock them, and reuse them across every tool with the same face, voice, and energy every time.</div>
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '4px', marginBottom: '20px' }}>
-        {[['library','◌ My Characters'],['create','✦ Create New']].map(([id,label]) => (
+        {[['library','◌ My Characters'],['create','✦ Create / Upload']].map(([id,label]) => (
           <button key={id} onClick={() => setActiveView(id as 'library' | 'create')}
             style={{ padding: '7px 14px', borderRadius: '7px', fontSize: '11px', fontWeight: 500, cursor: 'pointer', border: `0.5px solid ${activeView === id ? 'rgba(155,109,255,0.4)' : 'var(--b)'}`, background: activeView === id ? 'var(--pn3)' : 'var(--s1)', color: activeView === id ? purp : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif", transition: 'all .2s' }}>
             {label}
@@ -2261,36 +2310,49 @@ function ConsistentCharactersTool() {
               <div style={{ textAlign: 'center', padding: '40px 20px' }}>
                 <div style={{ fontSize: '40px', marginBottom: '12px' }}>◉</div>
                 <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '16px', fontWeight: 700, color: purp, marginBottom: '6px' }}>No characters saved yet</div>
-                <div style={{ fontSize: '12px', color: 'var(--mu3)', lineHeight: '1.6', marginBottom: '16px' }}>Create your AI characters and save them here. Use them across AI Studios, Lip Sync, Video Generator, and CineFlow.</div>
+                <div style={{ fontSize: '12px', color: 'var(--mu3)', lineHeight: '1.6', marginBottom: '16px' }}>Upload your AI twin, your team, or create new characters. Lock them to protect them from changes.</div>
                 <button onClick={() => setActiveView('create')}
                   style={{ padding: '10px 20px', borderRadius: '7px', border: 'none', background: 'linear-gradient(135deg,var(--c),var(--pn))', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
-                  Create your first character ↗
+                  Add your first character ↗
                 </button>
               </div>
             </Panel>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '14px' }}>
               {characters.map(char => (
-                <div key={char.id} style={{ background: 'var(--s1)', border: '0.5px solid var(--b2)', borderRadius: 'var(--r2)', padding: '16px', cursor: 'pointer', transition: 'all .2s' }}
+                <div key={char.id}
+                  style={{ background: 'var(--s1)', border: `0.5px solid ${char.locked ? (char.color ?? purp) : 'var(--b2)'}`, borderRadius: 'var(--r2)', overflow: 'hidden', cursor: 'pointer', transition: 'all .2s', boxShadow: char.locked ? `0 0 15px ${char.color ?? purp}22` : 'none' }}
                   onClick={() => { setSelectedChar(char); setActiveView('view') }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                    <div>
-                      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '16px', fontWeight: 800, color: purp, marginBottom: '2px' }}>{char.name}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--mu3)' }}>{char.age && `${char.age} · `}{char.appearance?.slice(0, 50)}{char.appearance?.length > 50 ? '…' : ''}</div>
+
+                  {/* Character photo */}
+                  <div style={{ height: '140px', background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
+                    {char.photo ? (
+                      <img src={char.photo} alt={char.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '32px', marginBottom: '4px' }}>◉</div>
+                        <div style={{ fontSize: '10px', color: 'var(--mu3)' }}>No photo</div>
+                      </div>
+                    )}
+                    {char.locked && (
+                      <div style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.7)', borderRadius: '6px', padding: '3px 8px', fontSize: '10px', color: char.color ?? purp, fontFamily: "'DM Mono',monospace" }}>🔒 Locked</div>
+                    )}
+                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '40px', background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)' }} />
+                  </div>
+
+                  <div style={{ padding: '12px' }}>
+                    <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '14px', fontWeight: 800, color: char.color ?? purp, marginBottom: '2px' }}>{char.name}</div>
+                    <div style={{ fontSize: '10px', color: 'var(--mu3)', marginBottom: '8px' }}>{char.age}</div>
+                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'space-between' }}>
+                      <button onClick={e => { e.stopPropagation(); toggleLock(char.id) }}
+                        style={{ flex: 1, padding: '5px', borderRadius: '6px', border: `0.5px solid ${char.locked ? (char.color ?? purp) : 'var(--b2)'}`, background: char.locked ? `${char.color ?? purp}22` : 'var(--s2)', color: char.locked ? (char.color ?? purp) : 'var(--mu3)', fontSize: '10px', cursor: 'pointer', fontFamily: "'DM Mono',monospace" }}>
+                        {char.locked ? '🔒 Locked' : '🔓 Lock'}
+                      </button>
+                      <button onClick={e => { e.stopPropagation(); deleteCharacter(char.id) }}
+                        style={{ padding: '5px 8px', borderRadius: '6px', border: '0.5px solid rgba(255,45,120,0.2)', background: 'transparent', color: '#ff6b9d', fontSize: '10px', cursor: 'pointer' }}>
+                        ✕
+                      </button>
                     </div>
-                    <button onClick={e => { e.stopPropagation(); deleteCharacter(char.id) }}
-                      style={{ padding: '4px 8px', borderRadius: '6px', border: '0.5px solid rgba(255,45,120,0.2)', background: 'transparent', color: '#ff6b9d', fontSize: '10px', cursor: 'pointer' }}>
-                      Delete
-                    </button>
-                  </div>
-                  {char.personality && <div style={{ fontSize: '11px', color: 'var(--mu3)', marginBottom: '10px', lineHeight: '1.5' }}>{char.personality.slice(0, 80)}{char.personality.length > 80 ? '…' : ''}</div>}
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' as const }}>
-                    {char.imagePrompt && <span style={{ fontSize: '9px', padding: '2px 7px', background: 'var(--pn3)', color: purp, borderRadius: '4px', fontFamily: "'DM Mono',monospace" }}>Image Prompt</span>}
-                    {char.videoSeed && <span style={{ fontSize: '9px', padding: '2px 7px', background: 'rgba(0,200,83,0.1)', color: 'var(--cf)', borderRadius: '4px', fontFamily: "'DM Mono',monospace" }}>Video Seed</span>}
-                    {char.voiceNotes && <span style={{ fontSize: '9px', padding: '2px 7px', background: 'rgba(232,199,106,0.1)', color: '#e8c76a', borderRadius: '4px', fontFamily: "'DM Mono',monospace" }}>Voice Notes</span>}
-                  </div>
-                  <div style={{ fontSize: '10px', color: 'var(--mu)', marginTop: '8px', fontFamily: "'DM Mono',monospace" }}>
-                    Tap to view all prompts ↗
                   </div>
                 </div>
               ))}
@@ -2302,32 +2364,62 @@ function ConsistentCharactersTool() {
       {/* VIEW CHARACTER */}
       {activeView === 'view' && selectedChar && (
         <div>
-          <button onClick={() => setActiveView('library')}
-            style={{ padding: '7px 14px', borderRadius: '7px', border: '0.5px solid var(--b)', background: 'var(--s1)', color: 'var(--mu3)', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", marginBottom: '16px' }}>
-            ← Back to library
-          </button>
-          <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '22px', fontWeight: 800, color: purp, marginBottom: '4px' }}>{selectedChar.name}</div>
-          <div style={{ fontSize: '12px', color: 'var(--mu3)', marginBottom: '20px' }}>{selectedChar.age} · {selectedChar.appearance}</div>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', alignItems: 'center' }}>
+            <button onClick={() => setActiveView('library')}
+              style={{ padding: '7px 14px', borderRadius: '7px', border: '0.5px solid var(--b)', background: 'var(--s1)', color: 'var(--mu3)', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+              ← Library
+            </button>
+            <button onClick={() => toggleLock(selectedChar.id)}
+              style={{ padding: '7px 14px', borderRadius: '7px', border: `0.5px solid ${selectedChar.locked ? (selectedChar.color ?? purp) : 'var(--b2)'}`, background: selectedChar.locked ? `${selectedChar.color ?? purp}22` : 'var(--s2)', color: selectedChar.locked ? (selectedChar.color ?? purp) : 'var(--mu3)', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+              {selectedChar.locked ? '🔒 Unlock character' : '🔓 Lock character'}
+            </button>
+          </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '20px', marginBottom: '20px' }}>
+            <div>
+              <div style={{ width: '200px', height: '240px', background: 'var(--bg3)', borderRadius: 'var(--r2)', overflow: 'hidden', border: `0.5px solid ${selectedChar.color ?? purp}44`, boxShadow: `0 0 20px ${selectedChar.color ?? purp}22` }}>
+                {selectedChar.photo ? (
+                  <img src={selectedChar.photo} alt={selectedChar.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' as const }}>
+                    <div style={{ fontSize: '40px', marginBottom: '8px' }}>◉</div>
+                    <div style={{ fontSize: '10px', color: 'var(--mu3)' }}>No photo uploaded</div>
+                  </div>
+                )}
+              </div>
+              {selectedChar.locked && (
+                <div style={{ marginTop: '8px', padding: '8px', background: `${selectedChar.color ?? purp}22`, border: `0.5px solid ${selectedChar.color ?? purp}44`, borderRadius: '8px', fontSize: '11px', color: selectedChar.color ?? purp, textAlign: 'center', fontFamily: "'DM Mono',monospace" }}>
+                  🔒 Character locked
+                </div>
+              )}
+            </div>
+            <div>
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '26px', fontWeight: 800, color: selectedChar.color ?? purp, marginBottom: '4px' }}>{selectedChar.name}</div>
+              <div style={{ fontSize: '13px', color: 'var(--mu3)', marginBottom: '8px' }}>{selectedChar.age}</div>
+              <div style={{ fontSize: '12px', color: 'var(--w2)', lineHeight: '1.7', marginBottom: '12px' }}>{selectedChar.appearance}</div>
+              <div style={{ fontSize: '12px', color: 'var(--mu3)', lineHeight: '1.6' }}>{selectedChar.personality}</div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             {[
-              { label: 'Appearance Prompt', value: selectedChar.imagePrompt, color: purp, use: 'Midjourney / DALL-E / Image Generator' },
-              { label: 'Video Seed', value: selectedChar.videoSeed, color: 'var(--cf)', use: 'Kling AI / Higgsfield / Veo 3.1' },
-              { label: 'Voice Notes', value: selectedChar.voiceNotes, color: '#e8c76a', use: 'ElevenLabs / HeyGen / D-ID' },
-              { label: 'Signature Phrases', value: selectedChar.phrases, color: 'var(--pn)', use: 'Dialogue / Scripts / Lip Sync' },
-              { label: 'Consistency Rule', value: selectedChar.consistencyRule, color: '#ff6b9d', use: 'Add to every prompt for consistency' },
-              { label: 'Personality', value: selectedChar.personality, color: 'var(--mu3)', use: 'Character context' },
+              { label: 'Appearance Prompt', value: selectedChar.imagePrompt, color: purp, use: 'Midjourney · DALL-E · Image Generator' },
+              { label: 'Video Seed', value: selectedChar.videoSeed, color: 'var(--cf)', use: 'Kling AI · Higgsfield · Veo 3.1' },
+              { label: 'Voice Notes', value: selectedChar.voiceNotes, color: '#e8c76a', use: 'ElevenLabs · HeyGen · D-ID' },
+              { label: 'Signature Phrases', value: selectedChar.phrases, color: 'var(--pn)', use: 'Lip Sync · Scripts · Dialogue' },
+              { label: 'Consistency Rule', value: selectedChar.consistencyRule, color: '#ff6b9d', use: 'Add to EVERY prompt for same face' },
+              { label: 'Backstory', value: selectedChar.backstory, color: 'var(--mu3)', use: 'Context for scripts and scenes' },
             ].filter(s => s.value).map(section => (
-              <div key={section.label} style={{ background: 'var(--s1)', border: '0.5px solid var(--b)', borderRadius: 'var(--r2)', padding: '14px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <div key={section.label} style={{ background: 'var(--s1)', border: '0.5px solid var(--b)', borderRadius: 'var(--r2)', padding: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                   <div style={{ fontSize: '10px', fontWeight: 600, color: section.color, fontFamily: "'DM Mono',monospace", textTransform: 'uppercase' as const, letterSpacing: '.7px' }}>{section.label}</div>
                   <button onClick={() => copyText(section.value, section.label)}
-                    style={{ padding: '3px 10px', borderRadius: '5px', border: `0.5px solid ${copied === section.label ? section.color : 'var(--b2)'}`, background: copied === section.label ? 'var(--pn3)' : 'var(--s2)', color: copied === section.label ? section.color : 'var(--mu3)', fontSize: '10px', cursor: 'pointer', fontFamily: "'DM Mono',monospace", transition: 'all .2s' }}>
+                    style={{ padding: '3px 10px', borderRadius: '5px', border: `0.5px solid ${copied === section.label ? section.color : 'var(--b2)'}`, background: copied === section.label ? 'var(--pn3)' : 'var(--s2)', color: copied === section.label ? section.color : 'var(--mu3)', fontSize: '10px', cursor: 'pointer', transition: 'all .2s' }}>
                     {copied === section.label ? '✓ Copied!' : 'Copy'}
                   </button>
                 </div>
-                <div style={{ fontSize: '12px', color: 'var(--w2)', lineHeight: '1.6', marginBottom: '6px' }}>{section.value}</div>
-                <div style={{ fontSize: '10px', color: 'var(--mu)', fontFamily: "'DM Mono',monospace" }}>Use in: {section.use}</div>
+                <div style={{ fontSize: '12px', color: 'var(--w2)', lineHeight: '1.6', marginBottom: '4px' }}>{section.value}</div>
+                <div style={{ fontSize: '10px', color: 'var(--mu)', fontFamily: "'DM Mono',monospace" }}>→ {section.use}</div>
               </div>
             ))}
           </div>
@@ -2337,41 +2429,99 @@ function ConsistentCharactersTool() {
       {/* CREATE CHARACTER */}
       {activeView === 'create' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          <Panel hi>
-            <PTitle>Character details</PTitle>
-            <F label="Character name"><input style={inp} placeholder="e.g. Luxe Envi, Nova Star, Marcus Reed" value={name} onChange={e => setName(e.target.value)} /></F>
-            <F label="Age and vibe"><input style={inp} placeholder="e.g. 28, luxury lifestyle creator, powerful energy" value={age} onChange={e => setAge(e.target.value)} /></F>
-            <F label="Appearance"><input style={inp} placeholder="e.g. Black woman, deep brown skin, natural locs, 5ft7" value={appearance} onChange={e => setAppearance(e.target.value)} /></F>
-            <F label="Style and fashion"><input style={inp} placeholder="e.g. luxury streetwear, designer pieces, bold accessories" value={style} onChange={e => setStyle(e.target.value)} /></F>
-            <F label="Personality"><input style={inp} placeholder="e.g. bold, ambitious, charismatic, commanding" value={personality} onChange={e => setPersonality(e.target.value)} /></F>
-            <F label="Backstory"><input style={inp} placeholder="e.g. Built a POD empire from nothing, now an AI influencer" value={backstory} onChange={e => setBackstory(e.target.value)} /></F>
-            <GenBtn loading={loading} onClick={generateCharacter}>Build and save character ↗</GenBtn>
-            <Output text={output} loading={loading} tool="characters" />
-          </Panel>
+          <div>
+            <Panel hi mb>
+              <PTitle>Upload character photo</PTitle>
+              <div className="upload-zone" style={{ marginBottom: '12px' }}>
+                <input type="file" accept="image/*" onChange={handlePhotoUpload} />
+                {!photo ? (
+                  <div>
+                    <div style={{ fontSize: '28px', marginBottom: '6px' }}>📸</div>
+                    <div style={{ fontSize: '12px', color: 'var(--w2)', marginBottom: '3px' }}>Upload your AI character photo</div>
+                    <div style={{ fontSize: '10px', color: 'var(--mu3)' }}>From Midjourney, DALL-E, Leonardo, HeyGen, or any app</div>
+                  </div>
+                ) : (
+                  <img src={photo} alt="character" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '8px' }} />
+                )}
+              </div>
+              <F label="Character color accent">
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
+                  {colorOptions.map(c => (
+                    <div key={c} onClick={() => setCharColor(c)}
+                      style={{ width: '24px', height: '24px', borderRadius: '50%', background: c, cursor: 'pointer', border: charColor === c ? '2px solid #fff' : '2px solid transparent', transition: 'all .2s', boxShadow: charColor === c ? `0 0 8px ${c}` : 'none' }} />
+                  ))}
+                </div>
+              </F>
+            </Panel>
+
+            <Panel hi>
+              <PTitle>Character details</PTitle>
+              <F label="Name"><input style={inp} placeholder="e.g. Luxe Envi, Nova Star, My AI Twin" value={name} onChange={e => setName(e.target.value)} /></F>
+              <F label="Age and vibe"><input style={inp} placeholder="e.g. 28, luxury lifestyle creator" value={age} onChange={e => setAge(e.target.value)} /></F>
+              <F label="Appearance"><input style={inp} placeholder="e.g. Black woman, deep brown skin, natural locs" value={appearance} onChange={e => setAppearance(e.target.value)} /></F>
+              <F label="Style"><input style={inp} placeholder="e.g. luxury streetwear, designer pieces" value={style} onChange={e => setStyle(e.target.value)} /></F>
+              <F label="Personality"><input style={inp} placeholder="e.g. bold, ambitious, charismatic" value={personality} onChange={e => setPersonality(e.target.value)} /></F>
+              <F label="Backstory"><input style={inp} placeholder="e.g. Built a POD empire from nothing" value={backstory} onChange={e => setBackstory(e.target.value)} /></F>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '4px' }}>
+                <GenBtn loading={loading} onClick={generateCharacter}>✦ AI Build + Save</GenBtn>
+                <button onClick={saveManualCharacter}
+                  style={{ padding: '10px', borderRadius: '7px', border: '0.5px solid var(--b2)', background: 'var(--s2)', color: 'var(--pn)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+                  Save manually ↗
+                </button>
+              </div>
+              <div style={{ fontSize: '10px', color: 'var(--mu3)', marginTop: '6px', fontFamily: "'DM Mono',monospace" }}>
+                AI Build = generates full prompts · Save manually = save what you typed
+              </div>
+              {output && <Output text={output} loading={loading} tool="characters" />}
+            </Panel>
+          </div>
 
           <div>
             <Panel mb>
-              <PTitle>Quick-starts</PTitle>
+              <PTitle>Quick-starts — Envi Lee team</PTitle>
               {[
-                { name: 'Luxe Envi', age: '28, luxury lifestyle creator', appearance: 'Black woman, deep brown skin, natural locs, 5ft7, slender athletic build', style: 'luxury streetwear, designer pieces, gold jewelry, bold accessories', personality: 'bold, ambitious, charismatic, commanding, witty, magnetic energy', backstory: 'Built a POD empire from nothing, now runs a multi-million dollar AI creator brand' },
-                { name: 'Nova Star', age: '23, AI pop artist', appearance: 'Black woman, melanin-rich skin, long straight black hair, 5ft5, model physique', style: 'futuristic designer fashion, sequins and metallics, avant-garde', personality: 'glamorous, confident, magnetic, mysterious, effortlessly cool', backstory: 'AI pop star born in the digital world, performing sold-out concerts across the metaverse' },
-                { name: 'Marcus Reed', age: '32, drama lead', appearance: 'Black man, dark skin, short fade, 6ft2, athletic muscular build, strong jawline', style: 'designer suits, luxury casual, understated power dressing', personality: 'commanding, intelligent, intense, protective, complex, magnetic', backstory: 'Self-made entrepreneur who built his empire through strategy and sheer will' },
-                { name: 'Baddie Nova', age: '24, streetwear creator', appearance: 'Black woman, medium brown skin, box braids, 5ft4, curvy confident build', style: 'bold streetwear, graphic tees, Jordan sneakers, statement accessories', personality: 'loud, funny, real, unapologetic, relatable, hype energy', backstory: 'Started a POD brand from her bedroom, now has a cult following of 500k' },
+                { name: 'Luxe Envi', age: '28, luxury lifestyle creator, AI twin', appearance: 'Black woman, deep brown skin, natural locs, 5ft7, slender athletic build, high cheekbones', style: 'luxury streetwear, designer pieces, gold jewelry, bold accessories, sunglasses', personality: 'bold, ambitious, charismatic, commanding, witty, magnetic energy, moves like she owns every room', backstory: 'Built a POD empire from nothing, now runs a multi-million dollar AI creator brand. Your AI twin.' },
+                { name: 'Nova Star', age: '23, AI pop artist and performer', appearance: 'Black woman, deep melanin skin, long straight black hair, 5ft5, model physique, striking eyes', style: 'futuristic designer fashion, sequins and metallics, avant-garde couture, stage ready', personality: 'glamorous, confident, magnetic, mysterious, effortlessly cool, commands attention', backstory: 'AI pop star born in the digital world, performing sold-out virtual concerts.' },
+                { name: 'Marcus Reed', age: '32, drama lead and business mogul', appearance: 'Black man, deep dark skin, short fade with waves, 6ft2, athletic muscular build, strong jawline, intense eyes', style: 'designer suits, luxury casual wear, understated power dressing, Rolex, minimal jewelry', personality: 'commanding, intelligent, intense, protective, complex, magnetic, few words but every word counts', backstory: 'Self-made entrepreneur built his empire through strategy and sheer will. Your drama lead.' },
+                { name: 'Baddie Nova', age: '24, streetwear and POD brand creator', appearance: 'Black woman, medium warm brown skin, long box braids with gold cuffs, 5ft4, curvy confident build', style: 'bold streetwear, graphic oversized tees, Jordan sneakers, chunky gold chains, statement earrings', personality: 'loud and proud, funny, real, unapologetically herself, relatable, high hype energy', backstory: 'Started a POD brand from her bedroom, now has a cult following.' },
               ].map(q => (
                 <button key={q.name} onClick={() => { setName(q.name); setAge(q.age); setAppearance(q.appearance); setStyle(q.style); setPersonality(q.personality); setBackstory(q.backstory) }}
                   style={{ display: 'block', width: '100%', marginBottom: '7px', padding: '8px 11px', background: 'var(--bg3)', border: '0.5px solid var(--b)', borderRadius: '7px', fontSize: '12px', color: 'var(--mu3)', cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans',sans-serif" }}>
-                  {q.name} ↗
+                  {q.name} — {q.age.split(',')[0]} ↗
                 </button>
               ))}
             </Panel>
-            <Panel>
-              <PTitle>What gets generated</PTitle>
+
+            <Panel mb>
+              <PTitle>Free character creation tools</PTitle>
+              <div style={{ fontSize: '11px', color: 'var(--mu3)', marginBottom: '10px', lineHeight: '1.6' }}>Create your AI character for free in these tools then upload the photo here:</div>
               {[
-                ['Appearance Prompt','Copy-paste ready for Midjourney, DALL-E, and Image Generator'],
-                ['Video Seed','Paste into Kling AI, Higgsfield, or Veo 3.1 for consistent video'],
-                ['Voice Notes','ElevenLabs settings for your character\'s exact voice'],
-                ['Signature Phrases','What they always say — for scripts and lip sync'],
-                ['Consistency Rule','One phrase to add to every prompt to keep them consistent'],
+                ['Leonardo AI','leonardo.ai','Free — 150 credits/day. Best for consistent faces.'],
+                ['Adobe Firefly','firefly.adobe.com','Free tier. Photorealistic faces. No account needed.'],
+                ['Ideogram','ideogram.ai','Free — great for fashion and lifestyle images.'],
+                ['Canva AI','canva.com','Free tier. Easy for beginners. Great quality.'],
+                ['Microsoft Designer','designer.microsoft.com','Free with Microsoft account. Fast and easy.'],
+                ['Google Gemini','gemini.google.com','Free image generation. Good for portraits.'],
+              ].map(([name, url, desc]) => (
+                <a key={name} href={`https://${url}`} target="_blank" rel="noreferrer"
+                  style={{ padding: '9px 12px', background: 'var(--bg3)', border: '0.5px solid var(--b)', borderRadius: 'var(--r)', textDecoration: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: 'var(--w)', fontWeight: 500 }}>{name}</div>
+                    <div style={{ fontSize: '10px', color: 'var(--mu3)', marginTop: '1px' }}>{desc}</div>
+                  </div>
+                  <span style={{ color: purp, fontSize: '10px', fontFamily: "'DM Mono',monospace", flexShrink: 0, marginLeft: '8px' }}>Free ↗</span>
+                </a>
+              ))}
+            </Panel>
+
+            <Panel>
+              <PTitle>Consistency tips</PTitle>
+              {[
+                ['Always use the same seed phrase','Add your character\'s consistency rule to every prompt. Same phrase = same face.'],
+                ['Save your character\'s face as a reference','Upload the same base image to any tool that accepts image references.'],
+                ['Use the same lighting description','Same lighting in every prompt keeps your character recognizable.'],
+                ['Lock your character once set','Locking prevents accidental changes to your established AI identity.'],
               ].map(([t,d]) => (
                 <div key={t} style={{ marginBottom: '10px' }}>
                   <div style={{ fontSize: '12px', fontWeight: 500, color: purp, marginBottom: '2px' }}>{t}</div>
