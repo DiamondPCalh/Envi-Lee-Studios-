@@ -376,7 +376,8 @@ function TryOnTool() {
   const [modelImage, setModelImage] = useState<string | null>(null)
   const [garmentImage, setGarmentImage] = useState<string | null>(null)
   const [productName, setProductName] = useState('')
-  const [brand, setBrand] = useState('Custom Design')
+  const [brand, setBrand] = useState('Envi Lee')
+  const [category, setCategory] = useState('tops')
   const [platform, setPlatform] = useState('TikTok')
   const [result, setResult] = useState<{message?: string; imageUrl?: string} | null>(null)
   const [loading, setLoading] = useState(false)
@@ -396,10 +397,21 @@ function TryOnTool() {
   }
 
   async function generateTryOn() {
-    if (!modelImage) { alert('Please upload a model or person photo'); return }
+    if (!modelImage) { alert('Please upload a person or model photo first'); return }
+    if (!garmentImage) { alert('Please upload a clothing or garment photo first'); return }
     setLoading(true); setResult(null)
     try {
-      const data = await callTryOn({ personImage: modelImage, garmentImage: garmentImage ?? '', productName, brand })
+      const res = await fetch('/api/tryon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          personImage: modelImage,
+          garmentImage: garmentImage,
+          category,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Try-on failed')
       setResult(data)
     } catch(e) {
       setResult({ message: `Error: ${(e as Error).message}` })
@@ -416,8 +428,9 @@ function TryOnTool() {
   return (
     <div className="pg-in">
       <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Creator <span style={{ color: 'var(--pn)' }}>Try-On Studio</span></div>
-      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '8px', lineHeight: '1.6' }}>Upload a model + clothing image, generate try-on photos, and create captions, hashtags, scripts, and product descriptions.</div>
-      <div style={{ background: 'var(--pn3)', border: '0.5px solid rgba(155,109,255,0.25)', borderRadius: '8px', padding: '10px 14px', marginBottom: '20px', fontSize: '11px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace" }}>
+      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '8px', lineHeight: '1.6' }}>Upload a model photo and clothing image — AI places the garment on the model realistically using FASHN AI.</div>
+      <div style={{ background: 'rgba(0,200,83,0.08)', border: '0.5px solid rgba(0,200,83,0.25)', borderRadius: '8px', padding: '10px 14px', marginBottom: '20px', fontSize: '11px', color: 'var(--cf)', fontFamily: "'DM Mono',monospace" }}>
+        ✦ Powered by FASHN AI · Real virtual try-on · Upload both photos and click Generate
         ✦ Connect FASHN, Genlook, or OpenArt in Vercel env vars for real try-on · Content generation works now
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
@@ -457,21 +470,31 @@ function TryOnTool() {
               {loading ? (
                 <div style={{ textAlign: 'center', padding: '30px' }}>
                   <div style={{ fontSize: '32px', marginBottom: '10px' }}>✦</div>
-                  <div style={{ fontSize: '13px', color: 'var(--pn)', marginBottom: '8px' }}>Generating try-on…</div>
-                  <div style={{ height: '2px', background: 'rgba(155,109,255,0.1)', overflow: 'hidden', borderRadius: '1px', width: '120px', margin: '0 auto' }}><div className="lbar-fill" /></div>
+                  <div style={{ fontSize: '13px', color: 'var(--cf)', marginBottom: '8px', fontWeight: 600 }}>FASHN AI is generating your try-on…</div>
+                  <div style={{ height: '2px', background: 'rgba(0,200,83,0.1)', overflow: 'hidden', borderRadius: '1px', width: '120px', margin: '0 auto 8px' }}><div className="lbar-fill-cf" /></div>
+                  <div style={{ fontSize: '11px', color: 'var(--mu3)' }}>Usually takes 15–30 seconds</div>
                 </div>
               ) : result ? (
-                <div style={{ width: '100%', padding: '16px' }}>
+                <div style={{ width: '100%' }}>
                   {result.imageUrl ? (
-                    <img src={result.imageUrl} alt="try-on result" style={{ width: '100%', borderRadius: '8px' }} />
+                    <div>
+                      <img src={result.imageUrl} alt="try-on result" style={{ width: '100%', borderRadius: '8px', display: 'block' }} />
+                      <div style={{ padding: '12px', display: 'flex', gap: '8px' }}>
+                        <a href={result.imageUrl} download target="_blank" rel="noreferrer"
+                          style={{ flex: 1, padding: '8px', borderRadius: '7px', border: 'none', background: 'var(--cf)', color: '#000', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", textAlign: 'center', textDecoration: 'none', display: 'block' }}>
+                          ⬇ Download
+                        </a>
+                        <button onClick={() => setResult(null)}
+                          style={{ flex: 1, padding: '8px', borderRadius: '7px', border: '0.5px solid var(--b2)', background: 'var(--s2)', color: 'var(--pn)', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+                          ↺ Try again
+                        </button>
+                      </div>
+                    </div>
                   ) : (
                     <div style={{ textAlign: 'center', padding: '20px' }}>
-                      <div style={{ fontSize: '32px', marginBottom: '8px' }}>✦</div>
-                      <div style={{ fontSize: '13px', color: 'var(--pn)', marginBottom: '8px', fontWeight: 600 }}>Demo Mode Active</div>
-                      <div style={{ fontSize: '11px', color: 'var(--mu3)', lineHeight: '1.7', marginBottom: '12px' }}>{result.message}</div>
-                      <div style={{ background: 'var(--pn3)', border: '0.5px solid rgba(155,109,255,0.3)', borderRadius: '8px', padding: '12px', fontSize: '11px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace", textAlign: 'left', lineHeight: '1.8' }}>
-                        Product: {productName || 'Not set'}<br/>Brand: {brand}<br/>Model: {modelImage ? '✓ Uploaded' : '✗ Missing'}<br/>Garment: {garmentImage ? '✓ Uploaded' : '✗ Missing'}
-                      </div>
+                      <div style={{ fontSize: '32px', marginBottom: '8px' }}>⚠</div>
+                      <div style={{ fontSize: '13px', color: '#ff6b9d', marginBottom: '8px', fontWeight: 600 }}>Try-on failed</div>
+                      <div style={{ fontSize: '11px', color: 'var(--mu3)', lineHeight: '1.7' }}>{result.message}</div>
                     </div>
                   )}
                 </div>
@@ -479,17 +502,30 @@ function TryOnTool() {
                 <div style={{ textAlign: 'center', padding: '30px', color: 'var(--mu3)' }}>
                   <div style={{ fontSize: '40px', marginBottom: '10px' }}>✦</div>
                   <div style={{ fontSize: '13px', color: 'var(--pn)' }}>Try-on will appear here</div>
-                  <div style={{ fontSize: '11px', marginTop: '6px' }}>Upload photos and click Generate</div>
+                  <div style={{ fontSize: '11px', marginTop: '6px' }}>Upload both photos then click Generate</div>
                 </div>
               )}
             </div>
           </Panel>
           <Panel>
-            <PTitle>Connect a try-on API</PTitle>
-            {[['FASHN','fashn.ai','FASHN_API_KEY'],['Genlook','genlook.ai','GENLOOK_API_KEY'],['OpenArt','openart.ai','OPENART_API_KEY']].map(([name,url,key]) => (
-              <div key={name} style={{ padding: '9px 12px', background: 'var(--bg3)', borderRadius: 'var(--r)', marginBottom: '7px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div><div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--w)' }}>{name}</div><div style={{ fontSize: '10px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace" }}>{key}</div></div>
-                <div style={{ fontSize: '10px', color: 'var(--mu3)' }}>{url}</div>
+            <PTitle>Garment category</PTitle>
+            <F label="What type of clothing">
+              <select style={sel} value={category} onChange={e => setCategory(e.target.value)}>
+                <option value="tops">Tops — t-shirts, blouses, crop tops</option>
+                <option value="bottoms">Bottoms — pants, skirts, shorts</option>
+                <option value="one-pieces">One pieces — dresses, jumpsuits</option>
+              </select>
+            </F>
+            <PTitle>Tips for best results</PTitle>
+            {[
+              ['Model photo','Front-facing, arms slightly away from body, plain background'],
+              ['Garment photo','Flat lay or on a hanger, clear and well-lit'],
+              ['Lighting','Good lighting on both photos gives best results'],
+              ['Processing time','FASHN takes 15-30 seconds to generate'],
+            ].map(([t,d]) => (
+              <div key={t} style={{ marginBottom: '9px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--cf)', marginBottom: '2px' }}>{t}</div>
+                <div style={{ fontSize: '11px', color: 'var(--mu3)', lineHeight: '1.5' }}>{d}</div>
               </div>
             ))}
           </Panel>
