@@ -1,22 +1,12 @@
 // app/api/tryon/route.ts
-// ============================================================
-//  VIRTUAL TRY-ON API ADAPTER
-//  Supports: FASHN, Genlook, OpenArt, or demo mode
-//
-//  To connect a real try-on API:
-//  1. Go to Vercel → Settings → Environment Variables
-//  2. Add one of these:
-//     TRYON_PROVIDER = fashn       (then add FASHN_API_KEY)
-//     TRYON_PROVIDER = genlook     (then add GENLOOK_API_KEY)
-//     TRYON_PROVIDER = openart     (then add OPENART_API_KEY)
-//  3. If TRYON_PROVIDER is not set it runs in demo mode
-// ============================================================
+// Virtual Try-On using FASHN AI
+// Requires FASHN_API_KEY and TRYON_PROVIDER=fashn in Vercel env vars
 
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(req: NextRequest) {
   try {
-    const { personImage, garmentImage, productName, brand, category } = await req.json()
+    const { personImage, garmentImage, category } = await req.json()
 
     if (!personImage) {
       return NextResponse.json({ error: 'personImage is required' }, { status: 400 })
@@ -28,91 +18,94 @@ export async function POST(req: NextRequest) {
     if (provider === 'demo') {
       return NextResponse.json({
         result: 'demo',
-        message: `Demo mode active. To enable real try-on, add TRYON_PROVIDER and API key to Vercel environment variables.`,
-        product: productName,
-        brand: brand,
+        message: 'Demo mode — add FASHN_API_KEY and TRYON_PROVIDER=fashn to Vercel to enable real try-on.',
       })
     }
 
-    // ── FASHN API ────────────────────────────────────────────
-    // Sign up at: https://fashn.ai
+    // ── FASHN AI ─────────────────────────────────────────────
     if (provider === 'fashn') {
       const key = process.env.FASHN_API_KEY
-      if (!key) return NextResponse.json({ error: 'FASHN_API_KEY not configured' }, { status: 500 })
+      if (!key) {
+        return NextResponse.json({ error: 'FASHN_API_KEY not configured' }, { status: 500 })
+      }
 
-      const res = await fetch('https://api.fashn.ai/v1/run', {
+      // Step 1 — Start the try-on job
+      const runRes = await fetch('https://api.fashn.ai/v1/run', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${key}`
+          'Authorization': `Bearer ${key}`,
         },
         body: JSON.stringify({
           model_image: personImage,
           garment_image: garmentImage,
           category: category ?? 'tops',
+          mode: 'quality',
           nsfw_filter: true,
-        })
+          cover_feet: false,
+          adjust_hands: true,
+          restore_background: true,
+          restore_clothes: true,
+          guidance_scale: 2,
+          timesteps: 50,
+          num_samples: 1,
+          return_base64: false,
+        }),
       })
-      if (!res.ok) throw new Error(`FASHN error ${res.status}`)
-      const data = await res.json()
-      return NextResponse.json({ result: 'success', imageUrl: data.output?.[0] ?? null, raw: data })
-    }
 
-    // ── GENLOOK API ──────────────────────────────────────────
-    // Sign up at: https://genlook.ai
-    if (provider === 'genlook') {
-      const key = process.env.GENLOOK_API_KEY
-      if (!key) return NextResponse.json({ error: 'GENLOOK_API_KEY not configured' }, { status: 500 })
+      if (!runRes.ok) {
+        const err = await runRes.text()
+        throw new Error(`FASHN run error ${runRes.status}: ${err}`)
+      }
 
-      const res = await fetch('https://api.genlook.ai/v1/tryon', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': key
-        },
-        body: JSON.stringify({
-          person_image: personImage,
-          clothing_image: garmentImage,
-          product_name: productName,
+      const runData = await runRes.json()
+      const predictionId = runData.id
+
+      if (!predictionId) {
+        throw new Error('No prediction ID returned from FASHN')
+      }
+
+      // Step 2 — Poll for result
+      let attempts = 0
+      const maxAttempts = 30
+
+      while (attempts < maxAttempts) {
+        await new Promise(r => setTimeout(r, 2000))
+        attempts++
+
+        const statusRes = await fetch(`https://api.fashn.ai/v1/status/${predictionId}`, {
+          headers: { 'Authorization': `Bearer ${key}` },
         })
-      })
-      if (!res.ok) throw new Error(`Genlook error ${res.status}`)
-      const data = await res.json()
-      return NextResponse.json({ result: 'success', imageUrl: data.result_url ?? null, raw: data })
-    }
 
-    // ── OPENART API ──────────────────────────────────────────
-    // Sign up at: https://openart.ai
-    if (provider === 'openart') {
-      const key = process.env.OPENART_API_KEY
-      if (!key) return NextResponse.json({ error: 'OPENART_API_KEY not configured' }, { status: 500 })
+        if (!statusRes.ok) continue
 
-      const res = await fetch('https://openart.ai/api/v1/tryon', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${key}`
-        },
-        body: JSON.stringify({
-          human_image: personImage,
-          cloth_image: garmentImage,
-        })
-      })
-      if (!res.ok) throw new Error(`OpenArt error ${res.status}`)
-      const data = await res.json()
-      return NextResponse.json({ result: 'success', imageUrl: data.output ?? null, raw: data })
+        const statusData = await statusRes.json()
+
+        if (statusData.status === 'completed') {
+          const imageUrl = statusData.output?.[0]
+          if (imageUrl) {
+            return NextResponse.json({ imageUrl, status: 'completed' })
+          }
+          throw new Error('No output image returned')
+        }
+
+        if (statusData.status === 'failed') {
+          throw new Error(statusData.error ?? 'FASHN generation failed')
+        }
+      }
+
+      throw new Error('Try-on timed out — try again')
     }
 
     return NextResponse.json({ error: 'Unknown provider' }, { status: 400 })
 
   } catch (err) {
     console.error('[tryon]', err)
-    return NextResponse.json({ error: 'Try-on generation failed' }, { status: 500 })
+    return NextResponse.json({ error: `Try-on failed: ${(err as Error).message}` }, { status: 500 })
   }
 }
 
-// ── CONTENT GENERATION ROUTE ─────────────────────────────────
-// Also handles generating captions, hashtags, and scripts
+// Content generation for the try-on studio
 export async function PUT(req: NextRequest) {
   try {
     const { productName, brand, platform, contentType } = await req.json()
@@ -120,28 +113,26 @@ export async function PUT(req: NextRequest) {
     if (!key) return NextResponse.json({ error: 'API key not configured' }, { status: 500 })
 
     const prompts: Record<string, string> = {
-      caption: `Write a viral ${platform} caption for this product: ${productName} by ${brand}. Include hook, description, and CTA. Under 150 chars for TikTok, longer for Instagram.`,
-      hashtags: `Generate 20 high-performing hashtags for ${productName} by ${brand} on ${platform}. Mix broad and niche tags. Just the hashtags, no explanation.`,
-      script: `Write a 30-second TikTok script for ${productName} by ${brand}. Include: hook (2 sec), product showcase (15 sec), CTA (5 sec). Format with [SCENE] directions.`,
-      description: `Write a product description for ${productName} by ${brand}. Lifestyle-led, benefit-first, aspirational. Under 100 words. Perfect for TikTok Shop or Amazon.`,
+      caption: `Write a viral ${platform} caption for: ${productName} by ${brand}. Hook + description + CTA. Under 150 chars for TikTok.`,
+      hashtags: `Generate 20 high-performing hashtags for ${productName} by ${brand} on ${platform}. Mix broad and niche. Just hashtags.`,
+      script: `Write a 30-second TikTok script for ${productName} by ${brand}. Hook (2 sec) + showcase (15 sec) + CTA (5 sec). Include [SCENE] directions.`,
+      description: `Write a product description for ${productName} by ${brand}. Lifestyle-led, benefit-first, aspirational. Under 100 words.`,
     }
-
-    const prompt = prompts[contentType] ?? prompts.caption
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': key,
-        'anthropic-version': '2023-06-01'
+        'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 600,
-        messages: [{ role: 'user', content: prompt }]
-      })
+        messages: [{ role: 'user', content: prompts[contentType] ?? prompts.caption }],
+      }),
     })
-    if (!res.ok) throw new Error(`Anthropic error ${res.status}`)
+
     const d = await res.json()
     return NextResponse.json({ result: d.content?.[0]?.text ?? '' })
 
