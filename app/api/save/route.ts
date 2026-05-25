@@ -1,21 +1,12 @@
 // app/api/save/route.ts
-// POST /api/save - save a piece of work
-// GET /api/save - get all saved work
-// DELETE /api/save - delete a saved item
- 
+// Persistent save system using Upstash Redis
+// Each user's saves are stored under their Clerk user ID
+
 import { NextRequest, NextResponse } from 'next/server'
- 
-// ── Simple file-based storage using Vercel's tmp ─────────────
-// For production use, replace with Vercel KV or a database
-// To upgrade to Vercel KV:
-// 1. Go to Vercel Dashboard → Storage → Create KV Database
-// 2. Connect it to your project
-// 3. Replace the storage functions below with KV calls
- 
-// We use a simple in-memory store for now
-// This persists within a single serverless function instance
-// For persistent storage across requests, connect Vercel KV
- 
+
+const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL ?? ''
+const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN ?? ''
+
 interface SavedItem {
   id: string
   title: string
@@ -25,28 +16,49 @@ interface SavedItem {
   imageUrl?: string
   savedAt: string
 }
- 
-// GET all saved items
-export async function GET() {
+
+async function redis(command: string[]) {
+  const res = await fetch(`${UPSTASH_URL}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${UPSTASH_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(command),
+  })
+  return res.json()
+}
+
+// GET — load all saved items for a user
+export async function GET(req: NextRequest) {
   try {
-    // Return empty array for now - will be populated via client-side localStorage
-    // When you connect Vercel KV, replace this with KV.get('saved-items')
-    return NextResponse.json({ items: [] })
+    const userId = req.nextUrl.searchParams.get('userId')
+    if (!userId) return NextResponse.json({ items: [] })
+
+    const key = `saves:${userId}`
+    const result = await redis(['GET', key])
+    const items = result.result ? JSON.parse(result.result) : []
+    return NextResponse.json({ items })
   } catch (err) {
-    return NextResponse.json({ error: 'Failed to load saved items' }, { status: 500 })
+    console.error('[save GET]', err)
+    return NextResponse.json({ items: [] })
   }
 }
- 
-// POST save a new item
+
+// POST — save a new item
 export async function POST(req: NextRequest) {
   try {
-    const { title, tool, content, prompt, imageUrl } = await req.json()
- 
-    if (!content && !imageUrl) {
-      return NextResponse.json({ error: 'content or imageUrl is required' }, { status: 400 })
-    }
- 
-    const item: SavedItem = {
+    const { userId, tool, content, prompt, imageUrl, title } = await req.json()
+    if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
+
+    const key = `saves:${userId}`
+
+    // Get existing saves
+    const existing = await redis(['GET', key])
+    const items: SavedItem[] = existing.result ? JSON.parse(existing.result) : []
+
+    // Add new item
+    const newItem: SavedItem = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       title: title || `${tool} — ${new Date().toLocaleDateString()}`,
       tool: tool || 'unknown',
@@ -55,24 +67,35 @@ export async function POST(req: NextRequest) {
       imageUrl: imageUrl || '',
       savedAt: new Date().toISOString(),
     }
- 
-    // When you connect Vercel KV, save here:
-    // await kv.lpush('saved-items', JSON.stringify(item))
- 
-    return NextResponse.json({ success: true, item })
+
+    items.unshift(newItem)
+    const trimmed = items.slice(0, 200) // Keep last 200 saves
+
+    // Save back to Redis with 1 year expiry
+    await redis(['SET', key, JSON.stringify(trimmed), 'EX', '31536000'])
+
+    return NextResponse.json({ success: true, item: newItem })
   } catch (err) {
-    console.error('[/api/save]', err)
-    return NextResponse.json({ error: 'Failed to save item' }, { status: 500 })
+    console.error('[save POST]', err)
+    return NextResponse.json({ error: 'Failed to save' }, { status: 500 })
   }
 }
- 
-// DELETE a saved item
+
+// DELETE — remove a saved item
 export async function DELETE(req: NextRequest) {
   try {
-    const { id } = await req.json()
-    // When you connect Vercel KV, delete here
-    return NextResponse.json({ success: true, id })
+    const { userId, itemId } = await req.json()
+    if (!userId || !itemId) return NextResponse.json({ error: 'userId and itemId required' }, { status: 400 })
+
+    const key = `saves:${userId}`
+    const existing = await redis(['GET', key])
+    const items: SavedItem[] = existing.result ? JSON.parse(existing.result) : []
+    const updated = items.filter(i => i.id !== itemId)
+    await redis(['SET', key, JSON.stringify(updated), 'EX', '31536000'])
+
+    return NextResponse.json({ success: true })
   } catch (err) {
-    return NextResponse.json({ error: 'Failed to delete item' }, { status: 500 })
+    console.error('[save DELETE]', err)
+    return NextResponse.json({ error: 'Failed to delete' }, { status: 500 })
   }
 }
