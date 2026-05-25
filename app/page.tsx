@@ -127,21 +127,18 @@ function Output({ text, loading, cf, tool, prompt }: { text: string; loading: bo
   async function save() {
     if (!text) return
     try {
+      const userId = (window as any).__clerk_user_id || localStorage.getItem('userId') || 'anonymous'
       const res = await fetch('/api/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tool: tool || 'output', content: text, prompt: prompt || '' }),
+        body: JSON.stringify({ userId, tool: tool || 'output', content: text, prompt: prompt || '' }),
       })
       if (res.ok) {
-        // Also save to localStorage as backup
-        const existing = JSON.parse(localStorage.getItem('savedWork') || '[]')
-        existing.unshift({ id: Date.now(), tool: tool || 'output', content: text, prompt: prompt || '', savedAt: new Date().toISOString() })
-        localStorage.setItem('savedWork', JSON.stringify(existing.slice(0, 100)))
         setSaved(true)
         setTimeout(() => setSaved(false), 2000)
       }
     } catch {
-      // Fallback to localStorage only
+      // Fallback to localStorage
       const existing = JSON.parse(localStorage.getItem('savedWork') || '[]')
       existing.unshift({ id: Date.now(), tool: tool || 'output', content: text, prompt: prompt || '', savedAt: new Date().toISOString() })
       localStorage.setItem('savedWork', JSON.stringify(existing.slice(0, 100)))
@@ -1856,56 +1853,73 @@ function ImageGenTool() {
 // ── SAVED WORK ────────────────────────────────────────────────
 
 function SavedWorkTool() {
-  const [savedItems, setSavedItems] = useState<Array<{id: number; tool: string; content: string; prompt: string; imageUrl: string; savedAt: string}>>([])
+  const { user } = useUser()
+  const [savedItems, setSavedItems] = useState<Array<{id: string | number; tool: string; content: string; prompt: string; imageUrl: string; savedAt: string}>>([])
   const [filter, setFilter] = useState('all')
-  const [copied, setCopied] = useState<number | null>(null)
+  const [copied, setCopied] = useState<string | number | null>(null)
+  const [loadingData, setLoadingData] = useState(false)
 
-  function load() {
+  async function load() {
+    setLoadingData(true)
     try {
+      if (user?.id) {
+        const res = await fetch(`/api/save?userId=${user.id}`)
+        const data = await res.json()
+        if (data.items && data.items.length > 0) {
+          setSavedItems(data.items)
+          setLoadingData(false)
+          return
+        }
+      }
       const items = JSON.parse(localStorage.getItem('savedWork') || '[]')
       setSavedItems(items)
-    } catch { setSavedItems([]) }
+    } catch {
+      const items = JSON.parse(localStorage.getItem('savedWork') || '[]')
+      setSavedItems(items)
+    }
+    setLoadingData(false)
   }
 
-  function deleteItem(id: number) {
-    const updated = savedItems.filter(i => i.id !== id)
-    setSavedItems(updated)
-    localStorage.setItem('savedWork', JSON.stringify(updated))
-  }
-
-  function copy(text: string, id: number) {
-    if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(text).then(() => {
-        setCopied(id)
-        setTimeout(() => setCopied(null), 2000)
-      }).catch(() => fallbackCopy(text, id))
-    } else {
-      fallbackCopy(text, id)
+  async function deleteItem(id: string | number) {
+    try {
+      if (user?.id) {
+        await fetch('/api/save', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id, itemId: String(id) }),
+        })
+      }
+      const updated = savedItems.filter(i => i.id !== id)
+      setSavedItems(updated)
+      localStorage.setItem('savedWork', JSON.stringify(updated))
+    } catch {
+      const updated = savedItems.filter(i => i.id !== id)
+      setSavedItems(updated)
     }
   }
 
-  function fallbackCopy(text: string, id: number) {
-    const textArea = document.createElement('textarea')
-    textArea.value = text
-    textArea.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0'
-    document.body.appendChild(textArea)
-    textArea.focus()
-    textArea.select()
-    document.execCommand('copy')
-    document.body.removeChild(textArea)
-    setCopied(id)
-    setTimeout(() => setCopied(null), 2000)
+  function copy(text: string, id: string | number) {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(() => { setCopied(id); setTimeout(() => setCopied(null), 2000) })
+        .catch(() => fallbackCopy(text, id))
+    } else { fallbackCopy(text, id) }
+  }
+
+  function fallbackCopy(text: string, id: string | number) {
+    const ta = document.createElement('textarea')
+    ta.value = text; ta.style.cssText = 'position:fixed;left:-9999px;opacity:0'
+    document.body.appendChild(ta); ta.focus(); ta.select()
+    document.execCommand('copy'); document.body.removeChild(ta)
+    setCopied(id); setTimeout(() => setCopied(null), 2000)
   }
 
   function clearAll() {
     if (confirm('Delete all saved work? This cannot be undone.')) {
-      setSavedItems([])
-      localStorage.removeItem('savedWork')
+      setSavedItems([]); localStorage.removeItem('savedWork')
     }
   }
 
-  // Load on mount
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [user?.id])
 
   const tools = ['all', ...Array.from(new Set(savedItems.map(i => i.tool)))]
   const filtered = filter === 'all' ? savedItems : savedItems.filter(i => i.tool === filter)
@@ -1913,10 +1927,14 @@ function SavedWorkTool() {
   return (
     <div className="pg-in">
       <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Saved <span style={{ color: 'var(--pn)' }}>Work</span></div>
-      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '20px', lineHeight: '1.6' }}>All your saved outputs, prompts, and generated images in one place.</div>
-
+      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '8px', lineHeight: '1.6' }}>All your saved outputs, prompts, and generated images — synced across all your devices.</div>
+      <div style={{ background: 'var(--pn3)', border: '0.5px solid rgba(155,109,255,0.2)', borderRadius: '8px', padding: '8px 14px', marginBottom: '16px', fontSize: '11px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace" }}>
+        ✦ Saves are stored in the cloud — access them from any device
+      </div>
       <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' as const, alignItems: 'center' }}>
-        <button onClick={load} style={{ padding: '7px 14px', borderRadius: '7px', border: '0.5px solid var(--b2)', background: 'var(--s2)', color: 'var(--pn)', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>↺ Refresh</button>
+        <button onClick={load} style={{ padding: '7px 14px', borderRadius: '7px', border: '0.5px solid var(--b2)', background: 'var(--s2)', color: 'var(--pn)', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+          {loadingData ? 'Loading…' : '↺ Refresh'}
+        </button>
         {tools.map(t => (
           <button key={t} onClick={() => setFilter(t)}
             style={{ padding: '6px 12px', borderRadius: '7px', fontSize: '11px', cursor: 'pointer', border: `0.5px solid ${filter === t ? 'rgba(155,109,255,0.4)' : 'var(--b)'}`, background: filter === t ? 'var(--pn3)' : 'var(--s1)', color: filter === t ? 'var(--pn)' : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif", textTransform: 'capitalize' as const }}>
@@ -1929,13 +1947,12 @@ function SavedWorkTool() {
           </button>
         )}
       </div>
-
       {filtered.length === 0 ? (
         <Panel>
           <div style={{ textAlign: 'center', padding: '40px 20px' }}>
             <div style={{ fontSize: '40px', marginBottom: '12px' }}>◌</div>
             <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '16px', fontWeight: 700, color: 'var(--pn)', marginBottom: '6px' }}>No saved work yet</div>
-            <div style={{ fontSize: '12px', color: 'var(--mu3)', lineHeight: '1.6' }}>Use any tool and click the Save button to save your outputs here. Your work is stored in your browser.</div>
+            <div style={{ fontSize: '12px', color: 'var(--mu3)', lineHeight: '1.6' }}>Use any tool and click the Save button. Your work is stored in the cloud and follows you across devices.</div>
           </div>
         </Panel>
       ) : (
@@ -1950,8 +1967,8 @@ function SavedWorkTool() {
                 <button onClick={() => deleteItem(item.id)} style={{ padding: '4px 10px', borderRadius: '6px', border: '0.5px solid rgba(255,45,120,0.2)', background: 'transparent', color: '#ff6b9d', fontSize: '11px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>Delete</button>
               </div>
               {item.imageUrl && <img src={item.imageUrl} alt="saved" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '8px', marginBottom: '10px' }} />}
-              {item.prompt && <div style={{ fontSize: '11px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace", marginBottom: '8px', padding: '8px', background: 'var(--bg3)', borderRadius: '6px' }}>Prompt: {item.prompt.slice(0, 120)}{item.prompt.length > 120 ? '…' : ''}</div>}
-              {item.content && <div style={{ fontSize: '12px', color: 'var(--w2)', lineHeight: '1.7', maxHeight: '120px', overflow: 'hidden', maskImage: 'linear-gradient(to bottom, black 60%, transparent)' }}>{item.content}</div>}
+              {item.prompt && <div style={{ fontSize: '11px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace", marginBottom: '8px', padding: '8px', background: 'var(--bg3)', borderRadius: '6px' }}>Prompt: {String(item.prompt).slice(0, 120)}{String(item.prompt).length > 120 ? '…' : ''}</div>}
+              {item.content && <div style={{ fontSize: '12px', color: 'var(--w2)', lineHeight: '1.7', maxHeight: '120px', overflow: 'hidden' }}>{item.content}</div>}
               <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
                 {item.content && <button onClick={() => copy(item.content, item.id)} style={{ padding: '6px 12px', borderRadius: '7px', border: `0.5px solid ${copied === item.id ? 'var(--cf)' : 'var(--b2)'}`, background: copied === item.id ? 'var(--cf2)' : 'var(--s2)', color: copied === item.id ? 'var(--cf)' : 'var(--pn)', fontSize: '11px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", transition: 'all .2s' }}>{copied === item.id ? '✓ Copied!' : 'Copy ↗'}</button>}
                 {item.imageUrl && <a href={item.imageUrl} download target="_blank" rel="noreferrer" style={{ padding: '6px 12px', borderRadius: '7px', border: '0.5px solid var(--b2)', background: 'var(--s2)', color: 'var(--pn)', fontSize: '11px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", textDecoration: 'none' }}>⬇ Download</a>}
@@ -1963,6 +1980,7 @@ function SavedWorkTool() {
     </div>
   )
 }
+
 
 // ── VIDEO GENERATOR ───────────────────────────────────────────
 
