@@ -2210,6 +2210,7 @@ function ImageGenTool() {
           {/* LEFT — form */}
           <Panel hi>
             <PTitle>Image details</PTitle>
+            <CharacterPicker onSelect={c => setPrompt(prev => prev ? `${c.name}: ${c.imagePrompt || c.appearance}, ${prev}` : `${c.name}: ${c.imagePrompt || c.appearance}, ${c.style}, `)} label="Add character to scene" />
             <F label="Prompt — describe your scene">
               <textarea style={{ ...ta, minHeight: '100px' }} placeholder="e.g. Black woman in a luxury crop tee on NYC rooftop at golden hour, cinematic film still, shallow depth of field..." value={prompt} onChange={e => setPrompt(e.target.value)} />
             </F>
@@ -2283,6 +2284,16 @@ function ImageGenTool() {
                 </select>
               </F>
               <F label="Title"><input style={inp} placeholder="e.g. Baddie House, Flawless, The Come Up" value={projectTitle} onChange={e => setProjectTitle(e.target.value)} /></F>
+              <div style={{ marginBottom: '8px' }}>
+                <CharacterPicker
+                  onSelect={c => setStoryDescription(prev =>
+                    prev
+                      ? `${prev}\n\nCharacter: ${c.name} — ${c.consistencyRule || c.appearance}`
+                      : `Character: ${c.name} — ${c.consistencyRule || c.appearance}\n\n`
+                  )}
+                  label="Add character to story"
+                />
+              </div>
               <F label="Story description">
                 <textarea style={{ ...ta, minHeight: '120px' }} placeholder="Describe your story, characters, and key scenes. The more detail the better — AI will create cinematic scene prompts from this..." value={storyDescription} onChange={e => setStoryDescription(e.target.value)} />
               </F>
