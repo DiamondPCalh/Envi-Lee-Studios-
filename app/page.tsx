@@ -1381,6 +1381,7 @@ function LipSyncTool() {
     { id: 'single', label: '◈ Single Character' },
     { id: 'multi', label: '⊹ Multi-Character' },
     { id: 'voice', label: '◷ Voice Script' },
+    { id: 'omnihuman', label: '✦ OmniHuman Studio' },
   ]
 
   const purpleNeon = '#b06cff'
@@ -1555,11 +1556,246 @@ function LipSyncTool() {
           </div>
         </Panel>
       )}
+
+      {/* OMNIHUMAN STUDIO */}
+      {activeTab === 'omnihuman' && (
+        <div>
+          <div style={{ background: 'rgba(155,109,255,0.08)', border: '0.5px solid rgba(155,109,255,0.25)', borderRadius: '8px', padding: '10px 14px', marginBottom: '20px', fontSize: '11px', color: purpleNeon, fontFamily: "'DM Mono',monospace" }}>
+            ✦ Powered by ByteDance OmniHuman v1.5 via fal.ai · Full body movement + lip sync · $0.16/sec · Uses your existing FAL_API_KEY
+          </div>
+          <OmniHumanStudio />
+        </div>
+      )}
     </div>
   )
 }
 
-// ── COLLECTION BUILDER ───────────────────────────────────────
+function OmniHumanStudio() {
+  const [characterPhoto, setCharacterPhoto] = useState<string | null>(null)
+  const [audioFile, setAudioFile] = useState<File | null>(null)
+  const [audioUrl, setAudioUrl] = useState('')
+  const [prompt, setPrompt] = useState('')
+  const [resolution, setResolution] = useState('1080p')
+  const [videoUrl, setVideoUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [saved, setSaved] = useState(false)
+  const purpleNeon = '#b06cff'
+
+  function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => setCharacterPhoto(ev.target?.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  function handleAudioUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setAudioFile(file)
+    setAudioUrl('')
+  }
+
+  async function generate() {
+    if (!characterPhoto) { setError('Please upload a character photo'); return }
+    if (!audioFile && !audioUrl.trim()) { setError('Please upload an audio file or enter an audio URL'); return }
+    setLoading(true); setError(''); setVideoUrl(null)
+
+    try {
+      // Convert photo to blob URL for fal.ai
+      const photoBlob = await fetch(characterPhoto).then(r => r.blob())
+      const photoFormData = new FormData()
+      photoFormData.append('file', photoBlob, 'character.jpg')
+
+      // Upload photo to get URL
+      const falKey = process.env.NEXT_PUBLIC_FAL_KEY || ''
+
+      // Call our API route
+      const res = await fetch('/api/generate/omnihuman', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageData: characterPhoto,
+          audioUrl: audioUrl.trim(),
+          prompt: prompt.trim(),
+          resolution,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'OmniHuman generation failed')
+
+      if (data.videoUrl) {
+        setVideoUrl(data.videoUrl)
+      } else if (data.requestId) {
+        await pollForVideo(data.requestId)
+      }
+    } catch (e) {
+      setError((e as Error).message)
+    } finally { setLoading(false) }
+  }
+
+  async function pollForVideo(requestId: string) {
+    for (let i = 0; i < 60; i++) {
+      await new Promise(r => setTimeout(r, 5000))
+      try {
+        const res = await fetch(`/api/generate/omnihuman?requestId=${requestId}`)
+        const data = await res.json()
+        if (data.status === 'completed' && data.videoUrl) { setVideoUrl(data.videoUrl); return }
+        if (data.status === 'failed') throw new Error('OmniHuman generation failed')
+      } catch (e) { setError((e as Error).message); return }
+    }
+    setError('Timed out — try again')
+  }
+
+  function saveVideo() {
+    if (!videoUrl) return
+    const existing = JSON.parse(localStorage.getItem('savedWork') || '[]')
+    existing.unshift({ id: Date.now(), tool: 'OmniHuman Studio', content: '', prompt, imageUrl: videoUrl, savedAt: new Date().toISOString() })
+    localStorage.setItem('savedWork', JSON.stringify(existing.slice(0, 100)))
+    setSaved(true); setTimeout(() => setSaved(false), 2000)
+  }
+
+  const quickPrompts = [
+    { label: 'Reality TV drama scene', prompt: 'Powerful Black woman in designer clothing having an intense emotional conversation, dramatic gestures, expressive facial expressions, confident body language, reality TV aesthetic, cinematic lighting' },
+    { label: 'AI influencer talking head', prompt: 'Luxury lifestyle AI influencer speaking confidently to camera, natural head movements, subtle hand gestures, warm studio lighting, professional and aspirational energy' },
+    { label: 'Concert performance', prompt: 'Pop star performing on stage, energetic full body movement, expressive emotions matching the music, stage lighting, crowd energy, dynamic camera movement' },
+    { label: 'Brand deal content', prompt: 'Creator casually talking about a product, natural relaxed body language, authentic gestures, lifestyle setting, genuine and relatable energy' },
+    { label: 'Podcast host', prompt: 'Podcast host speaking thoughtfully, natural head nods, expressive hands, leaning forward with interest, warm conversational energy, professional studio setting' },
+  ]
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+      <div>
+        <Panel hi mb>
+          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: purpleNeon, textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Character photo</div>
+          <div className="upload-zone" style={{ marginBottom: '12px' }}>
+            <input type="file" accept="image/*" onChange={handlePhotoUpload} />
+            {!characterPhoto ? (
+              <div>
+                <div style={{ fontSize: '28px', marginBottom: '6px' }}>📸</div>
+                <div style={{ fontSize: '12px', color: 'var(--w2)', marginBottom: '3px' }}>Upload character photo</div>
+                <div style={{ fontSize: '10px', color: 'var(--mu3)' }}>From Flow, Consistent Characters, or any AI tool</div>
+              </div>
+            ) : (
+              <img src={characterPhoto} alt="character" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '8px' }} />
+            )}
+          </div>
+        </Panel>
+
+        <Panel hi mb>
+          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: purpleNeon, textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Audio file</div>
+          <div className="upload-zone" style={{ marginBottom: '10px' }}>
+            <input type="file" accept="audio/*" onChange={handleAudioUpload} />
+            {!audioFile ? (
+              <div>
+                <div style={{ fontSize: '28px', marginBottom: '6px' }}>🎵</div>
+                <div style={{ fontSize: '12px', color: 'var(--w2)', marginBottom: '3px' }}>Upload audio file</div>
+                <div style={{ fontSize: '10px', color: 'var(--mu3)' }}>From ElevenLabs — MP3, WAV, M4A · Max 30 sec for 1080p</div>
+              </div>
+            ) : (
+              <div style={{ padding: '8px' }}>
+                <div style={{ fontSize: '12px', color: purpleNeon, marginBottom: '4px' }}>✓ {audioFile.name}</div>
+                <div style={{ fontSize: '10px', color: 'var(--mu3)' }}>{(audioFile.size / 1024).toFixed(0)} KB</div>
+              </div>
+            )}
+          </div>
+          <div style={{ fontSize: '10px', color: 'var(--mu3)', marginBottom: '8px', fontFamily: "'DM Mono',monospace", textAlign: 'center' }}>— or paste an audio URL —</div>
+          <F label="Audio URL (from ElevenLabs or cloud storage)">
+            <input style={inp} placeholder="https://..." value={audioUrl} onChange={e => setAudioUrl(e.target.value)} />
+          </F>
+        </Panel>
+
+        <Panel hi>
+          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: purpleNeon, textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Scene direction</div>
+          <F label="Scene prompt — describe movement and energy">
+            <textarea style={{ ...ta, minHeight: '90px' }} placeholder="e.g. Powerful Black woman in designer clothes having an intense emotional conversation, dramatic gestures, expressive facial expressions, reality TV aesthetic..." value={prompt} onChange={e => setPrompt(e.target.value)} />
+          </F>
+          <F label="Resolution">
+            <select style={sel} value={resolution} onChange={e => setResolution(e.target.value)}>
+              <option value="1080p">1080p — Best quality (max 30 sec audio)</option>
+              <option value="720p">720p — Faster + longer (max 60 sec audio)</option>
+            </select>
+          </F>
+          <button onClick={generate} disabled={loading}
+            style={{ padding: '12px 16px', borderRadius: '7px', fontSize: '13px', fontWeight: 700, cursor: loading ? 'default' : 'pointer', border: 'none', background: loading ? 'rgba(176,108,255,0.2)' : `linear-gradient(135deg, #6c567e, ${purpleNeon})`, color: '#fff', fontFamily: "'DM Sans',sans-serif", width: '100%', opacity: loading ? 0.8 : 1, transition: 'all .2s', boxShadow: loading ? 'none' : `0 0 20px rgba(176,108,255,0.3)` }}>
+            {loading ? 'Generating — takes 1–3 minutes…' : '✦ Generate OmniHuman Video'}
+          </button>
+          {error && <div style={{ marginTop: '10px', padding: '10px 12px', background: 'rgba(255,45,120,0.1)', border: '0.5px solid rgba(255,45,120,0.3)', borderRadius: '7px', fontSize: '12px', color: '#ff6b9d' }}>{error}</div>}
+        </Panel>
+      </div>
+
+      <div>
+        {/* VIDEO RESULT */}
+        <Panel mb style={{ borderColor: `rgba(176,108,255,0.3)` } as React.CSSProperties}>
+          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: purpleNeon, textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Generated video</div>
+          <div style={{ background: 'var(--bg3)', borderRadius: '10px', minHeight: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `0.5px solid rgba(176,108,255,0.2)`, overflow: 'hidden', marginBottom: '12px' }}>
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: '30px' }}>
+                <div style={{ fontSize: '32px', marginBottom: '10px' }}>✦</div>
+                <div style={{ fontSize: '13px', color: purpleNeon, marginBottom: '8px', fontWeight: 600 }}>OmniHuman is generating…</div>
+                <div style={{ height: '2px', background: 'rgba(176,108,255,0.1)', overflow: 'hidden', borderRadius: '1px', width: '140px', margin: '0 auto 8px' }}><div className="lbar-fill" /></div>
+                <div style={{ fontSize: '11px', color: 'var(--mu3)' }}>Full body movement + lip sync<br/>Usually 1–3 minutes</div>
+              </div>
+            ) : videoUrl ? (
+              <video src={videoUrl} controls autoPlay loop style={{ width: '100%', display: 'block', borderRadius: '10px' }} />
+            ) : (
+              <div style={{ textAlign: 'center', padding: '30px' }}>
+                <div style={{ fontSize: '40px', marginBottom: '10px' }}>✦</div>
+                <div style={{ fontSize: '13px', color: purpleNeon }}>Your video will appear here</div>
+                <div style={{ fontSize: '11px', color: 'var(--mu3)', marginTop: '6px' }}>Upload photo + audio → click Generate</div>
+              </div>
+            )}
+          </div>
+          {videoUrl && (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <a href={videoUrl} download target="_blank" rel="noreferrer"
+                style={{ flex: 1, padding: '9px', borderRadius: '7px', border: 'none', background: `linear-gradient(135deg, #6c567e, ${purpleNeon})`, color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", textAlign: 'center', textDecoration: 'none', display: 'block' }}>
+                ⬇ Download
+              </a>
+              <button onClick={saveVideo} style={{ flex: 1, padding: '9px', borderRadius: '7px', border: `0.5px solid ${saved ? purpleNeon : 'var(--b2)'}`, background: saved ? 'var(--pn3)' : 'var(--s2)', color: saved ? purpleNeon : 'var(--mu3)', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+                {saved ? '✓ Saved!' : '⊹ Save'}
+              </button>
+              <button onClick={generate} style={{ flex: 1, padding: '9px', borderRadius: '7px', border: '0.5px solid var(--b2)', background: 'var(--s2)', color: purpleNeon, fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+                ↺ Regenerate
+              </button>
+            </div>
+          )}
+        </Panel>
+
+        {/* QUICK PROMPTS */}
+        <Panel mb>
+          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: purpleNeon, textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Scene quick-starts</div>
+          {quickPrompts.map(q => (
+            <button key={q.label} onClick={() => setPrompt(q.prompt)}
+              style={{ display: 'block', width: '100%', marginBottom: '7px', padding: '8px 11px', background: 'var(--bg3)', border: '0.5px solid var(--b)', borderRadius: '7px', fontSize: '12px', color: 'var(--mu3)', cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans',sans-serif" }}>
+              {q.label} ↗
+            </button>
+          ))}
+        </Panel>
+
+        {/* INFO */}
+        <Panel>
+          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: purpleNeon, textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>OmniHuman capabilities</div>
+          {[
+            ['Full body movement','Not just mouth — whole body responds to audio and scene prompt'],
+            ['Micro-expressions','Eye blinks, subtle facial movements, emotional responses'],
+            ['Audio-aware','Body language matches the emotion and tone of the voice'],
+            ['Reality TV ready','Dramatic gestures, confrontations, emotional scenes'],
+            ['Works with your workflow','Combine with Firefly scenes in CapCut or Premiere'],
+            ['Cost','~$4.80 for 30 seconds at 1080p'],
+          ].map(([t,d]) => (
+            <div key={t} style={{ marginBottom: '10px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 500, color: purpleNeon, marginBottom: '2px' }}>{t}</div>
+              <div style={{ fontSize: '11px', color: 'var(--mu3)', lineHeight: '1.5' }}>{d}</div>
+            </div>
+          ))}
+        </Panel>
+      </div>
+    </div>
+  )
+}
 
 function CollectionTool() {
   const [name, setName] = useState('')
