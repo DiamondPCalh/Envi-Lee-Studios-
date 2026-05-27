@@ -24,6 +24,74 @@ async function callTryOn(body: Record<string, string>) {
   return await res.json()
 }
 
+// ── CHARACTER PICKER ──────────────────────────────────────────
+// Reusable component — lets students pick a saved character
+// and auto-fill it into any tool
+
+function useCharacters() {
+  const [characters, setCharacters] = useState<Array<{
+    id: number; name: string; age: string; appearance: string;
+    style: string; personality: string; backstory: string;
+    imagePrompt: string; videoSeed: string; voiceNotes: string;
+    phrases: string; consistencyRule: string; photo?: string;
+    locked?: boolean; color?: string;
+  }>>([])
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('savedCharacters') || '[]')
+      setCharacters(saved)
+    } catch { setCharacters([]) }
+  }, [])
+
+  return characters
+}
+
+function CharacterPicker({
+  onSelect,
+  label = 'Use saved character',
+  field = 'appearance'
+}: {
+  onSelect: (character: { name: string; age: string; appearance: string; style: string; personality: string; backstory: string; imagePrompt: string; videoSeed: string; voiceNotes: string; consistencyRule: string; photo?: string }) => void
+  label?: string
+  field?: string
+}) {
+  const characters = useCharacters()
+  const [open, setOpen] = useState(false)
+
+  if (characters.length === 0) return null
+
+  return (
+    <div style={{ position: 'relative', display: 'inline-block', marginBottom: '8px' }}>
+      <button onClick={() => setOpen(!open)}
+        style={{ padding: '5px 12px', borderRadius: '6px', border: '0.5px solid rgba(155,109,255,0.4)', background: 'var(--pn3)', color: 'var(--pn)', fontSize: '11px', cursor: 'pointer', fontFamily: "'DM Mono',monospace", display: 'flex', alignItems: 'center', gap: '6px' }}>
+        ◉ {label} ↓
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 100, background: 'var(--s1)', border: '0.5px solid rgba(155,109,255,0.3)', borderRadius: '10px', padding: '8px', minWidth: '220px', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', marginTop: '4px' }}>
+          <div style={{ fontSize: '9px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace", textTransform: 'uppercase' as const, letterSpacing: '.7px', padding: '4px 8px 8px', borderBottom: '0.5px solid var(--b)', marginBottom: '6px' }}>
+            Your saved characters
+          </div>
+          {characters.map(char => (
+            <button key={char.id} onClick={() => { onSelect(char); setOpen(false) }}
+              style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '8px 10px', background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: '7px', transition: 'background .15s', textAlign: 'left' }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--s2)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+              <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: char.color ?? 'var(--pn3)', overflow: 'hidden', flexShrink: 0, border: `1.5px solid ${char.color ?? 'var(--pn)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {char.photo ? <img src={char.photo} alt={char.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '14px' }}>◉</span>}
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: char.color ?? 'var(--pn)' }}>{char.name}</div>
+                <div style={{ fontSize: '10px', color: 'var(--mu3)' }}>{char.age?.split(',')[0]} {char.locked ? '🔒' : ''}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 const css = `
   :root {
     --bg:#000;--bg2:#05020a;--bg3:#0a0510;--bg4:#0f0818;
@@ -651,7 +719,10 @@ function CineFlowTool() {
               </select>
             </F>
             <F label="Subject / scene"><textarea style={ta} placeholder="What happens in the video? Who is in it?" value={vpSubject} onChange={e => setVpSubject(e.target.value)} /></F>
-            <F label="Character / model"><input style={inp} value={vpCharacter} onChange={e => setVpCharacter(e.target.value)} /></F>
+            <F label="Character / model">
+              <CharacterPicker onSelect={c => setVpCharacter(`${c.name}: ${c.appearance}, ${c.style}`)} label="Use saved character" />
+              <input style={inp} value={vpCharacter} onChange={e => setVpCharacter(e.target.value)} />
+            </F>
             <F label="Setting & lighting"><input style={inp} placeholder="e.g. NYC rooftop, golden hour, warm cinematic light" value={vpSetting} onChange={e => setVpSetting(e.target.value)} /></F>
             <F label="Platform">
               <select style={sel} value={vpPlatform} onChange={e => setVpPlatform(e.target.value)}>
@@ -973,6 +1044,7 @@ function AIStudiosTool() {
           <PTitle>Character Builder</PTitle>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div>
+              <CharacterPicker onSelect={c => { setScName(c.name); setScAge(c.age); setScAppearance(c.appearance); setScStyle(c.style); setScPersonality(c.personality); setScBackstory(c.backstory) }} label="Load saved character" />
               <F label="Character name"><input style={inp} placeholder="e.g. Luxe Envi, Nova Star, Marcus Reed" value={scName} onChange={e => setScName(e.target.value)} /></F>
               <F label="Age and vibe"><input style={inp} placeholder="e.g. 28, luxury lifestyle creator, powerful energy" value={scAge} onChange={e => setScAge(e.target.value)} /></F>
               <F label="Appearance"><input style={inp} placeholder="e.g. Black woman, deep brown skin, natural locs, 5 foot 7" value={scAppearance} onChange={e => setScAppearance(e.target.value)} /></F>
@@ -992,6 +1064,7 @@ function AIStudiosTool() {
           <PTitle>Scene Builder</PTitle>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div>
+              <CharacterPicker onSelect={c => setSnCharacters(prev => prev ? `${prev}, ${c.name}` : c.name)} label="Add character to scene" />
               <F label="Characters in this scene"><input style={inp} placeholder="e.g. Luxe Envi and Marcus Reed" value={snCharacters} onChange={e => setSnCharacters(e.target.value)} /></F>
               <F label="Setting and mood"><input style={inp} placeholder="e.g. rooftop penthouse NYC at night, tense energy" value={snSetting} onChange={e => setSnSetting(e.target.value)} /></F>
               <F label="What happens"><textarea style={ta} placeholder="Describe the action, dialogue, conflict or connection in this scene..." value={snAction} onChange={e => setSnAction(e.target.value)} /></F>
@@ -1070,12 +1143,18 @@ function AIStudiosTool() {
           <Panel hi>
             <PTitle>Multi-Character Dialogue</PTitle>
             <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '12px', marginBottom: '12px', border: '0.5px solid rgba(155,109,255,0.15)' }}>
-              <div style={{ fontSize: '10px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace", textTransform: 'uppercase' as const, letterSpacing: '.7px', marginBottom: '8px' }}>Character 1</div>
+              <div style={{ fontSize: '10px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace", textTransform: 'uppercase' as const, letterSpacing: '.7px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                Character 1
+                <CharacterPicker onSelect={c => { setMc1Name(c.name); setMc1Desc(`${c.appearance}, ${c.style}, ${c.personality}`) }} label="Load" />
+              </div>
               <F label="Name"><input style={inp} value={mc1Name} onChange={e => setMc1Name(e.target.value)} /></F>
               <F label="Description"><input style={inp} value={mc1Desc} onChange={e => setMc1Desc(e.target.value)} /></F>
             </div>
             <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '12px', marginBottom: '12px', border: '0.5px solid rgba(155,109,255,0.15)' }}>
-              <div style={{ fontSize: '10px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace", letterSpacing: '.7px', marginBottom: '8px' }}>Character 2</div>
+              <div style={{ fontSize: '10px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace", letterSpacing: '.7px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                Character 2
+                <CharacterPicker onSelect={c => { setMc2Name(c.name); setMc2Desc(`${c.appearance}, ${c.style}, ${c.personality}`) }} label="Load" />
+              </div>
               <F label="Name"><input style={inp} value={mc2Name} onChange={e => setMc2Name(e.target.value)} /></F>
               <F label="Description"><input style={inp} value={mc2Desc} onChange={e => setMc2Desc(e.target.value)} /></F>
             </div>
@@ -1407,6 +1486,7 @@ function LipSyncTool() {
           <Panel hi>
             <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: purpleNeon, textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Lip Sync Script Generator</div>
             <F label="Character">
+              <CharacterPicker onSelect={c => setCharacter(`${c.name} — ${c.age}, ${c.appearance?.split(',').slice(0,3).join(',')}`)} label="Use saved character" />
               <select style={sel} value={character} onChange={e => setCharacter(e.target.value)}>
                 {['Luxe Envi — luxury lifestyle creator, 28, Black woman, natural locs','Baddie Nova — streetwear and POD, 24, bold and confident','Nova Star — AI pop artist, 23, glamorous performer','Marcus Reed — drama lead, 32, deep voice, commanding'].map(c => <option key={c}>{c}</option>)}
               </select>
@@ -1468,12 +1548,18 @@ function LipSyncTool() {
           <Panel hi>
             <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: purpleNeon, textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Multi-Character Dialogue</div>
             <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '12px', marginBottom: '10px', border: '0.5px solid rgba(176,108,255,0.15)' }}>
-              <div style={{ fontSize: '10px', color: purpleNeon, fontFamily: "'DM Mono',monospace", marginBottom: '8px' }}>CHARACTER 1</div>
+              <div style={{ fontSize: '10px', color: purpleNeon, fontFamily: "'DM Mono',monospace", marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                CHARACTER 1
+                <CharacterPicker onSelect={c => { setC1Name(c.name); setC1Desc(`${c.appearance}, ${c.style}, ${c.personality}`) }} label="Load" />
+              </div>
               <F label="Name"><input style={inp} value={c1Name} onChange={e => setC1Name(e.target.value)} /></F>
               <F label="Description"><input style={inp} value={c1Desc} onChange={e => setC1Desc(e.target.value)} /></F>
             </div>
             <div style={{ background: 'var(--bg3)', borderRadius: 'var(--r)', padding: '12px', marginBottom: '10px', border: '0.5px solid rgba(176,108,255,0.15)' }}>
-              <div style={{ fontSize: '10px', color: purpleNeon, fontFamily: "'DM Mono',monospace", marginBottom: '8px' }}>CHARACTER 2</div>
+              <div style={{ fontSize: '10px', color: purpleNeon, fontFamily: "'DM Mono',monospace", marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                CHARACTER 2
+                <CharacterPicker onSelect={c => { setC2Name(c.name); setC2Desc(`${c.appearance}, ${c.style}, ${c.personality}`) }} label="Load" />
+              </div>
               <F label="Name"><input style={inp} value={c2Name} onChange={e => setC2Name(e.target.value)} /></F>
               <F label="Description"><input style={inp} value={c2Desc} onChange={e => setC2Desc(e.target.value)} /></F>
             </div>
@@ -1669,7 +1755,10 @@ function OmniHumanStudio() {
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
       <div>
         <Panel hi mb>
-          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: purpleNeon, textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Character photo</div>
+          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: purpleNeon, textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '10px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            Character photo
+            <CharacterPicker onSelect={c => { if (c.photo) setCharacterPhoto(c.photo); setPrompt(prev => prev || c.videoSeed || `${c.name}, ${c.appearance}, ${c.style}, ${c.personality}`) }} label="Load character" />
+          </div>
           <div className="upload-zone" style={{ marginBottom: '12px' }}>
             <input type="file" accept="image/*" onChange={handlePhotoUpload} />
             {!characterPhoto ? (
@@ -2503,6 +2592,7 @@ function VideoGenTool() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
         <Panel cf>
           <PTitle cf>Video details</PTitle>
+          <CharacterPicker onSelect={c => setPrompt(prev => prev ? `${c.name}: ${c.videoSeed || c.appearance}, ${prev}` : `${c.name}: ${c.videoSeed || c.appearance}, ${c.style}, `)} label="Add character to prompt" />
           <F label="Prompt"><textarea style={{ ...ta, minHeight: '120px' }} placeholder="e.g. Black woman in luxury crop tee on NYC rooftop, golden hour, slow cinematic push-in, 8 seconds..." value={prompt} onChange={e => setPrompt(e.target.value)} /></F>
           <F label="AI Model — choose your video engine">
             <select style={{ ...sel, borderColor: 'rgba(0,200,83,0.3)' }} value={provider} onChange={e => setProvider(e.target.value)}>
@@ -2898,7 +2988,8 @@ function ConsistentCharactersTool() {
           <div>
             <Panel hi mb>
               <PTitle>Upload character photo</PTitle>
-              <div className="upload-zone" style={{ marginBottom: '12px' }}>
+              <CharacterPicker onSelect={c => { if (c.photo) setPhoto(c.photo); setName(c.name); setAge(c.age); setAppearance(c.appearance); setStyle(c.style); setPersonality(c.personality); setBackstory(c.backstory) }} label="Load from saved characters" />
+              <div className="upload-zone" style={{ marginBottom: '12px', marginTop: '8px' }}>
                 <input type="file" accept="image/*" onChange={handlePhotoUpload} />
                 {!photo ? (
                   <div>
