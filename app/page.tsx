@@ -1728,7 +1728,7 @@ function OmniHumanStudio() {
 
       <div>
         {/* VIDEO RESULT */}
-        <Panel mb neon>
+        <Panel mb style={{ borderColor: `rgba(176,108,255,0.3)` } as React.CSSProperties}>
           <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: purpleNeon, textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Generated video</div>
           <div style={{ background: 'var(--bg3)', borderRadius: '10px', minHeight: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `0.5px solid rgba(176,108,255,0.2)`, overflow: 'hidden', marginBottom: '12px' }}>
             {loading ? (
@@ -1981,16 +1981,29 @@ function ProfitTool() {
 // ── IMAGE GENERATOR ───────────────────────────────────────────
 
 function ImageGenTool() {
+  const [mode, setMode] = useState<'single' | 'storyboard'>('single')
+
+  // Single image
   const [prompt, setPrompt] = useState('')
-  const [style, setStyle] = useState('fashion')
-  const [size, setSize] = useState('portrait')
-  const [negativePrompt, setNegativePrompt] = useState('blurry, low quality, distorted, ugly, watermark')
+  const [style, setStyle] = useState('cinematic')
+  const [size, setSize] = useState('landscape')
+  const [negativePrompt, setNegativePrompt] = useState('blurry, low quality, distorted, ugly, watermark, text overlay')
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
 
-  async function generate() {
+  // Storyboard
+  const [projectType, setProjectType] = useState('Reality Show')
+  const [projectTitle, setProjectTitle] = useState('')
+  const [storyDescription, setStoryDescription] = useState('')
+  const [sceneCount, setSceneCount] = useState('4')
+  const [sbStyle, setSbStyle] = useState('cinematic')
+  const [sbSize, setSbSize] = useState('landscape')
+  const [scenes, setScenes] = useState<Array<{prompt: string; imageUrl: string | null; loading: boolean; error: string}>>([])
+  const [sbLoading, setSbLoading] = useState(false)
+
+  async function generateSingle() {
     if (!prompt.trim()) { setError('Please enter a prompt first'); return }
     setLoading(true); setError(''); setImageUrl(null)
     try {
@@ -2002,125 +2015,288 @@ function ImageGenTool() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Image generation failed')
       setImageUrl(data.imageUrl)
+    } catch (e) { setError((e as Error).message) }
+    finally { setLoading(false) }
+  }
+
+  async function generateStoryboard() {
+    if (!storyDescription.trim()) { setError('Please describe your story first'); return }
+    setSbLoading(true); setError('')
+
+    try {
+      // Step 1 — Ask AI to write scene prompts
+      const res = await fetch('/api/generate/image', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectType,
+          projectTitle: projectTitle || projectType,
+          storyDescription,
+          sceneCount,
+          style: sbStyle,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Scene generation failed')
+
+      const scenePrompts: string[] = data.scenes ?? []
+      const initialScenes = scenePrompts.map(p => ({ prompt: p, imageUrl: null, loading: true, error: '' }))
+      setScenes(initialScenes)
+      setSbLoading(false)
+
+      // Step 2 — Generate images for each scene
+      for (let i = 0; i < scenePrompts.length; i++) {
+        try {
+          const imgRes = await fetch('/api/generate/image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: scenePrompts[i], style: sbStyle, size: sbSize, negativePrompt: 'blurry, low quality, watermark' }),
+          })
+          const imgData = await imgRes.json()
+          setScenes(prev => prev.map((s, idx) => idx === i ? { ...s, imageUrl: imgData.imageUrl ?? null, loading: false, error: imgData.error ?? '' } : s))
+        } catch (e) {
+          setScenes(prev => prev.map((s, idx) => idx === i ? { ...s, loading: false, error: (e as Error).message } : s))
+        }
+        // Small delay between requests
+        if (i < scenePrompts.length - 1) await new Promise(r => setTimeout(r, 1000))
+      }
     } catch (e) {
       setError((e as Error).message)
-    } finally { setLoading(false) }
+      setSbLoading(false)
+    }
   }
 
-  async function saveImage() {
-    if (!imageUrl) return
+  function saveImage(url: string, p: string) {
     const existing = JSON.parse(localStorage.getItem('savedWork') || '[]')
-    existing.unshift({ id: Date.now(), tool: 'Image Generator', content: '', prompt, imageUrl, savedAt: new Date().toISOString() })
+    existing.unshift({ id: Date.now(), tool: 'Image Generator', content: '', prompt: p, imageUrl: url, savedAt: new Date().toISOString() })
     localStorage.setItem('savedWork', JSON.stringify(existing.slice(0, 100)))
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    setSaved(true); setTimeout(() => setSaved(false), 2000)
   }
 
-  function download() {
-    if (!imageUrl) return
-    const a = document.createElement('a')
-    a.href = imageUrl
-    a.download = `envi-lee-image-${Date.now()}.jpg`
-    a.target = '_blank'
-    a.click()
-  }
+  const styleOptions = [
+    ['cinematic', 'Cinematic Film Still'],
+    ['fashion', 'Fashion Editorial'],
+    ['luxury', 'Luxury Lifestyle'],
+    ['streetwear', 'Streetwear Urban'],
+    ['product', 'Product Photography'],
+    ['portrait', 'Portrait'],
+    ['dramatic', 'Dramatic / Dark'],
+    ['vibrant', 'Vibrant / Colorful'],
+  ]
 
-  const quickPrompts = [
-    { label: 'Luxury swim set model', prompt: 'Black woman with deep brown skin and natural hair, wearing a black and gold luxury floral swimsuit, standing at a poolside luxury resort in the Maldives, golden hour warm light, editorial fashion photography' },
-    { label: 'Streetwear hoodie', prompt: 'Black woman in an oversized city skyline graphic hoodie, NYC street style, autumn afternoon, confident pose, urban editorial photography' },
-    { label: 'AI influencer portrait', prompt: 'Black woman AI influencer, natural locs, wearing designer luxury streetwear, dramatic studio lighting, powerful confident gaze, high fashion editorial' },
-    { label: 'Product flat lay', prompt: 'Luxury fashion flat lay, white crop tee with minimal gold embroidery, marble surface, gold jewelry props, clean minimal product photography' },
+  const sizeOptions = [
+    ['landscape', 'Landscape 16:9 — YouTube / Film'],
+    ['portrait', 'Portrait 3:4 — Fashion / Instagram'],
+    ['tiktok', 'TikTok 9:16 — Vertical'],
+    ['square', 'Square 1:1 — Instagram Post'],
+  ]
+
+  const projectTypes = ['Reality Show', 'Movie / Short Film', 'Music Video', 'Talk Show', 'Variety Show', 'UGC Campaign', 'Mini Film', 'Documentary', 'Brand Commercial', 'Web Series']
+
+  const storyQuickStarts = [
+    { type: 'Reality Show', title: 'Baddie House', desc: 'Episode 1: Four Black women content creators move into a luxury LA mansion together. Episode opens with arrivals, first impressions, and the first hint of drama when two of them realize they both dated the same influencer.' },
+    { type: 'Music Video', title: 'Nova Star — Flawless', desc: 'AI pop star Nova Star performs her new single. Opens on an empty stage that transforms into a luxury world. Scenes alternate between intimate close-ups and massive performance sequences with backup dancers.' },
+    { type: 'Movie / Short Film', title: 'The Come Up', desc: 'A young Black woman from the south side builds a million dollar POD business using AI tools. Opens with her at her kitchen table at 2am, breaks through to her first sale, scales to success.' },
+    { type: 'UGC Campaign', title: 'Envi Lee Summer Collection', desc: 'Lifestyle campaign for the Baddie Summer collection. Real women in real situations — beach, rooftop parties, brunch, night out — all wearing the collection naturally.' },
   ]
 
   return (
     <div className="pg-in">
-      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Image <span style={{ color: 'var(--pn)' }}>Generator</span></div>
-      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '8px', lineHeight: '1.6' }}>Generate real AI images directly inside your suite — fashion mockups, model shots, product photos, and more.</div>
-      <div style={{ background: 'var(--pn3)', border: '0.5px solid rgba(155,109,255,0.25)', borderRadius: '8px', padding: '10px 14px', marginBottom: '20px', fontSize: '11px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace" }}>
-        ✦ Powered by FLUX via fal.ai · FAL_API_KEY required in Vercel env vars
+      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>AI <span style={{ color: 'var(--pn)' }}>Storyboard Studio</span></div>
+      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '16px', lineHeight: '1.6' }}>Generate single cinematic images or a full storyboard — scene by scene with prompts underneath. Perfect for reality shows, music videos, films, and campaigns.</div>
+
+      {/* Mode tabs */}
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '20px' }}>
+        {[['single','◈ Single Image'],['storyboard','✦ Storyboard Mode']].map(([id,label]) => (
+          <button key={id} onClick={() => setMode(id as 'single' | 'storyboard')}
+            style={{ padding: '8px 16px', borderRadius: '7px', fontSize: '12px', fontWeight: 500, cursor: 'pointer', border: `0.5px solid ${mode === id ? 'rgba(155,109,255,0.4)' : 'var(--b)'}`, background: mode === id ? 'var(--pn3)' : 'var(--s1)', color: mode === id ? 'var(--pn)' : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif", transition: 'all .2s' }}>
+            {label}
+          </button>
+        ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-        <Panel hi>
-          <PTitle>Image details</PTitle>
-          <F label="Prompt — describe your image"><textarea style={{ ...ta, minHeight: '100px' }} placeholder="e.g. Black woman wearing a luxury floral crop tee, NYC rooftop at golden hour, editorial fashion photography..." value={prompt} onChange={e => setPrompt(e.target.value)} /></F>
-          <F label="Style">
-            <select style={sel} value={style} onChange={e => setStyle(e.target.value)}>
-              {[['fashion','Fashion Editorial'],['luxury','Luxury Lifestyle'],['streetwear','Streetwear Urban'],['product','Product Photography'],['cinematic','Cinematic Film'],['portrait','Portrait']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
-          </F>
-          <F label="Size">
-            <select style={sel} value={size} onChange={e => setSize(e.target.value)}>
-              {[['portrait','Portrait (3:4) — best for fashion'],['square','Square (1:1) — Instagram'],['tiktok','TikTok (9:16) — vertical'],['landscape','Landscape (4:3) — banner']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
-          </F>
-          <F label="Negative prompt (what to exclude)"><input style={inp} value={negativePrompt} onChange={e => setNegativePrompt(e.target.value)} /></F>
+      {/* SINGLE IMAGE MODE */}
+      {mode === 'single' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+          {/* LEFT — form */}
+          <Panel hi>
+            <PTitle>Image details</PTitle>
+            <F label="Prompt — describe your scene">
+              <textarea style={{ ...ta, minHeight: '100px' }} placeholder="e.g. Black woman in a luxury crop tee on NYC rooftop at golden hour, cinematic film still, shallow depth of field..." value={prompt} onChange={e => setPrompt(e.target.value)} />
+            </F>
+            <F label="Style">
+              <select style={sel} value={style} onChange={e => setStyle(e.target.value)}>
+                {styleOptions.map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </F>
+            <F label="Size">
+              <select style={sel} value={size} onChange={e => setSize(e.target.value)}>
+                {sizeOptions.map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </F>
+            <F label="Negative prompt"><input style={inp} value={negativePrompt} onChange={e => setNegativePrompt(e.target.value)} /></F>
+            <GenBtn loading={loading} onClick={generateSingle}>✦ Generate Image</GenBtn>
+            {error && <div style={{ marginTop: '10px', padding: '10px 12px', background: 'rgba(255,45,120,0.1)', border: '0.5px solid rgba(255,45,120,0.3)', borderRadius: '7px', fontSize: '12px', color: '#ff6b9d' }}>{error}</div>}
+          </Panel>
 
-          <GenBtn loading={loading} onClick={generate}>
-            {loading ? 'Generating image…' : '✦ Generate Image'}
-          </GenBtn>
-
-          {error && <div style={{ marginTop: '10px', padding: '10px 12px', background: 'rgba(255,45,120,0.1)', border: '0.5px solid rgba(255,45,120,0.3)', borderRadius: '7px', fontSize: '12px', color: '#ff6b9d' }}>{error}</div>}
-
-          {/* IMAGE RESULT */}
-          {loading && (
-            <div style={{ marginTop: '12px', background: 'var(--bg4)', border: '0.5px solid var(--b2)', borderRadius: 'var(--r2)', padding: '30px', textAlign: 'center' }}>
-              <div style={{ fontSize: '32px', marginBottom: '10px' }}>✦</div>
-              <div style={{ fontSize: '13px', color: 'var(--pn)', marginBottom: '8px' }}>Generating your image…</div>
-              <div style={{ height: '2px', background: 'rgba(155,109,255,0.1)', overflow: 'hidden', borderRadius: '1px', width: '120px', margin: '0 auto' }}><div className="lbar-fill" /></div>
-              <div style={{ fontSize: '11px', color: 'var(--mu3)', marginTop: '8px' }}>Usually takes 5–15 seconds</div>
-            </div>
-          )}
-
-          {imageUrl && !loading && (
-            <div style={{ marginTop: '12px', background: 'var(--bg4)', border: '0.5px solid var(--b2)', borderRadius: 'var(--r2)', overflow: 'hidden' }}>
-              <img src={imageUrl} alt="Generated" style={{ width: '100%', display: 'block' }} />
-              <div style={{ padding: '12px', display: 'flex', gap: '8px' }}>
-                <button onClick={download} style={{ flex: 1, padding: '8px', borderRadius: '7px', border: 'none', background: 'linear-gradient(135deg,var(--c),var(--pn))', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>⬇ Download</button>
-                <button onClick={saveImage} style={{ flex: 1, padding: '8px', borderRadius: '7px', border: `0.5px solid ${saved ? 'var(--pn)' : 'var(--b2)'}`, background: saved ? 'var(--pn3)' : 'var(--s2)', color: saved ? 'var(--pn)' : 'var(--mu3)', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", transition: 'all .2s' }}>{saved ? '✓ Saved!' : '⊹ Save'}</button>
-                <button onClick={generate} style={{ flex: 1, padding: '8px', borderRadius: '7px', border: '0.5px solid var(--b2)', background: 'var(--s2)', color: 'var(--pn)', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>↺ Regenerate</button>
+          {/* RIGHT — image result */}
+          <div>
+            <Panel neon>
+              <PTitle>Generated image</PTitle>
+              <div style={{ background: 'var(--bg3)', borderRadius: '10px', minHeight: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: '12px', border: '0.5px solid var(--b2)' }}>
+                {loading ? (
+                  <div style={{ textAlign: 'center', padding: '30px' }}>
+                    <div style={{ fontSize: '32px', marginBottom: '10px' }}>✦</div>
+                    <div style={{ fontSize: '13px', color: 'var(--pn)', marginBottom: '8px' }}>Generating your image…</div>
+                    <div style={{ height: '2px', background: 'rgba(155,109,255,0.1)', overflow: 'hidden', borderRadius: '1px', width: '120px', margin: '0 auto 6px' }}><div className="lbar-fill" /></div>
+                    <div style={{ fontSize: '11px', color: 'var(--mu3)' }}>Usually 5–15 seconds</div>
+                  </div>
+                ) : imageUrl ? (
+                  <img src={imageUrl} alt="Generated" style={{ width: '100%', display: 'block', borderRadius: '10px' }} />
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '30px' }}>
+                    <div style={{ fontSize: '40px', marginBottom: '8px' }}>✦</div>
+                    <div style={{ fontSize: '13px', color: 'var(--pn)' }}>Your image appears here</div>
+                    <div style={{ fontSize: '11px', color: 'var(--mu3)', marginTop: '4px' }}>Enter a prompt and click Generate</div>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
-        </Panel>
-
-        <div>
-          <Panel mb>
-            <PTitle>Quick-starts</PTitle>
-            {quickPrompts.map(q => (
-              <button key={q.label} onClick={() => setPrompt(q.prompt)}
-                style={{ display: 'block', width: '100%', marginBottom: '7px', padding: '8px 11px', background: 'var(--bg3)', border: '0.5px solid var(--b)', borderRadius: '7px', fontSize: '12px', color: 'var(--mu3)', cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans',sans-serif" }}>
-                {q.label} ↗
-              </button>
-            ))}
-          </Panel>
-          <Panel mb>
-            <PTitle>Prompt tips</PTitle>
-            {[
-              ['Be specific about the person','Include skin tone, hair type, height, expression'],
-              ['Describe the garment clearly','Colors, style, fit, fabric, any graphics or text'],
-              ['Set the scene','Location, time of day, lighting direction, background'],
-              ['Add style keywords','Editorial, cinematic, commercial, lifestyle, runway'],
-              ['Use quality boosters','Already added automatically based on your style choice'],
-            ].map(([t,d]) => (
-              <div key={t} style={{ marginBottom: '10px' }}>
-                <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--pn)', marginBottom: '2px' }}>{t}</div>
-                <div style={{ fontSize: '11px', color: 'var(--mu3)', lineHeight: '1.5' }}>{d}</div>
-              </div>
-            ))}
-          </Panel>
-          <Panel>
-            <PTitle>Use with AI Image Prompts</PTitle>
-            <div style={{ fontSize: '12px', color: 'var(--mu3)', lineHeight: '1.7', marginBottom: '10px' }}>Generate a detailed prompt in the AI Image Prompts tool first, then paste it here to generate the actual image.</div>
-            <button onClick={() => {}} style={{ padding: '9px 12px', background: 'var(--pn3)', border: '0.5px solid rgba(155,109,255,0.3)', borderRadius: '7px', fontSize: '12px', color: 'var(--pn)', cursor: 'pointer', width: '100%', fontFamily: "'DM Sans',sans-serif" }}>
-              ◉ Go to AI Image Prompts ↗
-            </button>
-          </Panel>
+              {imageUrl && (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <a href={imageUrl} download target="_blank" rel="noreferrer"
+                    style={{ flex: 1, padding: '8px', borderRadius: '7px', border: 'none', background: 'linear-gradient(135deg,var(--c),var(--pn))', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", textAlign: 'center', textDecoration: 'none', display: 'block' }}>
+                    ⬇ Download
+                  </a>
+                  <button onClick={() => saveImage(imageUrl, prompt)}
+                    style={{ flex: 1, padding: '8px', borderRadius: '7px', border: `0.5px solid ${saved ? 'var(--pn)' : 'var(--b2)'}`, background: saved ? 'var(--pn3)' : 'var(--s2)', color: saved ? 'var(--pn)' : 'var(--mu3)', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+                    {saved ? '✓ Saved!' : '⊹ Save'}
+                  </button>
+                  <button onClick={generateSingle}
+                    style={{ flex: 1, padding: '8px', borderRadius: '7px', border: '0.5px solid var(--b2)', background: 'var(--s2)', color: 'var(--pn)', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+                    ↺ Redo
+                  </button>
+                </div>
+              )}
+            </Panel>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* STORYBOARD MODE */}
+      {mode === 'storyboard' && (
+        <div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px' }}>
+            <Panel hi>
+              <PTitle>Your project</PTitle>
+              <F label="Project type">
+                <select style={sel} value={projectType} onChange={e => setProjectType(e.target.value)}>
+                  {projectTypes.map(t => <option key={t}>{t}</option>)}
+                </select>
+              </F>
+              <F label="Title"><input style={inp} placeholder="e.g. Baddie House, Flawless, The Come Up" value={projectTitle} onChange={e => setProjectTitle(e.target.value)} /></F>
+              <F label="Story description">
+                <textarea style={{ ...ta, minHeight: '120px' }} placeholder="Describe your story, characters, and key scenes. The more detail the better — AI will create cinematic scene prompts from this..." value={storyDescription} onChange={e => setStoryDescription(e.target.value)} />
+              </F>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <F label="Number of scenes">
+                  <select style={sel} value={sceneCount} onChange={e => setSceneCount(e.target.value)}>
+                    {['3','4','5','6','8'].map(n => <option key={n}>{n}</option>)}
+                  </select>
+                </F>
+                <F label="Visual style">
+                  <select style={sel} value={sbStyle} onChange={e => setSbStyle(e.target.value)}>
+                    {styleOptions.map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                  </select>
+                </F>
+              </div>
+              <F label="Image size">
+                <select style={sel} value={sbSize} onChange={e => setSbSize(e.target.value)}>
+                  {sizeOptions.map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </F>
+              <button onClick={generateStoryboard} disabled={sbLoading}
+                style={{ padding: '12px 16px', borderRadius: '7px', fontSize: '13px', fontWeight: 700, cursor: sbLoading ? 'default' : 'pointer', border: 'none', background: sbLoading ? 'rgba(155,109,255,0.2)' : 'linear-gradient(135deg,var(--c),var(--pn))', color: '#fff', fontFamily: "'DM Sans',sans-serif", width: '100%', opacity: sbLoading ? 0.7 : 1, transition: 'all .2s', boxShadow: sbLoading ? 'none' : '0 0 20px rgba(155,109,255,0.3)' }}>
+                {sbLoading ? 'Writing scenes…' : `✦ Generate ${sceneCount}-Scene Storyboard`}
+              </button>
+              {error && <div style={{ marginTop: '10px', padding: '10px 12px', background: 'rgba(255,45,120,0.1)', border: '0.5px solid rgba(255,45,120,0.3)', borderRadius: '7px', fontSize: '12px', color: '#ff6b9d' }}>{error}</div>}
+            </Panel>
+
+            <div>
+              <Panel mb>
+                <PTitle>Quick-starts</PTitle>
+                {storyQuickStarts.map(q => (
+                  <button key={q.title} onClick={() => { setProjectType(q.type); setProjectTitle(q.title); setStoryDescription(q.desc) }}
+                    style={{ display: 'block', width: '100%', marginBottom: '8px', padding: '10px 12px', background: 'var(--bg3)', border: '0.5px solid var(--b)', borderRadius: '7px', fontSize: '12px', color: 'var(--mu3)', cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans',sans-serif', lineHeight: '1.4'" }}>
+                    <div style={{ color: 'var(--pn)', fontWeight: 600, marginBottom: '2px' }}>{q.type} — {q.title}</div>
+                    <div style={{ fontSize: '11px' }}>{q.desc.slice(0, 80)}…</div>
+                  </button>
+                ))}
+              </Panel>
+              <Panel>
+                <PTitle>How storyboard mode works</PTitle>
+                {[
+                  ['Step 1','AI reads your story description and writes cinematic scene prompts'],
+                  ['Step 2','Each scene gets generated as a high quality image'],
+                  ['Step 3','The prompt appears under each image for reference'],
+                  ['Step 4','Download all scenes and use in your video editor'],
+                  ['Pro tip','Use your Consistent Characters prompts in the story description to keep the same cast'],
+                ].map(([s,d]) => (
+                  <div key={s} style={{ marginBottom: '9px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--pn)', marginBottom: '2px' }}>{s}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--mu3)', lineHeight: '1.5' }}>{d}</div>
+                  </div>
+                ))}
+              </Panel>
+            </div>
+          </div>
+
+          {/* STORYBOARD SCENES */}
+          {scenes.length > 0 && (
+            <div>
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '18px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>
+                {projectTitle || projectType} <span style={{ color: 'var(--pn)' }}>Storyboard</span>
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--mu3)', marginBottom: '20px' }}>{scenes.length} scenes · {sbStyle} · {sbSize}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+                {scenes.map((scene, i) => (
+                  <div key={i} style={{ background: 'var(--s1)', border: '0.5px solid var(--b2)', borderRadius: 'var(--r2)', overflow: 'hidden' }}>
+                    {/* Scene number */}
+                    <div style={{ padding: '8px 12px', background: 'var(--pn3)', borderBottom: '0.5px solid var(--b2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '10px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace", fontWeight: 600 }}>SCENE {i + 1}</span>
+                      {scene.imageUrl && (
+                        <a href={scene.imageUrl} download target="_blank" rel="noreferrer"
+                          style={{ fontSize: '10px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace", textDecoration: 'none' }}>⬇ Download</a>
+                      )}
+                    </div>
+                    {/* Image */}
+                    <div style={{ background: 'var(--bg3)', minHeight: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      {scene.loading ? (
+                        <div style={{ textAlign: 'center', padding: '20px' }}>
+                          <div style={{ height: '2px', background: 'rgba(155,109,255,0.1)', overflow: 'hidden', borderRadius: '1px', width: '80px', margin: '0 auto 8px' }}><div className="lbar-fill" /></div>
+                          <div style={{ fontSize: '11px', color: 'var(--mu3)' }}>Generating scene {i + 1}…</div>
+                        </div>
+                      ) : scene.imageUrl ? (
+                        <img src={scene.imageUrl} alt={`Scene ${i + 1}`} style={{ width: '100%', display: 'block' }} />
+                      ) : (
+                        <div style={{ textAlign: 'center', padding: '20px', color: '#ff6b9d', fontSize: '11px' }}>{scene.error || 'Failed'}</div>
+                      )}
+                    </div>
+                    {/* Prompt underneath */}
+                    <div style={{ padding: '12px' }}>
+                      <div style={{ fontSize: '9px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace", textTransform: 'uppercase' as const, letterSpacing: '.7px', marginBottom: '5px' }}>Scene prompt</div>
+                      <div style={{ fontSize: '11px', color: 'var(--mu3)', lineHeight: '1.6' }}>{scene.prompt}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
+
 
 // ── SAVED WORK ────────────────────────────────────────────────
 
