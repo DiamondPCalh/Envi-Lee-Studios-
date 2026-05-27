@@ -1,5 +1,6 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import React from 'react'
 import { UserButton, useUser, SignedIn, SignedOut, RedirectToSignIn } from '@clerk/nextjs'
 
 type Tool = 'mockup' | 'listing' | 'description' | 'image-prompt' | 'tryon' | 'cineflow' | 'studios' | 'deals' | 'lipsync' | 'collection' | 'profit' | 'imagegen' | 'saved' | 'video' | 'characters'
@@ -145,6 +146,112 @@ function F({ label, children }: { label: string; children: React.ReactNode }) {
 
 function PTitle({ children, cf }: { children: React.ReactNode; cf?: boolean }) {
   return <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', fontWeight: 500, color: cf ? 'var(--cf)' : 'var(--pn)', textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>{children}</div>
+}
+
+// ── DRAG AND DROP IMAGE ZONE ──────────────────────────────────
+// Universal drag-and-drop for any image type
+// Use for characters, backgrounds, products, or any reference image
+
+function DragDropZone({
+  onImage,
+  label = 'Drag & drop any image here',
+  sublabel = 'Character, background, product, or reference photo',
+  currentImage,
+  onClear,
+  height = 160,
+  accept = 'image/*',
+}: {
+  onImage: (dataUrl: string, file: File) => void
+  label?: string
+  sublabel?: string
+  currentImage?: string | null
+  onClear?: () => void
+  height?: number
+  accept?: string
+}) {
+  const [dragging, setDragging] = useState(false)
+  const inputRef = React.useRef<HTMLInputElement>(null)
+
+  function handleFile(file: File) {
+    if (!file.type.startsWith('image/')) return
+    const reader = new FileReader()
+    reader.onload = e => onImage(e.target?.result as string, file)
+    reader.readAsDataURL(file)
+  }
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault()
+    setDragging(false)
+    const file = e.dataTransfer.files[0]
+    if (file) handleFile(file)
+  }
+
+  function onDragOver(e: React.DragEvent) {
+    e.preventDefault()
+    setDragging(true)
+  }
+
+  function onFileInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) handleFile(file)
+  }
+
+  return (
+    <div
+      onDrop={onDrop}
+      onDragOver={onDragOver}
+      onDragLeave={() => setDragging(false)}
+      onClick={() => !currentImage && inputRef.current?.click()}
+      style={{
+        border: `1.5px dashed ${dragging ? 'var(--pn)' : currentImage ? 'rgba(155,109,255,0.5)' : 'var(--b2)'}`,
+        borderRadius: '10px',
+        background: dragging ? 'var(--pn3)' : currentImage ? 'var(--bg4)' : 'var(--bg3)',
+        minHeight: `${height}px`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: currentImage ? 'default' : 'pointer',
+        transition: 'all .2s',
+        position: 'relative' as const,
+        overflow: 'hidden',
+        boxShadow: dragging ? '0 0 20px rgba(155,109,255,0.2)' : 'none',
+      }}>
+      <input ref={inputRef} type="file" accept={accept} style={{ display: 'none' }} onChange={onFileInput} />
+
+      {currentImage ? (
+        <>
+          <img src={currentImage} alt="dropped" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          <div style={{ position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0)', transition: 'background .2s' }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.4)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'rgba(0,0,0,0)')}>
+            <div style={{ position: 'absolute' as const, top: '8px', right: '8px', display: 'flex', gap: '6px' }}>
+              <button onClick={e => { e.stopPropagation(); inputRef.current?.click() }}
+                style={{ padding: '5px 10px', borderRadius: '6px', border: 'none', background: 'rgba(155,109,255,0.9)', color: '#fff', fontSize: '10px', cursor: 'pointer', fontFamily: "'DM Mono',monospace" }}>
+                Replace
+              </button>
+              {onClear && (
+                <button onClick={e => { e.stopPropagation(); onClear() }}
+                  style={{ padding: '5px 10px', borderRadius: '6px', border: 'none', background: 'rgba(255,45,120,0.9)', color: '#fff', fontSize: '10px', cursor: 'pointer', fontFamily: "'DM Mono',monospace" }}>
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+        </>
+      ) : (
+        <div style={{ textAlign: 'center', padding: '20px' }}>
+          <div style={{ fontSize: '32px', marginBottom: '8px' }}>{dragging ? '⬇' : '◈'}</div>
+          <div style={{ fontSize: '13px', fontWeight: 500, color: dragging ? 'var(--pn)' : 'var(--w2)', marginBottom: '4px' }}>
+            {dragging ? 'Drop it!' : label}
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--mu3)' }}>{sublabel}</div>
+          <div style={{ fontSize: '10px', color: 'var(--mu)', marginTop: '6px', fontFamily: "'DM Mono',monospace" }}>
+            drag & drop · click to browse · paste from clipboard
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function Panel({ children, hi, mb, cf, neon }: { children: React.ReactNode; hi?: boolean; mb?: boolean; cf?: boolean; neon?: boolean }) {
@@ -505,21 +612,25 @@ function TryOnTool() {
         <div>
           <Panel hi mb>
             <PTitle>Model / person photo</PTitle>
-            <div className="upload-zone">
-              <input type="file" accept="image/*" onChange={e => handleImageUpload(e, 'model')} />
-              {!modelImage ? (
-                <div><div style={{ fontSize: '28px', marginBottom: '6px' }}>🤳</div><div style={{ fontSize: '12px', color: 'var(--w2)', marginBottom: '3px' }}>Upload model or AI twin photo</div><div style={{ fontSize: '10px', color: 'var(--mu3)' }}>Real model, AI character, or influencer</div></div>
-              ) : <img src={modelImage} className="preview-img" alt="model" />}
-            </div>
+            <DragDropZone
+              label="Drag your model or AI twin photo"
+              sublabel="Real model, AI character, or influencer photo"
+              currentImage={modelImage}
+              onImage={(dataUrl) => setModelImage(dataUrl)}
+              onClear={() => setModelImage(null)}
+              height={150}
+            />
           </Panel>
           <Panel hi>
             <PTitle>Clothing / garment image</PTitle>
-            <div className="upload-zone">
-              <input type="file" accept="image/*" onChange={e => handleImageUpload(e, 'garment')} />
-              {!garmentImage ? (
-                <div><div style={{ fontSize: '28px', marginBottom: '6px' }}>👗</div><div style={{ fontSize: '12px', color: 'var(--w2)', marginBottom: '3px' }}>Upload clothing image</div><div style={{ fontSize: '10px', color: 'var(--mu3)' }}>Product photo, screenshot, or flat lay</div></div>
-              ) : <img src={garmentImage} className="preview-img" alt="garment" />}
-            </div>
+            <DragDropZone
+              label="Drag your clothing image"
+              sublabel="Product photo, screenshot, or flat lay"
+              currentImage={garmentImage}
+              onImage={(dataUrl) => setGarmentImage(dataUrl)}
+              onClear={() => setGarmentImage(null)}
+              height={150}
+            />
             <div style={{ marginTop: '12px' }}>
               <F label="Product name"><input style={inp} placeholder="e.g. Luxe Floral Crop Tee" value={productName} onChange={e => setProductName(e.target.value)} /></F>
               <F label="Brand / source">
@@ -1759,18 +1870,14 @@ function OmniHumanStudio() {
             Character photo
             <CharacterPicker onSelect={c => { if (c.photo) setCharacterPhoto(c.photo); setPrompt(prev => prev || c.videoSeed || `${c.name}, ${c.appearance}, ${c.style}, ${c.personality}`) }} label="Load character" />
           </div>
-          <div className="upload-zone" style={{ marginBottom: '12px' }}>
-            <input type="file" accept="image/*" onChange={handlePhotoUpload} />
-            {!characterPhoto ? (
-              <div>
-                <div style={{ fontSize: '28px', marginBottom: '6px' }}>📸</div>
-                <div style={{ fontSize: '12px', color: 'var(--w2)', marginBottom: '3px' }}>Upload character photo</div>
-                <div style={{ fontSize: '10px', color: 'var(--mu3)' }}>From Flow, Consistent Characters, or any AI tool</div>
-              </div>
-            ) : (
-              <img src={characterPhoto} alt="character" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '8px' }} />
-            )}
-          </div>
+          <DragDropZone
+            label="Drag your character photo here"
+            sublabel="From Flow, Consistent Characters, or any AI tool"
+            currentImage={characterPhoto}
+            onImage={(dataUrl) => setCharacterPhoto(dataUrl)}
+            onClear={() => setCharacterPhoto(null)}
+            height={160}
+          />
         </Panel>
 
         <Panel hi mb>
@@ -2229,19 +2336,34 @@ function ImageGenTool() {
           {/* LEFT — form */}
           <Panel hi>
             <PTitle>Image details</PTitle>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap' as const }}>
-              <CharacterPicker onSelect={c => { setPrompt(prev => prev ? `${c.name}: ${c.imagePrompt || c.appearance}, ${prev}` : `${c.name}: ${c.imagePrompt || c.appearance}, ${c.style}, `); }} label="Add to prompt" />
-              <CharacterPicker onSelect={c => { setLockedCharacter({ name: c.name, photo: c.photo }); setFaceLocked(true); setPrompt(prev => prev ? `${c.name}: ${c.imagePrompt || c.appearance}, ${prev}` : `${c.name}: ${c.imagePrompt || c.appearance}, ${c.style}, `) }} label="🔒 Lock face" />
-              {lockedCharacter && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: 'var(--pn3)', border: '0.5px solid rgba(155,109,255,0.4)', borderRadius: '6px', fontSize: '11px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace" }}>
-                  {lockedCharacter.photo && <img src={lockedCharacter.photo} alt={lockedCharacter.name} style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover' }} />}
-                  🔒 {lockedCharacter.name}
-                  <button onClick={() => { setLockedCharacter(null); setFaceLocked(false) }} style={{ background: 'none', border: 'none', color: '#ff6b9d', cursor: 'pointer', fontSize: '12px', padding: '0 2px' }}>✕</button>
-                </div>
-              )}
+
+            {/* Reference image drop zone */}
+            <div style={{ marginBottom: '12px' }}>
+              <div style={{ fontSize: '9px', fontWeight: 600, color: 'var(--mu3)', textTransform: 'uppercase' as const, letterSpacing: '.7px', fontFamily: "'DM Mono',monospace", marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Reference image — drag in any photo to lock that face / style</span>
+                {lockedCharacter && <span style={{ color: 'var(--pn)' }}>🔒 {lockedCharacter.name}</span>}
+              </div>
+              <DragDropZone
+                label="Drag your character or reference photo here"
+                sublabel="Locks that exact face into your generated image · or pick from saved characters below"
+                currentImage={lockedCharacter?.photo ?? null}
+                onImage={(dataUrl) => { setLockedCharacter({ name: 'Custom photo', photo: dataUrl }); setFaceLocked(true) }}
+                onClear={() => { setLockedCharacter(null); setFaceLocked(false) }}
+                height={130}
+              />
+              <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' as const }}>
+                <CharacterPicker onSelect={c => { setLockedCharacter({ name: c.name, photo: c.photo }); setFaceLocked(true); setPrompt(prev => prev ? `${c.name}: ${c.imagePrompt || c.appearance}, ${prev}` : `${c.name}: ${c.imagePrompt || c.appearance}, `) }} label="◉ Pick saved character" />
+                {lockedCharacter && (
+                  <button onClick={() => { setLockedCharacter(null); setFaceLocked(false) }}
+                    style={{ padding: '5px 10px', borderRadius: '6px', border: '0.5px solid rgba(255,45,120,0.2)', background: 'transparent', color: '#ff6b9d', fontSize: '10px', cursor: 'pointer', fontFamily: "'DM Mono',monospace" }}>
+                    Clear reference
+                  </button>
+                )}
+              </div>
             </div>
+
             <F label="Prompt — describe your scene">
-              <textarea style={{ ...ta, minHeight: '100px' }} placeholder="e.g. Black woman in a luxury crop tee on NYC rooftop at golden hour, cinematic film still, shallow depth of field..." value={prompt} onChange={e => setPrompt(e.target.value)} />
+              <textarea style={{ ...ta, minHeight: '90px' }} placeholder="e.g. Black woman in a luxury crop tee on NYC rooftop at golden hour, cinematic film still, shallow depth of field..." value={prompt} onChange={e => setPrompt(e.target.value)} />
             </F>
             <F label="Style">
               <select style={sel} value={style} onChange={e => setStyle(e.target.value)}>
@@ -3090,18 +3212,14 @@ function ConsistentCharactersTool() {
             <Panel hi mb>
               <PTitle>Upload character photo</PTitle>
               <CharacterPicker onSelect={c => { if (c.photo) setPhoto(c.photo); setName(c.name); setAge(c.age); setAppearance(c.appearance); setStyle(c.style); setPersonality(c.personality); setBackstory(c.backstory) }} label="Load from saved characters" />
-              <div className="upload-zone" style={{ marginBottom: '12px', marginTop: '8px' }}>
-                <input type="file" accept="image/*" onChange={handlePhotoUpload} />
-                {!photo ? (
-                  <div>
-                    <div style={{ fontSize: '28px', marginBottom: '6px' }}>📸</div>
-                    <div style={{ fontSize: '12px', color: 'var(--w2)', marginBottom: '3px' }}>Upload your AI character photo</div>
-                    <div style={{ fontSize: '10px', color: 'var(--mu3)' }}>From Midjourney, DALL-E, Leonardo, HeyGen, or any app</div>
-                  </div>
-                ) : (
-                  <img src={photo} alt="character" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '8px' }} />
-                )}
-              </div>
+              <DragDropZone
+                label="Drag your AI character photo here"
+                sublabel="From Midjourney, DALL-E, Leonardo, Flow, HeyGen, or any app"
+                currentImage={photo}
+                onImage={(dataUrl) => setPhoto(dataUrl)}
+                onClear={() => setPhoto(null)}
+                height={160}
+              />
               <F label="Character color accent">
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
                   {colorOptions.map(c => (
