@@ -1728,7 +1728,7 @@ function OmniHumanStudio() {
 
       <div>
         {/* VIDEO RESULT */}
-        <Panel mb style={{ borderColor: `rgba(176,108,255,0.3)` } as React.CSSProperties}>
+        <Panel mb neon>
           <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: purpleNeon, textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>Generated video</div>
           <div style={{ background: 'var(--bg3)', borderRadius: '10px', minHeight: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `0.5px solid rgba(176,108,255,0.2)`, overflow: 'hidden', marginBottom: '12px' }}>
             {loading ? (
