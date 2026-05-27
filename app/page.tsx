@@ -2081,6 +2081,8 @@ function ImageGenTool() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
+  const [faceLocked, setFaceLocked] = useState(false)
+  const [lockedCharacter, setLockedCharacter] = useState<{name: string; photo?: string} | null>(null)
 
   // Storyboard
   const [projectType, setProjectType] = useState('Reality Show')
@@ -2089,8 +2091,10 @@ function ImageGenTool() {
   const [sceneCount, setSceneCount] = useState('4')
   const [sbStyle, setSbStyle] = useState('cinematic')
   const [sbSize, setSbSize] = useState('landscape')
-  const [scenes, setScenes] = useState<Array<{prompt: string; imageUrl: string | null; loading: boolean; error: string}>>([])
+  const [scenes, setScenes] = useState<Array<{prompt: string; imageUrl: string | null; loading: boolean; error: string; faceLocked?: boolean}>>([])
   const [sbLoading, setSbLoading] = useState(false)
+  const [cast, setCast] = useState<Array<{id: number; name: string; description: string; photo?: string; color?: string}>>([])
+  const characters = useCharacters()
 
   async function generateSingle() {
     if (!prompt.trim()) { setError('Please enter a prompt first'); return }
@@ -2099,11 +2103,12 @@ function ImageGenTool() {
       const res = await fetch('/api/generate/image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, style, size, negativePrompt }),
+        body: JSON.stringify({ prompt, style, size, negativePrompt, facePhoto: lockedCharacter?.photo ?? null }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Image generation failed')
       setImageUrl(data.imageUrl)
+      if (data.faceLocked) setFaceLocked(true)
     } catch (e) { setError((e as Error).message) }
     finally { setLoading(false) }
   }
@@ -2111,6 +2116,11 @@ function ImageGenTool() {
   async function generateStoryboard() {
     if (!storyDescription.trim()) { setError('Please describe your story first'); return }
     setSbLoading(true); setError('')
+
+    // Build cast description to inject into story
+    const castDescription = cast.length > 0
+      ? `\n\nCAST (use these characters consistently in every scene):\n${cast.map(c => `- ${c.name}: ${c.description}`).join('\n')}`
+      : ''
 
     try {
       // Step 1 — Ask AI to write scene prompts
@@ -2120,7 +2130,7 @@ function ImageGenTool() {
         body: JSON.stringify({
           projectType,
           projectTitle: projectTitle || projectType,
-          storyDescription,
+          storyDescription: storyDescription + castDescription,
           sceneCount,
           style: sbStyle,
         }),
@@ -2139,7 +2149,16 @@ function ImageGenTool() {
           const imgRes = await fetch('/api/generate/image', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: scenePrompts[i], style: sbStyle, size: sbSize, negativePrompt: 'blurry, low quality, watermark' }),
+            body: JSON.stringify({
+              prompt: scenePrompts[i],
+              style: sbStyle,
+              size: sbSize,
+              negativePrompt: 'blurry, low quality, watermark, different person, wrong face',
+              // Pass first cast member's photo for face locking
+              facePhoto: cast.find(c => c.photo)?.photo ?? null,
+              // Pass all cast photos for multi-character consistency
+              castPhotos: cast.filter(c => c.photo).map(c => c.photo).slice(0, 5),
+            }),
           })
           const imgData = await imgRes.json()
           setScenes(prev => prev.map((s, idx) => idx === i ? { ...s, imageUrl: imgData.imageUrl ?? null, loading: false, error: imgData.error ?? '' } : s))
@@ -2210,7 +2229,17 @@ function ImageGenTool() {
           {/* LEFT — form */}
           <Panel hi>
             <PTitle>Image details</PTitle>
-            <CharacterPicker onSelect={c => setPrompt(prev => prev ? `${c.name}: ${c.imagePrompt || c.appearance}, ${prev}` : `${c.name}: ${c.imagePrompt || c.appearance}, ${c.style}, `)} label="Add character to scene" />
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap' as const }}>
+              <CharacterPicker onSelect={c => { setPrompt(prev => prev ? `${c.name}: ${c.imagePrompt || c.appearance}, ${prev}` : `${c.name}: ${c.imagePrompt || c.appearance}, ${c.style}, `); }} label="Add to prompt" />
+              <CharacterPicker onSelect={c => { setLockedCharacter({ name: c.name, photo: c.photo }); setFaceLocked(true); setPrompt(prev => prev ? `${c.name}: ${c.imagePrompt || c.appearance}, ${prev}` : `${c.name}: ${c.imagePrompt || c.appearance}, ${c.style}, `) }} label="🔒 Lock face" />
+              {lockedCharacter && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: 'var(--pn3)', border: '0.5px solid rgba(155,109,255,0.4)', borderRadius: '6px', fontSize: '11px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace" }}>
+                  {lockedCharacter.photo && <img src={lockedCharacter.photo} alt={lockedCharacter.name} style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover' }} />}
+                  🔒 {lockedCharacter.name}
+                  <button onClick={() => { setLockedCharacter(null); setFaceLocked(false) }} style={{ background: 'none', border: 'none', color: '#ff6b9d', cursor: 'pointer', fontSize: '12px', padding: '0 2px' }}>✕</button>
+                </div>
+              )}
+            </div>
             <F label="Prompt — describe your scene">
               <textarea style={{ ...ta, minHeight: '100px' }} placeholder="e.g. Black woman in a luxury crop tee on NYC rooftop at golden hour, cinematic film still, shallow depth of field..." value={prompt} onChange={e => setPrompt(e.target.value)} />
             </F>
@@ -2232,7 +2261,14 @@ function ImageGenTool() {
           {/* RIGHT — image result */}
           <div>
             <Panel neon>
-              <PTitle>Generated image</PTitle>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid var(--b)' }}>
+                <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', fontWeight: 500, color: 'var(--pn)', textTransform: 'uppercase' as const, letterSpacing: '.8px' }}>Generated image</div>
+                {faceLocked && lockedCharacter && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '3px 8px', background: 'var(--pn3)', border: '0.5px solid rgba(155,109,255,0.4)', borderRadius: '5px', fontSize: '10px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace" }}>
+                    🔒 {lockedCharacter.name} face locked
+                  </div>
+                )}
+              </div>
               <div style={{ background: 'var(--bg3)', borderRadius: '10px', minHeight: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: '12px', border: '0.5px solid var(--b2)' }}>
                 {loading ? (
                   <div style={{ textAlign: 'center', padding: '30px' }}>
@@ -2284,18 +2320,69 @@ function ImageGenTool() {
                 </select>
               </F>
               <F label="Title"><input style={inp} placeholder="e.g. Baddie House, Flawless, The Come Up" value={projectTitle} onChange={e => setProjectTitle(e.target.value)} /></F>
-              <div style={{ marginBottom: '8px' }}>
-                <CharacterPicker
-                  onSelect={c => setStoryDescription(prev =>
-                    prev
-                      ? `${prev}\n\nCharacter: ${c.name} — ${c.consistencyRule || c.appearance}`
-                      : `Character: ${c.name} — ${c.consistencyRule || c.appearance}\n\n`
+
+              {/* CAST MANAGER */}
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '9px', fontWeight: 600, color: 'var(--mu3)', textTransform: 'uppercase' as const, letterSpacing: '.7px', fontFamily: "'DM Mono',monospace" }}>Cast — characters locked into every scene</div>
+                  {cast.some(c => c.photo) && (
+                    <div style={{ fontSize: '9px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace", padding: '2px 6px', background: 'var(--pn3)', borderRadius: '4px' }}>
+                      🔒 Face locking ON
+                    </div>
                   )}
-                  label="Add character to story"
-                />
+                </div>
+                {/* Cast list */}
+                {cast.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '6px', marginBottom: '8px' }}>
+                    {cast.map(c => (
+                      <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', background: 'var(--bg3)', borderRadius: '7px', border: `0.5px solid ${c.color ?? 'rgba(155,109,255,0.3)'}` }}>
+                        <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: c.color ?? 'var(--pn3)', overflow: 'hidden', flexShrink: 0, border: `1.5px solid ${c.color ?? 'var(--pn)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {c.photo ? <img src={c.photo} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '12px' }}>◉</span>}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '11px', fontWeight: 600, color: c.color ?? 'var(--pn)' }}>{c.name}</div>
+                          <div style={{ fontSize: '10px', color: 'var(--mu3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, maxWidth: '160px' }}>{c.description.slice(0, 50)}…</div>
+                        </div>
+                        <button onClick={() => setCast(prev => prev.filter(x => x.id !== c.id))}
+                          style={{ padding: '3px 8px', borderRadius: '5px', border: '0.5px solid rgba(255,45,120,0.2)', background: 'transparent', color: '#ff6b9d', fontSize: '10px', cursor: 'pointer' }}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Add character buttons */}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
+                  {characters.map(char => (
+                    <button key={char.id}
+                      onClick={() => {
+                        if (cast.find(c => c.id === char.id)) return // already added
+                        setCast(prev => [...prev, {
+                          id: char.id,
+                          name: char.name,
+                          description: char.consistencyRule || `${char.appearance}, ${char.style}`,
+                          photo: char.photo,
+                          color: char.color,
+                        }])
+                      }}
+                      style={{ padding: '5px 10px', borderRadius: '6px', border: `0.5px solid ${cast.find(c => c.id === char.id) ? (char.color ?? 'rgba(155,109,255,0.4)') : 'var(--b)'}`, background: cast.find(c => c.id === char.id) ? `${char.color ?? 'rgba(155,109,255,0.15)'}22` : 'var(--bg3)', color: cast.find(c => c.id === char.id) ? (char.color ?? 'var(--pn)') : 'var(--mu3)', fontSize: '11px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      {cast.find(c => c.id === char.id) ? '✓ ' : '+ '}{char.name}
+                    </button>
+                  ))}
+                  {characters.length === 0 && (
+                    <div style={{ fontSize: '11px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace", padding: '5px 0' }}>
+                      No characters saved yet — go to Consistent Characters to add your cast
+                    </div>
+                  )}
+                </div>
+                {cast.length > 0 && (
+                  <button onClick={() => setCast([])}
+                    style={{ marginTop: '6px', padding: '4px 10px', borderRadius: '5px', border: '0.5px solid rgba(255,45,120,0.2)', background: 'transparent', color: '#ff6b9d', fontSize: '10px', cursor: 'pointer', fontFamily: "'DM Mono',monospace" }}>
+                    Clear cast
+                  </button>
+                )}
               </div>
+
               <F label="Story description">
-                <textarea style={{ ...ta, minHeight: '120px' }} placeholder="Describe your story, characters, and key scenes. The more detail the better — AI will create cinematic scene prompts from this..." value={storyDescription} onChange={e => setStoryDescription(e.target.value)} />
+                <textarea style={{ ...ta, minHeight: '120px' }} placeholder="Describe your story and key scenes. Your cast will be automatically included in every scene..." value={storyDescription} onChange={e => setStoryDescription(e.target.value)} />
               </F>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <F label="Number of scenes">
@@ -2359,10 +2446,13 @@ function ImageGenTool() {
               <div style={{ fontSize: '12px', color: 'var(--mu3)', marginBottom: '20px' }}>{scenes.length} scenes · {sbStyle} · {sbSize}</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
                 {scenes.map((scene, i) => (
-                  <div key={i} style={{ background: 'var(--s1)', border: '0.5px solid var(--b2)', borderRadius: 'var(--r2)', overflow: 'hidden' }}>
+                  <div key={i} style={{ background: 'var(--s1)', border: `0.5px solid ${cast.some(c => c.photo) ? 'rgba(155,109,255,0.3)' : 'var(--b2)'}`, borderRadius: 'var(--r2)', overflow: 'hidden' }}>
                     {/* Scene number */}
                     <div style={{ padding: '8px 12px', background: 'var(--pn3)', borderBottom: '0.5px solid var(--b2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '10px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace", fontWeight: 600 }}>SCENE {i + 1}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '10px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace", fontWeight: 600 }}>SCENE {i + 1}</span>
+                        {cast.some(c => c.photo) && <span style={{ fontSize: '9px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace", background: 'rgba(155,109,255,0.2)', padding: '1px 5px', borderRadius: '3px' }}>🔒 Face locked</span>}
+                      </div>
                       {scene.imageUrl && (
                         <a href={scene.imageUrl} download target="_blank" rel="noreferrer"
                           style={{ fontSize: '10px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace", textDecoration: 'none' }}>⬇ Download</a>
