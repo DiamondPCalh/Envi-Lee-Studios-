@@ -1,12 +1,13 @@
 // app/api/generate/image/route.ts
-// PRIMARY: FLUX.1 Kontext [pro] for face-locked character consistency
-// FALLBACK: FLUX Pro for standard generation
+// PRIMARY: Gemini 3 Pro Image (same engine as Google Flow) for character consistency
+// Accepts reference photos — maintains same face across scenes
+// FALLBACK: FLUX Pro via fal.ai
 // STORYBOARD: PUT endpoint generates scene prompts via Claude
 
 import { NextRequest, NextResponse } from 'next/server'
 
 const stylePrompts: Record<string, string> = {
-  cinematic: 'cinematic film still, anamorphic lens, shallow depth of field, dramatic lighting, professional color grade, photorealistic, 8K',
+  cinematic: 'cinematic film still, anamorphic lens, shallow depth of field, dramatic lighting, professional color grade, photorealistic, 8K ultra sharp',
   fashion: 'high end fashion editorial photography, professional studio lighting, Vogue magazine quality, photorealistic, 4K',
   luxury: 'luxury lifestyle photography, aspirational, warm golden hour light, high fashion editorial, photorealistic',
   streetwear: 'urban street photography, authentic street style, natural light, candid editorial, NYC aesthetic, photorealistic',
@@ -17,26 +18,23 @@ const stylePrompts: Record<string, string> = {
 }
 
 const sizeMap: Record<string, string> = {
-  landscape: 'landscape_16_9',
-  portrait: 'portrait_4_3',
-  tiktok: 'portrait_16_9',
-  square: 'square_hd',
+  landscape: '16:9',
+  portrait: '3:4',
+  tiktok: '9:16',
+  square: '1:1',
 }
 
-async function uploadToFal(base64Data: string, falKey: string): Promise<string | null> {
-  try {
-    const blob = await fetch(base64Data).then(r => r.blob())
-    const formData = new FormData()
-    formData.append('file', blob, 'character.jpg')
-    const res = await fetch('https://fal.run/fal-ai/upload', {
-      method: 'POST',
-      headers: { 'Authorization': `Key ${falKey}` },
-      body: formData,
-    })
-    if (!res.ok) return null
-    const data = await res.json()
-    return data.url ?? null
-  } catch { return null }
+// Convert base64 to the format Gemini needs
+function base64ToGeminiPart(base64Data: string) {
+  // base64Data is like "data:image/jpeg;base64,/9j/..."
+  const matches = base64Data.match(/^data:([^;]+);base64,(.+)$/)
+  if (!matches) return null
+  return {
+    inlineData: {
+      mimeType: matches[1],
+      data: matches[2],
+    }
+  }
 }
 
 // POST — generate a single image
@@ -46,73 +44,119 @@ export async function POST(req: NextRequest) {
 
     if (!prompt) return NextResponse.json({ error: 'prompt is required' }, { status: 400 })
 
+    const geminiKey = process.env.GEMINI_API_KEY
     const falKey = process.env.FAL_API_KEY
-    if (!falKey) return NextResponse.json({ error: 'FAL_API_KEY not configured' }, { status: 500 })
 
     const styleBoost = stylePrompts[style ?? 'cinematic'] ?? stylePrompts.cinematic
-    const fullPrompt = `${prompt}, ${styleBoost}`
-    const imageSize = sizeMap[size ?? 'landscape'] ?? sizeMap.landscape
+    const aspectRatio = sizeMap[size ?? 'landscape'] ?? '16:9'
 
-    // ── FLUX KONTEXT — FACE LOCKED GENERATION ────────────────
-    // Best for: keeping the same exact person across scenes
-    // Takes your character photo → generates new scene with same face
-    const primaryPhoto = facePhoto || (castPhotos?.[0] ?? null)
+    // ── GEMINI 3 PRO IMAGE — FACE LOCKED GENERATION ──────────
+    // Same engine as Google Flow — accepts reference photos
+    // Up to 5 human reference images for character consistency
+    if (geminiKey && (facePhoto || (castPhotos && castPhotos.length > 0))) {
+      try {
+        const allPhotos = [
+          ...(facePhoto ? [facePhoto] : []),
+          ...(castPhotos ?? []),
+        ].slice(0, 5) // max 5 human reference images
 
-    if (primaryPhoto) {
-      const faceUrl = await uploadToFal(primaryPhoto, falKey)
+        const parts: Array<Record<string, unknown>> = []
 
-      if (faceUrl) {
-        // Build Kontext instruction — tell it to keep the face exactly
-        const kontextPrompt = `Keep the exact same person from the reference image. Same face, same skin tone, same features. Place them in this scene: ${fullPrompt}. The person must look identical to the reference photo.`
+        // Add reference photos first
+        for (const photo of allPhotos) {
+          const part = base64ToGeminiPart(photo)
+          if (part) parts.push(part)
+        }
 
-        const kontextRes = await fetch('https://fal.run/fal-ai/flux-pro/kontext', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Key ${falKey}`,
-          },
-          body: JSON.stringify({
-            prompt: kontextPrompt,
-            image_url: faceUrl,
-            image_size: imageSize,
-            num_inference_steps: 28,
-            guidance_scale: 3.5,
-            num_images: 1,
-            safety_tolerance: '2',
-            output_format: 'jpeg',
-          }),
+        // Add the generation prompt
+        parts.push({
+          text: `Generate a photorealistic image keeping the EXACT same person(s) from the reference photo(s) above. Do not change their face, skin tone, facial features, or identity in any way. Place them in this new scene:\n\n${prompt}, ${styleBoost}\n\nAspect ratio: ${aspectRatio}\n\nIMPORTANT: The person must look identical to the reference photo. Same face, same skin tone, same features, different scene only.`
         })
 
-        if (kontextRes.ok) {
-          const kontextData = await kontextRes.json()
-          const imageUrl = kontextData.images?.[0]?.url ?? null
-          if (imageUrl) {
-            return NextResponse.json({
-              imageUrl,
-              prompt: kontextPrompt,
-              faceLocked: true,
-              model: 'FLUX Kontext'
-            })
+        const geminiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${geminiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ role: 'user', parts }],
+              generationConfig: {
+                responseModalities: ['IMAGE', 'TEXT'],
+                aspectRatio,
+              },
+            }),
+          }
+        )
+
+        if (geminiRes.ok) {
+          const geminiData = await geminiRes.json()
+          const imagePart = geminiData.candidates?.[0]?.content?.parts?.find(
+            (p: Record<string, unknown>) => p.inlineData
+          )
+
+          if (imagePart?.inlineData?.data) {
+            const imageUrl = `data:${imagePart.inlineData.mimeType ?? 'image/jpeg'};base64,${imagePart.inlineData.data}`
+            return NextResponse.json({ imageUrl, prompt, faceLocked: true, model: 'Gemini 3 Pro Image' })
           }
         } else {
-          const err = await kontextRes.text()
-          console.error('[kontext error]', err)
+          const err = await geminiRes.text()
+          console.error('[gemini image error]', err)
         }
+      } catch (e) {
+        console.error('[gemini image]', e)
       }
     }
 
-    // ── FLUX PRO — STANDARD GENERATION ───────────────────────
-    // No face photo or Kontext failed — use FLUX Pro
+    // ── GEMINI — NO REFERENCE (standard generation) ──────────
+    if (geminiKey) {
+      try {
+        const geminiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${geminiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ role: 'user', parts: [{ text: `${prompt}, ${styleBoost}` }] }],
+              generationConfig: {
+                responseModalities: ['IMAGE', 'TEXT'],
+                aspectRatio,
+              },
+            }),
+          }
+        )
+
+        if (geminiRes.ok) {
+          const geminiData = await geminiRes.json()
+          const imagePart = geminiData.candidates?.[0]?.content?.parts?.find(
+            (p: Record<string, unknown>) => p.inlineData
+          )
+          if (imagePart?.inlineData?.data) {
+            const imageUrl = `data:${imagePart.inlineData.mimeType ?? 'image/jpeg'};base64,${imagePart.inlineData.data}`
+            return NextResponse.json({ imageUrl, prompt, model: 'Gemini Flash Image' })
+          }
+        }
+      } catch (e) {
+        console.error('[gemini flash image]', e)
+      }
+    }
+
+    // ── FLUX PRO FALLBACK ─────────────────────────────────────
+    if (!falKey) return NextResponse.json({ error: 'No image API keys configured' }, { status: 500 })
+
+    const falSizeMap: Record<string, string> = {
+      landscape: 'landscape_16_9',
+      portrait: 'portrait_4_3',
+      tiktok: 'portrait_16_9',
+      square: 'square_hd',
+    }
+
     const res = await fetch('https://fal.run/fal-ai/flux-pro', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Key ${falKey}`,
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Key ${falKey}` },
       body: JSON.stringify({
-        prompt: fullPrompt,
-        negative_prompt: negativePrompt || 'blurry, low quality, distorted, ugly, bad anatomy, watermark, text overlay, cartoon, anime, plastic, artificial',
-        image_size: imageSize,
+        prompt: `${prompt}, ${styleBoost}`,
+        negative_prompt: negativePrompt || 'blurry, low quality, distorted, watermark, cartoon, plastic',
+        image_size: falSizeMap[size ?? 'landscape'] ?? 'landscape_16_9',
         num_inference_steps: 25,
         guidance_scale: 3.5,
         num_images: 1,
@@ -121,27 +165,11 @@ export async function POST(req: NextRequest) {
       }),
     })
 
-    if (!res.ok) {
-      // Final fallback to FLUX schnell
-      const fallbackRes = await fetch('https://fal.run/fal-ai/flux/schnell', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Key ${falKey}` },
-        body: JSON.stringify({
-          prompt: fullPrompt,
-          image_size: { width: 1280, height: 720 },
-          num_inference_steps: 8,
-          num_images: 1,
-        }),
-      })
-      if (!fallbackRes.ok) throw new Error(`fal.ai error ${res.status}`)
-      const fallbackData = await fallbackRes.json()
-      return NextResponse.json({ imageUrl: fallbackData.images?.[0]?.url ?? null, prompt: fullPrompt, model: 'FLUX Schnell' })
-    }
-
+    if (!res.ok) throw new Error(`fal.ai error ${res.status}`)
     const data = await res.json()
     const imageUrl = data.images?.[0]?.url ?? null
     if (!imageUrl) throw new Error('No image returned')
-    return NextResponse.json({ imageUrl, prompt: fullPrompt, model: 'FLUX Pro' })
+    return NextResponse.json({ imageUrl, prompt, model: 'FLUX Pro' })
 
   } catch (err) {
     console.error('[/api/generate/image]', err)
@@ -159,7 +187,7 @@ export async function PUT(req: NextRequest) {
 
     const styleBoost = stylePrompts[style ?? 'cinematic'] ?? stylePrompts.cinematic
 
-    const prompt = `You are a professional cinematographer and storyboard artist.
+    const promptText = `You are a professional cinematographer and storyboard artist.
 
 Project type: ${projectType}
 Title: ${projectTitle}
@@ -167,19 +195,17 @@ Story: ${storyDescription}
 Visual style: ${style} — ${styleBoost}
 Number of scenes: ${sceneCount}
 
-Write exactly ${sceneCount} cinematic image generation prompts for this storyboard.
-
-Rules for each prompt:
-- Use the EXACT character names and descriptions from the cast list provided
-- Describe their exact appearance, outfit, expression in every scene
+Write exactly ${sceneCount} cinematic image prompts for this storyboard.
+- Use the EXACT character names and descriptions from the cast list
+- Describe exact appearance, outfit, expression in every scene
 - Include setting, lighting, mood, camera angle
-- Add this style: ${styleBoost}
+- Add style: ${styleBoost}
 - Make it photorealistic and cinematic
-- Progress the story scene by scene
-- Keep character descriptions IDENTICAL across all scenes for consistency
+- Progress the story scene to scene
+- Keep character descriptions IDENTICAL across all scenes
 
 Return ONLY a JSON array of strings. No other text:
-["scene 1 full prompt", "scene 2 full prompt", ...]`
+["scene 1 prompt", "scene 2 prompt", ...]`
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -191,7 +217,7 @@ Return ONLY a JSON array of strings. No other text:
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 2000,
-        messages: [{ role: 'user', content: prompt }],
+        messages: [{ role: 'user', content: promptText }],
       }),
     })
 
