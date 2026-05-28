@@ -1956,6 +1956,9 @@ function OmniHumanStudio() {
               <button onClick={generate} style={{ flex: 1, padding: '9px', borderRadius: '7px', border: '0.5px solid var(--b2)', background: 'var(--s2)', color: purpleNeon, fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
                 ↺ Regenerate
               </button>
+              <button onClick={() => setVideoUrl(null)} style={{ padding: '9px 10px', borderRadius: '7px', border: '0.5px solid rgba(255,45,120,0.3)', background: 'transparent', color: '#ff6b9d', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+                ✕
+              </button>
             </div>
           )}
         </Panel>
@@ -2423,6 +2426,10 @@ function ImageGenTool() {
                     style={{ flex: 1, padding: '8px', borderRadius: '7px', border: '0.5px solid var(--b2)', background: 'var(--s2)', color: 'var(--pn)', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
                     ↺ Redo
                   </button>
+                  <button onClick={() => setImageUrl(null)}
+                    style={{ padding: '8px 10px', borderRadius: '7px', border: '0.5px solid rgba(255,45,120,0.3)', background: 'transparent', color: '#ff6b9d', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+                    ✕
+                  </button>
                 </div>
               )}
             </Panel>
@@ -2565,7 +2572,13 @@ function ImageGenTool() {
               <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '18px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>
                 {projectTitle || projectType} <span style={{ color: 'var(--pn)' }}>Storyboard</span>
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--mu3)', marginBottom: '20px' }}>{scenes.length} scenes · {sbStyle} · {sbSize}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--mu3)' }}>{scenes.length} scenes · {sbStyle} · {sbSize}</div>
+                <button onClick={() => { if (confirm('Clear all scenes?')) setScenes([]) }}
+                  style={{ padding: '4px 12px', borderRadius: '6px', border: '0.5px solid rgba(255,45,120,0.3)', background: 'transparent', color: '#ff6b9d', fontSize: '11px', cursor: 'pointer', fontFamily: "'DM Mono',monospace" }}>
+                  Clear all scenes
+                </button>
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
                 {scenes.map((scene, i) => (
                   <div key={i} style={{ background: 'var(--s1)', border: `0.5px solid ${cast.some(c => c.photo) ? 'rgba(155,109,255,0.3)' : 'var(--b2)'}`, borderRadius: 'var(--r2)', overflow: 'hidden' }}>
@@ -2575,10 +2588,16 @@ function ImageGenTool() {
                         <span style={{ fontSize: '10px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace", fontWeight: 600 }}>SCENE {i + 1}</span>
                         {cast.some(c => c.photo) && <span style={{ fontSize: '9px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace", background: 'rgba(155,109,255,0.2)', padding: '1px 5px', borderRadius: '3px' }}>🔒 Face locked</span>}
                       </div>
-                      {scene.imageUrl && (
-                        <a href={scene.imageUrl} download target="_blank" rel="noreferrer"
-                          style={{ fontSize: '10px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace", textDecoration: 'none' }}>⬇ Download</a>
-                      )}
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        {scene.imageUrl && (
+                          <a href={scene.imageUrl} download target="_blank" rel="noreferrer"
+                            style={{ fontSize: '10px', color: 'var(--pn)', fontFamily: "'DM Mono',monospace", textDecoration: 'none' }}>⬇ Download</a>
+                        )}
+                        <button onClick={() => setScenes(prev => prev.filter((_, idx) => idx !== i))}
+                          style={{ padding: '2px 8px', borderRadius: '5px', border: '0.5px solid rgba(255,45,120,0.3)', background: 'transparent', color: '#ff6b9d', fontSize: '10px', cursor: 'pointer', fontFamily: "'DM Mono',monospace" }}>
+                          ✕
+                        </button>
+                      </div>
                     </div>
                     {/* Image */}
                     <div style={{ background: 'var(--bg3)', minHeight: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
@@ -2865,6 +2884,7 @@ function VideoGenTool() {
                 <a href={videoUrl} download target="_blank" rel="noreferrer" style={{ flex: 1, padding: '9px', borderRadius: '7px', border: 'none', background: 'var(--cf)', color: '#000', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", textAlign: 'center', textDecoration: 'none', display: 'block' }}>⬇ Download</a>
                 <button onClick={saveVideo} style={{ flex: 1, padding: '9px', borderRadius: '7px', border: `0.5px solid ${saved ? 'var(--cf)' : 'var(--b2)'}`, background: saved ? 'var(--cf2)' : 'var(--s2)', color: saved ? 'var(--cf)' : 'var(--mu3)', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>{saved ? '✓ Saved!' : '⊹ Save'}</button>
                 <button onClick={generate} style={{ flex: 1, padding: '9px', borderRadius: '7px', border: '0.5px solid var(--b2)', background: 'var(--s2)', color: 'var(--cf)', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>↺ Regenerate</button>
+                <button onClick={() => setVideoUrl(null)} style={{ padding: '9px 10px', borderRadius: '7px', border: '0.5px solid rgba(255,45,120,0.3)', background: 'transparent', color: '#ff6b9d', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>✕</button>
               </div>
             </div>
           )}
