@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { UserButton, useUser } from '@clerk/nextjs'
 import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
-
+import SoulIDStudio from '../components/SoulIDStudio'
 type AcademySide = 'choose' | 'baddie' | 'kings'
 type AcademyTool = 'dashboard' | 'builder' | 'auren' | 'cinematic' | 'store' | 'portfolio' | 'protection' | 'soulid' | 'saved'
 
@@ -1375,12 +1375,7 @@ export default function AcademyPage() {
             {active === 'store' && <VirtualStore side={side} />}
             {active === 'portfolio' && <Portfolio side={side} />}
             {active === 'protection' && <Protection side={side} />}
-            import SoulIDStudio from '../components/SoulIDStudio'
-            {active === 'soulid' && (
-  <div className="pg-in">
-    <SoulIDStudio />
-  </div>
-)}
+            {active === 'soulid' && (<div className="pg-in"> <SoulIDStudio /> </div> )}
             {active === 'saved' && <SavedWork side={side} />}
           </main>
 
