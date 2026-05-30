@@ -433,10 +433,10 @@ function AITwinBuilder({ side }: { side: AcademySide }) {
                 </F>
                 <F label="Hairstyle" side={side}>
                   <select className={sel} value={hairstyle} onChange={e => setHairstyle(e.target.value)}>
-                    {isBaddie
+                    {(isBaddie
                       ? ['Natural locs', 'Box braids', 'Knotless braids', 'Long straight weave', 'Short cut', 'Natural afro', 'Bantu knots', 'Half up half down', 'Sleek ponytail', 'Butterfly locs', 'Passion twists']
                       : ['Low fade with waves', 'High top fade', 'Locs', 'Short natural', 'Bald', 'Shape up', 'Braids', 'Temp fade', 'Curly natural']
-                    }.map(s => <option key={s}>{s}</option>)}
+                    ).map(s => <option key={s}>{s}</option>)}
                   </select>
                 </F>
               </div>
@@ -463,10 +463,10 @@ function AITwinBuilder({ side }: { side: AcademySide }) {
             {appearanceTab === 'body' && (
               <F label={isBaddie ? 'Female body type' : 'Male body type'} side={side}>
                 <select className={sel} value={bodyType} onChange={e => setBodyType(e.target.value)}>
-                  {isBaddie
+                  {(isBaddie
                     ? ['Curvy hourglass', 'Slim and toned', 'Athletic', 'Petite', 'Thick and curvy', 'Plus size goddess', 'Tall and lean', 'Fit and voluptuous']
                     : ['Athletic muscular', 'Lean and toned', 'Stocky and powerful', 'Tall and slender', 'Bodybuilder', 'Fit medium build', 'Slim athletic']
-                  }.map(s => <option key={s}>{s}</option>)}
+                  ).map(s => <option key={s}>{s}</option>)}
                 </select>
               </F>
             )}
