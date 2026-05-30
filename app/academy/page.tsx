@@ -5,7 +5,7 @@ import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 
 type AcademySide = 'choose' | 'baddie' | 'kings'
-type AcademyTool = 'dashboard' | 'builder' | 'auren' | 'cinematic' | 'store' | 'portfolio' | 'protection' | 'saved'
+type AcademyTool = 'dashboard' | 'builder' | 'auren' | 'cinematic' | 'store' | 'portfolio' | 'protection' | 'soulid' | 'saved'
 
 async function callAPI(endpoint: string, body: Record<string, string>): Promise<string> {
   const res = await fetch(`/api/${endpoint}`, {
@@ -1135,6 +1135,7 @@ const NAV: { tool: AcademyTool; label: string; icon: string }[] = [
   { tool: 'store', label: 'Virtual Store', icon: '⊹' },
   { tool: 'portfolio', label: 'Portfolio & Media Kit', icon: '◷' },
   { tool: 'protection', label: 'Protection Module', icon: '🔒' },
+  { tool: 'soulid', label: 'Soul ID Studio', icon: '✦' },
   { tool: 'saved', label: 'Saved Work', icon: '◌' },
 ]
 
@@ -1374,6 +1375,12 @@ export default function AcademyPage() {
             {active === 'store' && <VirtualStore side={side} />}
             {active === 'portfolio' && <Portfolio side={side} />}
             {active === 'protection' && <Protection side={side} />}
+            import SoulIDStudio from '../components/SoulIDStudio'
+            {active === 'soulid' && (
+  <div className="pg-in">
+    <SoulIDStudio />
+  </div>
+)}
             {active === 'saved' && <SavedWork side={side} />}
           </main>
 
