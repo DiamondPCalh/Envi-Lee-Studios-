@@ -83,6 +83,21 @@ const APPS = [
     tag: 'All Students',
     tools: ['Profit Calculator', 'Consistent Characters', 'Saved Work', 'All Tools', 'Templates'],
   },
+  {
+    id: 'store',
+    name: 'Virtual Store™',
+    full: 'Envi Lee Virtual Store™',
+    desc: 'Shop Envi Lee designs, student POD products, lifestyle pieces, and UGC shopping',
+    icon: '✦',
+    path: '/store',
+    accent: '#ff2d78',
+    accent2: '#ff6fa8',
+    gradient: 'linear-gradient(135deg, #ff0080, #ff4da6, #ff80c0)',
+    border: 'rgba(255,45,120,0.4)',
+    glow: 'rgba(255,45,120,0.15)',
+    tag: 'Everyone',
+    tools: ['Envi Lee Collection', 'Student POD Shop', 'Lifestyle Store', 'UGC Shopping', 'Connect'],
+  },
 ]
 
 export default function HomePage() {
@@ -171,7 +186,7 @@ export default function HomePage() {
             {/* STATS ROW */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '48px' }}>
               {[
-                { label: 'Studios Available', value: '5', color: '#9b6dff' },
+                { label: 'Studios Available', value: '6', color: '#9b6dff' },
                 { label: 'Tools Total', value: '50+', color: '#00d4ff' },
                 { label: 'AI Models', value: '3', color: '#ffe600' },
                 { label: 'Your Plan', value: user ? 'Active' : '—', color: '#00ff88' },
