@@ -935,7 +935,6 @@ const NAV_ITEMS: { tool: PodTool; label: string; icon: string }[] = [
   { tool: 'listing', label: 'Listing Writer', icon: '⊹' },
   { tool: 'collection', label: 'Collection Builder', icon: '◷' },
   { tool: 'export', label: 'Export & Publish', icon: '⊳' },
-  { tool: 'store', label: 'Virtual Store', icon: '◎' },
   { tool: 'saved', label: 'Saved Work', icon: '◌' },
 ]
 
@@ -1046,7 +1045,6 @@ export default function PodPage() {
             )}
             {active === 'collection' && <CollectionBuilder />}
             {active === 'export' && <ExportTool />}
-            {active === 'store' && <VirtualStore />}
             {active === 'saved' && <SavedWork />}
           </main>
 
