@@ -1132,7 +1132,6 @@ const NAV: { tool: AcademyTool; label: string; icon: string }[] = [
   { tool: 'builder', label: 'AI Twin Builder', icon: '✦' },
   { tool: 'auren', label: 'AUREN Framework', icon: '◈' },
   { tool: 'cinematic', label: 'Cinematic Content', icon: '⊳' },
-  { tool: 'store', label: 'Virtual Store', icon: '⊹' },
   { tool: 'portfolio', label: 'Portfolio & Media Kit', icon: '◷' },
   { tool: 'protection', label: 'Protection Module', icon: '🔒' },
   { tool: 'soulid', label: 'Soul ID Studio', icon: '✦' },
@@ -1372,7 +1371,6 @@ export default function AcademyPage() {
             {active === 'builder' && <AITwinBuilder side={side} />}
             {active === 'auren' && <AURENFramework side={side} />}
             {active === 'cinematic' && <CinematicContentShop side={side} />}
-            {active === 'store' && <VirtualStore side={side} />}
             {active === 'portfolio' && <Portfolio side={side} />}
             {active === 'protection' && <Protection side={side} />}
             {active === 'soulid' && (<div className="pg-in"> <SoulIDStudio /> </div> )}
