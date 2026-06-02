@@ -3,7 +3,7 @@ import { useState, useRef } from 'react'
 import { UserButton, useUser } from '@clerk/nextjs'
 import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
-
+import VideoLipSyncStudio from '../components/VideoLipSyncStudio'
 // ── TYPES ─────────────────────────────────────────────────────
 type StudioTool = 'dashboard' | 'content' | 'cineflow' | 'lipsync' | 'show' | 'animation' | 'image' | 'video' | 'network' | 'saved'
 
@@ -485,6 +485,7 @@ function LipSyncStudio() {
     { id: 'multi', label: '⊹ Multi-Character' },
     { id: 'voice', label: '◷ Voice Script' },
     { id: 'omnihuman', label: '✦ OmniHuman Studio' },
+    { id: 'videosync', label: '⊳ Video Lip Sync' },
   ]
 
   return (
@@ -602,10 +603,17 @@ function LipSyncStudio() {
           </div>
         </div>
       )}
+      {tab === 'videosync' && (
+        <div>
+          <div style={{ background: 'rgba(0,212,255,0.06)', border: '0.5px solid rgba(0,212,255,0.2)', borderRadius: '8px', padding: '10px 14px', marginBottom: '20px', fontSize: '11px', color: 'var(--blue)', fontFamily: "'DM Mono',monospace" }}>
+            ✦ Powered by Sync.so + Higgsfield · Upload video + audio → perfect lip sync in minutes
+          </div>
+          <VideoLipSyncStudio />
+        </div>
+      )}
     </div>
   )
 }
-
 // ── SHOW PRODUCTION ───────────────────────────────────────────
 function ShowProduction() {
   const [showType, setShowType] = useState('Reality TV')
