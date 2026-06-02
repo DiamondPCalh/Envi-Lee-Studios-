@@ -1,109 +1,199 @@
+// app/api/generate/lipsync/route.ts
+// Video lip sync using Sync.so (primary) and Higgsfield Speak (secondary)
+// Sync.so models:
+//   lipsync-2       — general purpose, most natural ($0.04/sec)
+//   lipsync-2-pro   — studio grade, preserves facial details ($0.08/sec)
+//   sync-3          — most powerful, 4K native, handles any angle ($0.133/sec)
+
 import { NextRequest, NextResponse } from 'next/server'
 
-async function generate(prompt: string): Promise<string> {
-  const key = process.env.ANTHROPIC_API_KEY
-  if (!key) return 'API key not configured'
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+// ── SYNC.SO ───────────────────────────────────────────────────
+async function createSyncJob(videoUrl: string, audioUrl: string, model: string) {
+  const key = process.env.SYNCLABS_API_KEY
+  if (!key) throw new Error('SYNCLABS_API_KEY not configured in Vercel')
+
+  const res = await fetch('https://api.sync.so/v2/generate', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
       'x-api-key': key,
-      'anthropic-version': '2023-06-01'
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1200,
-      messages: [{ role: 'user', content: prompt }]
-    })
+      model: model || 'lipsync-2',
+      input: [
+        { type: 'video', url: videoUrl },
+        { type: 'audio', url: audioUrl },
+      ],
+      options: {
+        output_format: 'mp4',
+        active_speaker: true,
+      },
+    }),
   })
-  if (!res.ok) throw new Error(`Anthropic error ${res.status}`)
-  const d = await res.json()
-  return d.content?.[0]?.text ?? ''
+
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`Sync.so error ${res.status}: ${err}`)
+  }
+
+  const data = await res.json()
+  return data.id
 }
 
+async function checkSyncJob(jobId: string) {
+  const key = process.env.SYNCLABS_API_KEY
+  if (!key) throw new Error('SYNCLABS_API_KEY not configured')
+
+  const res = await fetch(`https://api.sync.so/v2/generate/${jobId}`, {
+    headers: { 'x-api-key': key },
+  })
+
+  if (!res.ok) throw new Error(`Poll error: ${res.status}`)
+  return await res.json()
+}
+
+// ── HIGGSFIELD SPEAK ──────────────────────────────────────────
+async function createHiggsfieldSpeakJob(videoUrl: string, audioUrl: string) {
+  const keyId = process.env.HIGGSFIELD_KEY_ID
+  const keySecret = process.env.HIGGSFIELD_API_KEY
+  if (!keyId || !keySecret) throw new Error('Higgsfield keys not configured')
+
+  const res = await fetch('https://platform.higgsfield.ai/v1/lipsync', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Key ${keyId}:${keySecret}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      video_url: videoUrl,
+      audio_url: audioUrl,
+    }),
+  })
+
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`Higgsfield error ${res.status}: ${err}`)
+  }
+
+  const data = await res.json()
+  return data.request_id ?? data.id
+}
+
+// ── UPLOAD TO CLOUDINARY FOR PUBLIC URL ───────────────────────
+// If video/audio is base64 we need to get a public URL first
+// Using a simple approach — store in /tmp and serve, or use fal.ai upload
+async function uploadToFal(base64Data: string, filename: string): Promise<string> {
+  const falKey = process.env.FAL_API_KEY
+  if (!falKey) throw new Error('FAL_API_KEY needed to upload files')
+
+  const blob = await fetch(base64Data).then(r => r.blob())
+  const formData = new FormData()
+  formData.append('file', blob, filename)
+
+  const res = await fetch('https://fal.run/fal-ai/upload', {
+    method: 'POST',
+    headers: { 'Authorization': `Key ${falKey}` },
+    body: formData,
+  })
+
+  if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
+  const data = await res.json()
+  return data.url
+}
+
+// POST — create a lip sync job
 export async function POST(req: NextRequest) {
   try {
-    const { tool, ...params } = await req.json()
+    const { videoUrl, audioUrl, videoData, audioData, model, provider } = await req.json()
 
-    const prompts: Record<string, string> = {
-      single: `You are a professional lip sync video script writer for AI avatars.
-Character: ${params.character || 'Luxe Envi, Black woman, 28, luxury lifestyle creator'}
-Purpose: ${params.purpose || 'TikTok promotional video'}
-Topic: ${params.topic || 'promoting the creator brand'}
-Length: ${params.length || '30 seconds'}
-Tone: ${params.tone || 'Confident and empowering'}
-
-Write a complete lip sync package:
-
-SCRIPT (exact words spoken — natural, no stage directions, include pauses with [...]):
-Timed for ${params.length || '30 seconds'}.
-
-VOICE DIRECTION (for ElevenLabs):
-Speed, emotion, emphasis, pauses. 3-4 sentences.
-
-HEYGEN / D-ID SETUP:
-Exact settings for best results — background, avatar style, video format.
-
-IMAGE PROMPT (Midjourney/DALL-E for character still image):
-Upper body, facing camera, professional quality.
-
-CAPTION (ready to post):
-Hook + body + CTA with hashtags.`,
-
-      multi: `Write multi-character lip sync dialogue.
-Character 1: ${params.c1name || 'Luxe Envi'} — ${params.c1desc || 'Black woman, 28, powerful and confident'}
-Character 2: ${params.c2name || 'Marcus Reed'} — ${params.c2desc || 'Black man, 32, commanding and intense'}
-${params.c3name ? `Character 3: ${params.c3name} — ${params.c3desc || 'distinctive personality'}` : ''}
-Scene: ${params.scene || 'Reality TV confrontation'}
-Setting: ${params.setting || 'luxury rooftop NYC'}
-Story: ${params.story || 'a powerful conversation unfolds'}
-Length: ${params.length || 'Medium — 10 to 14 exchanges'}
-
-Write:
-SCENE OVERVIEW: 2 sentences on energy and stakes.
-
-DIALOGUE SCRIPT:
-Format as [NAME]: (dialogue). Natural and authentic. Include [...] for pauses. Build tension. Strong final line.
-
-VOICE ASSIGNMENTS (ElevenLabs):
-${params.c1name || 'Character 1'}: delivery notes
-${params.c2name || 'Character 2'}: delivery notes
-${params.c3name ? `${params.c3name}: delivery notes` : ''}
-
-SETUP INSTRUCTIONS (InfiniteTalk Multi or Dzine AI):
-Step by step for best results.
-
-IMAGE PROMPTS:
-${params.c1name || 'Character 1'}: Midjourney upper body shot prompt
-${params.c2name || 'Character 2'}: Midjourney upper body shot prompt
-${params.c3name ? `${params.c3name}: Midjourney upper body shot prompt` : ''}
-
-SCENE VIDEO PROMPT (Kling AI — background setting):
-Complete prompt for the environment.`,
-
-      voice: `Write a professional voiceover script.
-Voice type: ${params.voice || 'Confident Black woman — warm, powerful, commanding'}
-Purpose: ${params.purpose || 'TikTok voiceover'}
-Message: ${params.message || 'empowering creator content'}
-
-Write:
-VOICEOVER SCRIPT:
-Natural spoken words only. No stage directions. Use [...] for pauses and CAPS for emphasis. Under 200 words.
-
-DELIVERY NOTES (ElevenLabs):
-Speed setting, emotion, tone, specific emphasis.
-
-USE CASES:
-3 ways to use this voiceover across different formats.`,
+    if (!videoUrl && !videoData) {
+      return NextResponse.json({ error: 'videoUrl or videoData required' }, { status: 400 })
+    }
+    if (!audioUrl && !audioData) {
+      return NextResponse.json({ error: 'audioUrl or audioData required' }, { status: 400 })
     }
 
-    const prompt = prompts[tool]
-    if (!prompt) return NextResponse.json({ error: 'Unknown tool' }, { status: 400 })
+    // Get public URLs — upload base64 data if needed
+    let finalVideoUrl = videoUrl
+    let finalAudioUrl = audioUrl
 
-    const result = await generate(prompt)
-    return NextResponse.json({ result })
+    if (!finalVideoUrl && videoData) {
+      finalVideoUrl = await uploadToFal(videoData, 'video.mp4')
+    }
+    if (!finalAudioUrl && audioData) {
+      finalAudioUrl = await uploadToFal(audioData, 'audio.mp3')
+    }
+
+    // Choose provider
+    const useProvider = provider || 'synclabs'
+
+    if (useProvider === 'synclabs') {
+      const jobId = await createSyncJob(finalVideoUrl, finalAudioUrl, model || 'lipsync-2')
+      return NextResponse.json({ jobId, provider: 'synclabs', status: 'processing' })
+    }
+
+    if (useProvider === 'higgsfield') {
+      const jobId = await createHiggsfieldSpeakJob(finalVideoUrl, finalAudioUrl)
+      return NextResponse.json({ jobId, provider: 'higgsfield', status: 'processing' })
+    }
+
+    return NextResponse.json({ error: 'Unknown provider' }, { status: 400 })
+
   } catch (err) {
-    console.error('[lipsync]', err)
-    return NextResponse.json({ error: 'Generation failed' }, { status: 500 })
+    console.error('[/api/generate/lipsync POST]', err)
+    return NextResponse.json({ error: (err as Error).message }, { status: 500 })
+  }
+}
+
+// GET — poll for job status
+export async function GET(req: NextRequest) {
+  try {
+    const jobId = req.nextUrl.searchParams.get('jobId')
+    const provider = req.nextUrl.searchParams.get('provider') ?? 'synclabs'
+
+    if (!jobId) return NextResponse.json({ error: 'jobId required' }, { status: 400 })
+
+    if (provider === 'synclabs') {
+      const data = await checkSyncJob(jobId)
+      const status = data.status?.toLowerCase()
+
+      if (status === 'completed') {
+        return NextResponse.json({
+          status: 'completed',
+          videoUrl: data.outputUrl ?? data.output_url ?? data.url,
+          provider: 'synclabs',
+        })
+      }
+      if (status === 'failed' || status === 'rejected') {
+        return NextResponse.json({ status: 'failed', error: data.error ?? 'Generation failed' })
+      }
+      return NextResponse.json({ status: 'processing', syncStatus: data.status })
+    }
+
+    if (provider === 'higgsfield') {
+      const keyId = process.env.HIGGSFIELD_KEY_ID
+      const keySecret = process.env.HIGGSFIELD_API_KEY
+      if (!keyId || !keySecret) throw new Error('Higgsfield keys not configured')
+
+      const res = await fetch(`https://platform.higgsfield.ai/v1/requests/${jobId}/status`, {
+        headers: { 'Authorization': `Key ${keyId}:${keySecret}` },
+      })
+      const data = await res.json()
+      const status = data.status?.toLowerCase()
+
+      if (status === 'completed' || status === 'succeeded') {
+        return NextResponse.json({ status: 'completed', videoUrl: data.output?.[0] ?? data.url, provider: 'higgsfield' })
+      }
+      if (status === 'failed') {
+        return NextResponse.json({ status: 'failed', error: 'Generation failed' })
+      }
+      return NextResponse.json({ status: 'processing' })
+    }
+
+    return NextResponse.json({ error: 'Unknown provider' }, { status: 400 })
+
+  } catch (err) {
+    console.error('[/api/generate/lipsync GET]', err)
+    return NextResponse.json({ error: (err as Error).message }, { status: 500 })
   }
 }
