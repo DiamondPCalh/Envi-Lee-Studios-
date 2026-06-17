@@ -98,7 +98,53 @@ const APPS = [
     tag: 'Everyone',
     tools: ['Envi Lee Collection', 'Student POD Shop', 'Lifestyle Store', 'UGC Shopping', 'Connect'],
   },
+  {
+    id: 'legal',
+    name: 'Baddie Legal Vault™',
+    full: 'Envi Lee Baddie Legal Vault™',
+    desc: 'Protect your AI twin, content, and brand with legal forms, ID cards, and ownership documents',
+    icon: '⚖️',
+    path: '/legal',
+    accent: '#ff6a00',
+    accent2: '#ff9a3c',
+    gradient: 'linear-gradient(135deg, #ff6a00, #ff9a3c)',
+    border: 'rgba(255,106,0,0.4)',
+    glow: 'rgba(255,106,0,0.15)',
+    tag: 'Baddie + Kings',
+    tools: ['Birth Certificate', 'AI Twin ID Card', 'Prenup Agreement', 'Platform Protection', 'Legal Disclaimers'],
+  },
+  {
+    id: 'prompts',
+    name: 'Baddie Prompt Bank™',
+    full: 'Envi Lee Baddie Prompt Bank™',
+    desc: 'The Netflix of AI influencer prompts — generate a full month of content with one click',
+    icon: '◈',
+    path: '/prompts',
+    accent: '#ff6fd8',
+    accent2: '#c084fc',
+    gradient: 'linear-gradient(135deg, #ff6fd8, #c084fc, #a855f7)',
+    border: 'rgba(255,111,216,0.4)',
+    glow: 'rgba(255,111,216,0.15)',
+    tag: 'All Students',
+    tools: ['Baddie DNA™', 'One Click Generation', 'Private Suite', 'Prompt Library', '30-Day Calendar'],
+  },
+  {
+    id: 'vault',
+    name: 'Baddie Content Vault™',
+    full: 'Envi Lee Baddie Content Vault™',
+    desc: 'AI creator Netflix — real AI videos, step-by-step breakdowns, and full production pipelines',
+    icon: '⊳',
+    path: '/vault',
+    accent: '#ffe600',
+    accent2: '#00cfff',
+    gradient: 'linear-gradient(135deg, #ffe600, #00cfff)',
+    border: 'rgba(255,230,0,0.4)',
+    glow: 'rgba(255,230,0,0.15)',
+    tag: 'All Schools',
+    tools: ['Pinterest Layout', 'Scene Breakdowns', 'Elite Features', 'Student Pipeline', 'Community'],
+  },
 ]
+
 
 export default function HomePage() {
   const { user } = useUser()
@@ -186,7 +232,7 @@ export default function HomePage() {
             {/* STATS ROW */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '48px' }}>
               {[
-                { label: 'Studios Available', value: '6', color: '#9b6dff' },
+                { label: 'Studios Available', value: '9', color: '#9b6dff' },
                 { label: 'Tools Total', value: '50+', color: '#00d4ff' },
                 { label: 'AI Models', value: '3', color: '#ffe600' },
                 { label: 'Your Plan', value: user ? 'Active' : '—', color: '#00ff88' },
