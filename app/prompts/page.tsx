@@ -277,7 +277,7 @@ interface GeneratedContent {
 }
 
 function OneClickGeneration({ dna, category, onGenerated }: {
-  dna?: Record<string, string>
+  dna?: DNA
   category?: string
   onGenerated?: (content: GeneratedContent) => void
 }) {
