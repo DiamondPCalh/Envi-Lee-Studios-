@@ -1,7 +1,12 @@
 'use client'
 import { SignIn } from '@clerk/nextjs'
+import { useSearchParams } from 'next/navigation'
+import { Suspense } from 'react'
 
-export default function SignInPage() {
+function SignInContent() {
+  const searchParams = useSearchParams()
+  const redirectUrl = searchParams.get('redirect_url') || '/'
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -14,7 +19,6 @@ export default function SignInPage() {
       position: 'relative',
       overflow: 'hidden',
     }}>
-      {/* Background effects */}
       <div style={{
         position: 'absolute', inset: 0,
         background: 'radial-gradient(ellipse at 50% 0%, rgba(155,109,255,0.15) 0%, transparent 60%)',
@@ -27,9 +31,7 @@ export default function SignInPage() {
         pointerEvents: 'none',
       }} />
 
-      {/* Empire Logo */}
       <div style={{ marginBottom: '40px', textAlign: 'center', position: 'relative', zIndex: 1 }}>
-        {/* EL Circle Logo SVG */}
         <svg width="100" height="100" viewBox="0 0 100 100" style={{ marginBottom: '16px', filter: 'invert(1)' }}>
           <circle cx="50" cy="50" r="45" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"
             style={{ strokeDasharray: '260', strokeDashoffset: '30' }} />
@@ -57,10 +59,9 @@ export default function SignInPage() {
         </div>
       </div>
 
-      {/* Clerk Sign In */}
       <div style={{ position: 'relative', zIndex: 1 }}>
         <SignIn
-          fallbackRedirectUrl="/"
+          forceRedirectUrl={redirectUrl}
           appearance={{
             variables: {
               colorPrimary: '#9b6dff',
@@ -96,5 +97,13 @@ export default function SignInPage() {
         />
       </div>
     </div>
+  )
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense>
+      <SignInContent />
+    </Suspense>
   )
 }
