@@ -3,34 +3,41 @@
 // Access granted to: Envi Lee students (ACADEMY_STUDENTS env) + paid subscribers
 
 import { NextRequest, NextResponse } from 'next/server'
-const user = await currentUser()
+import { auth } from '@clerk/nextjs/server'
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await currentUser()
-    if (!user) return NextResponse.json({ hasAccess: false })
+    const { userId } = await auth()
+    if (!userId) return NextResponse.json({ hasAccess: false })
 
     const adminId = process.env.ADMIN_USER_ID
-    // Admin always has access
-    if (user.id === adminId) return NextResponse.json({ hasAccess: true, role: 'admin' })
+    if (userId === adminId) return NextResponse.json({ hasAccess: true, role: 'admin' })
 
     // Check if student
     const studentEmails: string[] = JSON.parse(process.env.ACADEMY_STUDENTS || '[]')
-    const userEmail = user.emailAddresses?.[0]?.emailAddress ?? ''
-    if (studentEmails.includes(userEmail)) {
-      return NextResponse.json({ hasAccess: true, role: 'student' })
-    }
 
     // Check Upstash for paid subscription
     const redisUrl = process.env.UPSTASH_REDIS_REST_URL
     const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN
 
     if (redisUrl && redisToken) {
-      const res = await fetch(`${redisUrl}/get/prompts_access_${user.id}`, {
+      // Try to get user email from Upstash cache
+      const emailRes = await fetch(`${redisUrl}/get/user_email_${userId}`, {
         headers: { Authorization: `Bearer ${redisToken}` },
       })
-      const data = await res.json()
-      if (data.result === 'true' || data.result === '1') {
+      const emailData = await emailRes.json()
+      const userEmail = emailData.result ?? ''
+
+      if (userEmail && studentEmails.includes(userEmail)) {
+        return NextResponse.json({ hasAccess: true, role: 'student' })
+      }
+
+      // Check paid access
+      const accessRes = await fetch(`${redisUrl}/get/prompts_access_${userId}`, {
+        headers: { Authorization: `Bearer ${redisToken}` },
+      })
+      const accessData = await accessRes.json()
+      if (accessData.result === 'true' || accessData.result === '1') {
         return NextResponse.json({ hasAccess: true, role: 'subscriber' })
       }
     }
