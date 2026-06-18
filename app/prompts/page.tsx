@@ -5,7 +5,7 @@ import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 
 type Room = 'library' | 'admin' | 'suite'
-type ActiveTab = 'prompts' | 'generate' | 'calendar' | 'stacks' | 'dna' | 'twins' | 'aigenerator'
+type ActiveTab = 'prompts' | 'generate' | 'calendar' | 'stacks' | 'dna' | 'twins' | 'reverse'
 
 // ── VIDEO APPS ────────────────────────────────────────────────
 const VIDEO_APPS = [
