@@ -111,12 +111,12 @@ export async function POST(req: NextRequest) {
     if (geminiKey) {
       try {
         const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${geminiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${geminiKey}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              contents: [{ role: 'user', parts: [{ text: `${prompt}, ${styleBoost}` }] }],
+              contents: [{ role: 'user', parts: [{ text: `${prompt}, ${styleBoost}, visible skin pores, no smoothing, professional DSLR lighting, Confident, authentic posture, natural skin texture, realistic lighting, no over-smoothing, no CGI look, RAW photo quality, DSLR photography, shot on Sony A7R IV, ultra human realism, no plastic skin` }] }],
               generationConfig: {
                 responseModalities: ['IMAGE', 'TEXT'],
                 aspectRatio,
