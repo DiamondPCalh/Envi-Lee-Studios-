@@ -3,7 +3,7 @@
 // Access granted to: Envi Lee students (ACADEMY_STUDENTS env) + paid subscribers
 
 import { NextRequest, NextResponse } from 'next/server'
-import { currentUser } from '@clerk/nextjs/server'
+const user = await currentUser()
 
 export async function GET(req: NextRequest) {
   try {
