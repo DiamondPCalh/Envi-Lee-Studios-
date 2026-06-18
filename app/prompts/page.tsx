@@ -853,7 +853,7 @@ function SuiteCustomizer({ theme, onUpdate }: { theme: SuiteTheme; onUpdate: (t:
 
 // ── ADMIN ROOM ────────────────────────────────────────────────
 function AdminRoom({ isAdmin }: { isAdmin: boolean }) {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('generate')
+  const [activeTab, setActiveTab] = useState<'generate' | 'dna' | 'twins' | 'prompts' | 'aigenerator'>('generate')
   const [myDNA, setMyDNA] = useState<DNA | null>(null)
   const [prompt, setPrompt] = useState('')
   const [category, setCategory] = useState('Luxury Lifestyle')
@@ -1078,7 +1078,7 @@ function StudentSuite() {
   const { user } = useUser()
   const [theme, setTheme] = useState<SuiteTheme>(DEFAULT_THEME)
   const [selectedDNA, setSelectedDNA] = useState<DNA | null>(null)
-  const [activeTab, setActiveTab] = useState<ActiveTab>('generate')
+  const [activeTab, setActiveTab] = useState<'generate' | 'dna' | 'twins' | 'prompts' | 'aigenerator'>('generate')
   const [myPrompts, setMyPrompts] = useState<Array<{ id: number; prompt: string; category: string; shared: boolean }>>([])
   const [newPrompt, setNewPrompt] = useState('')
   const [newCat, setNewCat] = useState('Luxury Lifestyle')
