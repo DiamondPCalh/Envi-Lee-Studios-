@@ -1152,7 +1152,7 @@ function StudentSuite() {
         ))}
       </div>
 
-      {adminTab === 'generate' && (
+      {suiteTab === 'generate' && (
         <div>
           {selectedDNA && (
             <div style={{ background: `${theme.primaryColor}15`, border: `0.5px solid ${theme.primaryColor}40`, borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', fontSize: '11px', color: theme.primaryColor, fontFamily: "'DM Mono',monospace" }}>
