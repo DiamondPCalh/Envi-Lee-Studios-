@@ -243,7 +243,7 @@ function VaultPaywallGate({ children }: { children: React.ReactNode }) {
     async function check() {
       if (!user) { setHasAccess(false); return }
       try {
-        const res = await fetch('/api/access/vault')
+        const res = await fetch(`/api/access/vault?userId=${user.id}`)
         const data = await res.json()
         setHasAccess(data.hasAccess)
         setIsLocked(data.locked === true)
