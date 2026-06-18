@@ -6,36 +6,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 
 const PRICE_IDS: Record<string, string> = {
-  // Creator Studio plans
   starter: 'price_1TaQg5Ag0OLX9iPs8KYBBmM7',
   creator: 'price_1TaR1UAg0OLX9iPsuYj5opIs',
   pro:     'price_1TaR2sAg0OLX9iPsfiwTabg6',
   agency:  'price_1TaR52Ag0OLX9iPsud7TxRp2',
-  // Prompt Bank plans — create these in Stripe dashboard
-  // Go to Stripe → Products → Add Product → $27/month recurring → copy price ID
   prompts: process.env.STRIPE_PRICE_PROMPTS ?? '',
-  // Go to Stripe → Products → Add Product → $47/month recurring → copy price ID
   bundle:  process.env.STRIPE_PRICE_BUNDLE ?? '',
 }
 
-// After successful payment — grant access in Upstash
-async function grantAccess(userId: string, plan: string) {
-  const redisUrl = process.env.UPSTASH_REDIS_REST_URL
-  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN
-  if (!redisUrl || !redisToken) return
-
-  const keys: string[] = []
-  if (plan === 'prompts' || plan === 'bundle') keys.push(`prompts_access_${userId}`)
-  if (plan === 'bundle') keys.push(`vault_access_${userId}`)
-
-  for (const key of keys) {
-    await fetch(`${redisUrl}/set/${key}/true`, {
-      headers: { Authorization: `Bearer ${redisToken}` },
-    })
-  }
-}
-
-async function createSession(plan: string, email?: string, userId?: string) {
+async function createSession(plan: string, userId?: string) {
   const stripeKey = process.env.STRIPE_SECRET_KEY
   if (!stripeKey) throw new Error('Stripe key not configured')
 
@@ -52,9 +31,7 @@ async function createSession(plan: string, email?: string, userId?: string) {
   params.append('success_url', `${baseUrl}/prompts?payment=success&plan=${plan}`)
   params.append('cancel_url', `${baseUrl}/prompts`)
   params.append('subscription_data[trial_period_days]', '7')
-  if (email) params.append('customer_email', email)
   if (userId) params.append('client_reference_id', userId)
-  // Metadata for webhook
   params.append('subscription_data[metadata][plan]', plan)
   if (userId) params.append('subscription_data[metadata][userId]', userId)
 
@@ -76,12 +53,9 @@ async function createSession(plan: string, email?: string, userId?: string) {
 export async function GET(req: NextRequest) {
   try {
     const plan = req.nextUrl.searchParams.get('plan') ?? ''
-    const user =await auth()
-    const email = user?.emailAddresses?.[0]?.emailAddress
-
-    const data = await createSession(plan, email, userId
+    const { userId } = await auth()
+    const data = await createSession(plan, userId ?? undefined)
     return NextResponse.redirect(data.url)
-
   } catch (err) {
     console.error('[stripe/checkout GET]', err)
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://envileecreatorstudios.com'
@@ -93,12 +67,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { plan, email } = body
-    const user =await auth()
-
-    const data = await createSession(plan, email || user?.emailAddresses?.[0]?.emailAddress, userId
+    const { plan } = body
+    const { userId } = await auth()
+    const data = await createSession(plan, userId ?? undefined)
     return NextResponse.json({ url: data.url })
-
   } catch (err) {
     console.error('[stripe/checkout POST]', err)
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })
