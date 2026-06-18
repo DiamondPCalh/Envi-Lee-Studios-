@@ -853,7 +853,7 @@ function SuiteCustomizer({ theme, onUpdate }: { theme: SuiteTheme; onUpdate: (t:
 
 // ── ADMIN ROOM ────────────────────────────────────────────────
 function AdminRoom({ isAdmin }: { isAdmin: boolean }) {
-  const [activeTab, setActiveTab] = useState<'generate' | 'dna' | 'twins' | 'prompts' | 'aigenerator'>('generate')
+  const [adminTab, setAdminTab] = useState<ActiveTab>('generate')
   const [myDNA, setMyDNA] = useState<DNA | null>(null)
   const [prompt, setPrompt] = useState('')
   const [category, setCategory] = useState('Luxury Lifestyle')
