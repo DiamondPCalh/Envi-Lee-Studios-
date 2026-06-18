@@ -901,7 +901,7 @@ function AdminRoom({ isAdmin }: { isAdmin: boolean }) {
     <div>
       <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', flexWrap: 'wrap' as const }}>
         {tabs.map(([id, label]) => (
-          <button key={id} className={`tab-pill ${adminTab === id ? 'on' : 'off'}`} onClick={() => setActiveTab(id as 'generate' | 'dna' | 'twins' | 'prompts' | 'aigenerator')}>{label}</button>
+          <button key={id} className={`tab-pill ${adminTab === id ? 'on' : 'off'}`} onClick={() => setAdminTab(id as ActiveTab)}>{label}</button>
         ))}
       </div>
 
@@ -960,7 +960,229 @@ function AdminRoom({ isAdmin }: { isAdmin: boolean }) {
                   </div>
                   <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
                     <CopyBtn text={reversePrompt} label="Copy Prompt" />
-                    <button className="p-btn" onClick={() => { setPrompt(reversePrompt); setActiveTab('generate') }} style={{ fontSize: '11px', padding: '7px 14px' }}>Publish to Library ↗</button>
+                    <button className="p-btn" onClick={() => { setPrompt(reversePrompt); setAdminTab('generate') }} style={{ fontSize: '11px', padding: '7px 14px' }}>Publish to Library ↗</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="card" style={{ textAlign: 'center', padding: '40px', opacity: 0.5 }}>
+                  <div style={{ fontSize: '32px', marginBottom: '10px', opacity: 0.3 }}>◈</div>
+                  <div style={{ fontSize: '13px', color: 'var(--mu3)' }}>Reverse engineered prompt appears here</div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {adminTab === 'dna' && <BaddieDNA onDNASelect={setMyDNA} selectedDNA={myDNA} />}
+    </div>
+  )
+}
+
+// ── MAIN LIBRARY ROOM ─────────────────────────────────────────
+function MainLibraryRoom() {
+  const [selectedCat, setSelectedCat] = useState('All')
+  const [selectedDNA] = useState<DNA | null>(null)
+  const [prompts, setPrompts] = useState<Array<{ id: number; prompt: string; category: string; publishedAt: string }>>([])
+  const [activePrompt, setActivePrompt] = useState<string | null>(null)
+  const [showGenerate, setShowGenerate] = useState(false)
+
+  useEffect(() => {
+    const saved = JSON.parse(localStorage.getItem('promptLibrary') || '[]')
+    if (saved.length === 0) {
+      const sample = CATEGORIES.slice(0, 10).map((cat, i) => ({
+        id: i + 1,
+        prompt: `${cat} content — luxurious ${cat.toLowerCase()} scene with Black woman creator, designer outfit, cinematic lighting, photorealistic, 4K, fashion editorial`,
+        category: cat,
+        publishedAt: new Date().toISOString(),
+      }))
+      setPrompts(sample)
+    } else {
+      setPrompts(saved)
+    }
+  }, [])
+
+  const filtered = selectedCat === 'All' ? prompts : prompts.filter(p => p.category === selectedCat)
+
+  return (
+    <div>
+      {/* Category pills */}
+      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' as const, marginBottom: '20px' }}>
+        <button className={`cat-pill ${selectedCat === 'All' ? 'on' : 'off'}`} onClick={() => setSelectedCat('All')}>All</button>
+        {CATEGORIES.map(cat => (
+          <button key={cat} className={`cat-pill ${selectedCat === cat ? 'on' : 'off'}`} onClick={() => setSelectedCat(cat)}>{cat}</button>
+        ))}
+      </div>
+
+      {/* One Click Generate button */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <div style={{ fontSize: '13px', color: 'var(--mu3)' }}>{filtered.length} prompts</div>
+        <button className="p-btn" onClick={() => setShowGenerate(!showGenerate)} style={{ fontSize: '12px', padding: '9px 16px' }}>
+          {showGenerate ? 'Hide Generator' : '✦ One Click Generate'}
+        </button>
+      </div>
+
+      {showGenerate && (
+        <div className="card hi" style={{ marginBottom: '24px' }}>
+          <OneClickGeneration dna={selectedDNA || undefined} category={selectedCat !== 'All' ? selectedCat : undefined} />
+        </div>
+      )}
+
+      {/* Video apps panel */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px', gap: '20px' }}>
+        <div>
+          {/* Prompt list */}
+          {filtered.map(p => (
+            <div key={p.id} className="prompt-card" style={{ marginBottom: '10px' }} onClick={() => setActivePrompt(p.prompt)}>
+              <div style={{ padding: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span className="badge-pink">{p.category}</span>
+                  <span style={{ fontSize: '10px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace" }}>{new Date(p.publishedAt).toLocaleDateString()}</span>
+                </div>
+                <div style={{ fontSize: '13px', color: 'var(--w2)', lineHeight: '1.6', marginBottom: '8px' }}>{p.prompt.slice(0, 120)}…</div>
+                {activePrompt === p.prompt && (
+                  <div className="output-box" style={{ marginTop: '10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '10px', color: 'var(--pink)', fontFamily: "'DM Mono',monospace" }}>Full Prompt</span>
+                      <CopyBtn text={p.prompt} />
+                    </div>
+                    <div className="output-text">{p.prompt}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Video apps side panel */}
+        <div style={{ position: 'sticky', top: '20px' }}>
+          <div className="card">
+            <div className="ftitle">Video Apps</div>
+            <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '6px' }}>
+              {VIDEO_APPS.map(app => (
+                <a key={app.format} href={app.url} target="_blank" rel="noreferrer" className="video-app-btn">
+                  <span style={{ fontSize: '16px' }}>{app.icon}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--w2)' }}>{app.name}</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── STUDENT PRIVATE SUITE ─────────────────────────────────────
+function AdminRoom({ isAdmin }: { isAdmin: boolean }) {
+  const [adminTab, setAdminTab] = useState<ActiveTab>('generate')
+  const [myDNA, setMyDNA] = useState<DNA | null>(null)
+  const [prompt, setPrompt] = useState('')
+  const [category, setCategory] = useState('Luxury Lifestyle')
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null)
+  const [reversePrompt, setReversePrompt] = useState('')
+  const [reversing, setReversing] = useState(false)
+  const [publishing, setPublishing] = useState(false)
+  const [pendingPrompt, setPendingPrompt] = useState<{ prompt: string; images: string[] } | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  async function reverseEngineer() {
+    if (!uploadedImage) return
+    setReversing(true)
+    try {
+      const res = await callAPI('generate/prompts', { tool: 'reverse', imageData: uploadedImage })
+      setReversePrompt(res)
+    } catch { }
+    finally { setReversing(false) }
+  }
+
+  function publishToLibrary() {
+    if (!prompt.trim()) return
+    const library = JSON.parse(localStorage.getItem('promptLibrary') || '[]')
+    library.unshift({ id: Date.now(), prompt, category, publishedAt: new Date().toISOString(), shared: true })
+    localStorage.setItem('promptLibrary', JSON.stringify(library))
+    setPublishing(false)
+    alert('Prompt published to main library!')
+  }
+
+  if (!isAdmin) return (
+    <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+      <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }}>🔒</div>
+      <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--pink)' }}>Admin Access Only</div>
+    </div>
+  )
+
+  const tabs = [
+    ['generate', '◈ One Click Generate'],
+    ['stacks', '✦ Prompt Stacks'],
+    ['reverse', '⊹ Reverse Engineer'],
+    ['dna', '◉ Baddie DNA™'],
+  ] as const
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', flexWrap: 'wrap' as const }}>
+        {tabs.map(([id, label]) => (
+          <button key={id} className={`tab-pill ${adminTab === id ? 'on' : 'off'}`} onClick={() => setAdminTab(id as ActiveTab)}>{label}</button>
+        ))}
+      </div>
+
+      {adminTab === 'generate' && (
+        <div>
+          <div style={{ marginBottom: '16px' }}>
+            <F label="Add a prompt to publish">
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <textarea className="fta" placeholder="Enter your prompt here, or use One Click Generate below..." value={prompt} onChange={e => setPrompt(e.target.value)} style={{ minHeight: '60px' }} />
+              </div>
+            </F>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              <select className="fsel" value={category} onChange={e => setCategory(e.target.value)} style={{ maxWidth: '200px' }}>
+                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+              </select>
+              <button className="p-btn" onClick={publishToLibrary} disabled={!prompt.trim()} style={{ fontSize: '12px', padding: '9px 16px' }}>Publish to Library ↗</button>
+            </div>
+          </div>
+          <OneClickGeneration dna={myDNA || undefined} />
+        </div>
+      )}
+
+      {adminTab === 'stacks' && <PromptStacks />}
+
+      {adminTab === 'reverse' && (
+        <div>
+          <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '18px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Reverse Engineer</div>
+          <div style={{ fontSize: '12px', color: 'var(--mu3)', marginBottom: '20px' }}>Upload any AI image you created and the AI figures out the prompt that made it.</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div>
+              <div className="card hi">
+                <div className="ftitle">Upload Image</div>
+                <div style={{ border: '1.5px dashed rgba(255,111,216,0.2)', borderRadius: '10px', padding: '20px', textAlign: 'center', cursor: 'pointer', background: 'var(--pg)', minHeight: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}
+                  onClick={() => !uploadedImage && fileRef.current?.click()}>
+                  <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => {
+                    const f = e.target.files?.[0]; if (f) { const r = new FileReader(); r.onload = ev => setUploadedImage(ev.target?.result as string); r.readAsDataURL(f) }
+                  }} />
+                  {uploadedImage ? <img src={uploadedImage} alt="uploaded" style={{ maxHeight: '200px', borderRadius: '8px' }} /> : (
+                    <div style={{ opacity: 0.5 }}><div style={{ fontSize: '32px', marginBottom: '8px' }}>📸</div><div style={{ fontSize: '12px', color: 'var(--mu3)' }}>Upload your AI image</div></div>
+                  )}
+                </div>
+                {uploadedImage && (
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                    <button className="p-btn" onClick={reverseEngineer} disabled={reversing} style={{ flex: 1, fontSize: '12px' }}>{reversing ? 'Reverse engineering…' : '◈ Reverse Engineer Prompt'}</button>
+                    <button className="ghost-p" onClick={() => { setUploadedImage(null); setReversePrompt('') }}>Clear</button>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div>
+              {reversePrompt ? (
+                <div className="card hi">
+                  <div className="ftitle">Reverse Engineered Prompt</div>
+                  <div className="output-box">
+                    <div className="output-text">{reversePrompt}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                    <CopyBtn text={reversePrompt} label="Copy Prompt" />
+                    <button className="p-btn" onClick={() => { setPrompt(reversePrompt); setAdminTab('generate') }} style={{ fontSize: '11px', padding: '7px 14px' }}>Publish to Library ↗</button>
                   </div>
                 </div>
               ) : (
@@ -1078,7 +1300,7 @@ function StudentSuite() {
   const { user } = useUser()
   const [theme, setTheme] = useState<SuiteTheme>(DEFAULT_THEME)
   const [selectedDNA, setSelectedDNA] = useState<DNA | null>(null)
-  const [adminTab, setAdminTab] = useState<ActiveTab>('generate')
+  const [suiteTab, setSuiteTab] = useState<'generate' | 'dna' | 'twins' | 'prompts' | 'aigenerator'>('generate')
   const [myPrompts, setMyPrompts] = useState<Array<{ id: number; prompt: string; category: string; shared: boolean }>>([])
   const [newPrompt, setNewPrompt] = useState('')
   const [newCat, setNewCat] = useState('Luxury Lifestyle')
@@ -1145,8 +1367,8 @@ function StudentSuite() {
       {/* Suite tabs */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', flexWrap: 'wrap' as const }}>
         {suiteTabs.map(([id, label]) => (
-          <button key={id} onClick={() => setAdminTab(id as ActiveTab)}
-            style={{ padding: '8px 16px', borderRadius: '20px', fontSize: '11px', fontWeight: 500, cursor: 'pointer', fontFamily: theme.fontFamily, transition: 'all .2s', whiteSpace: 'nowrap', border: `0.5px solid ${activeTab === id ? theme.primaryColor : `${theme.primaryColor}20`}`, background: activeTab === id ? `${theme.primaryColor}20` : 'transparent', color: activeTab === id ? theme.primaryColor : `${theme.primaryColor}60` }}>
+          <button key={id} onClick={() => setSuiteTab(id as 'generate' | 'dna' | 'twins' | 'prompts' | 'aigenerator')}
+            style={{ padding: '8px 16px', borderRadius: '20px', fontSize: '11px', fontWeight: 500, cursor: 'pointer', fontFamily: theme.fontFamily, transition: 'all .2s', whiteSpace: 'nowrap', border: `0.5px solid ${suiteTab === id ? theme.primaryColor : `${theme.primaryColor}20`}`, background: suiteTab === id ? `${theme.primaryColor}20` : 'transparent', color: suiteTab === id ? theme.primaryColor : `${theme.primaryColor}60` }}>
             {label}
           </button>
         ))}
@@ -1163,13 +1385,13 @@ function StudentSuite() {
         </div>
       )}
 
-      {activeTab === 'dna' && <BaddieDNA onDNASelect={setSelectedDNA} selectedDNA={selectedDNA} />}
+      {suiteTab === 'dna' && <BaddieDNA onDNASelect={setSelectedDNA} selectedDNA={selectedDNA} />}
 
-      {activeTab === 'twins' && <AITwinVersions selectedDNA={selectedDNA} />}
+      {suiteTab === 'twins' && <AITwinVersions selectedDNA={selectedDNA} />}
 
-      {activeTab === 'aigenerator' && <AIPromptGenerator dna={selectedDNA} />}
+      {suiteTab === 'aigenerator' && <AIPromptGenerator dna={selectedDNA} />}
 
-      {activeTab === 'prompts' && (
+      {suiteTab === 'prompts' && (
         <div>
           <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '18px', fontWeight: 800, color: '#fff', marginBottom: '16px' }}>My Prompt Collection</div>
           <div className="card hi" style={{ marginBottom: '20px' }}>
