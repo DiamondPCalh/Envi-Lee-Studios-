@@ -3,7 +3,7 @@
 // Supports both GET (?plan=prompts) and POST ({ plan: 'prompts' })
 
 import { NextRequest, NextResponse } from 'next/server'
-import { currentUser } from '@clerk/nextjs/server'
+import { auth } from '@clerk/nextjs/server'
 
 const PRICE_IDS: Record<string, string> = {
   // Creator Studio plans
@@ -76,10 +76,10 @@ async function createSession(plan: string, email?: string, userId?: string) {
 export async function GET(req: NextRequest) {
   try {
     const plan = req.nextUrl.searchParams.get('plan') ?? ''
-    const user = await currentUser()
+    const user =await auth()
     const email = user?.emailAddresses?.[0]?.emailAddress
 
-    const data = await createSession(plan, email, user?.id)
+    const data = await createSession(plan, email, userId
     return NextResponse.redirect(data.url)
 
   } catch (err) {
@@ -94,9 +94,9 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const { plan, email } = body
-    const user = await currentUser()
+    const user =await auth()
 
-    const data = await createSession(plan, email || user?.emailAddresses?.[0]?.emailAddress, user?.id)
+    const data = await createSession(plan, email || user?.emailAddresses?.[0]?.emailAddress, userId
     return NextResponse.json({ url: data.url })
 
   } catch (err) {
