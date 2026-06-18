@@ -2,7 +2,7 @@
 // Checks if the current user has access to the Baddie Content Vault
 // Also checks if they are locked out for not submitting 2 videos
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server' 
 import { currentUser } from '@clerk/nextjs/server'
 
 export async function GET(req: NextRequest) {
