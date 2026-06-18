@@ -5,7 +5,7 @@ import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 
 type Room = 'library' | 'admin' | 'suite'
-type ActiveTab = 'prompts' | 'generate' | 'calendar' | 'stacks' | 'dna' | 'twins' | 'reverse'
+type ActiveTab = 'prompts' | 'generate' | 'calendar' | 'stacks' | 'dna' | 'twins' | 'aigenerator' | 'reverse'
 
 // ── VIDEO APPS ────────────────────────────────────────────────
 const VIDEO_APPS = [
@@ -277,7 +277,7 @@ interface GeneratedContent {
 }
 
 function OneClickGeneration({ dna, category, onGenerated }: {
-  dna?: DNA
+  dna?: Record<string, string>
   category?: string
   onGenerated?: (content: GeneratedContent) => void
 }) {
@@ -901,11 +901,11 @@ function AdminRoom({ isAdmin }: { isAdmin: boolean }) {
     <div>
       <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', flexWrap: 'wrap' as const }}>
         {tabs.map(([id, label]) => (
-          <button key={id} className={`tab-pill ${activeTab === id ? 'on' : 'off'}`} onClick={() => setActiveTab(id as 'generate' | 'dna' | 'twins' | 'prompts' | 'aigenerator')}>{label}</button>
+          <button key={id} className={`tab-pill ${adminTab === id ? 'on' : 'off'}`} onClick={() => setActiveTab(id as 'generate' | 'dna' | 'twins' | 'prompts' | 'aigenerator')}>{label}</button>
         ))}
       </div>
 
-      {activeTab === 'generate' && (
+      {adminTab === 'generate' && (
         <div>
           <div style={{ marginBottom: '16px' }}>
             <F label="Add a prompt to publish">
@@ -924,9 +924,9 @@ function AdminRoom({ isAdmin }: { isAdmin: boolean }) {
         </div>
       )}
 
-      {activeTab === 'stacks' && <PromptStacks />}
+      {adminTab === 'stacks' && <PromptStacks />}
 
-      {activeTab === 'reverse' && (
+      {adminTab === 'reverse' && (
         <div>
           <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '18px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Reverse Engineer</div>
           <div style={{ fontSize: '12px', color: 'var(--mu3)', marginBottom: '20px' }}>Upload any AI image you created and the AI figures out the prompt that made it.</div>
@@ -974,7 +974,7 @@ function AdminRoom({ isAdmin }: { isAdmin: boolean }) {
         </div>
       )}
 
-      {activeTab === 'dna' && <BaddieDNA onDNASelect={setMyDNA} selectedDNA={myDNA} />}
+      {adminTab === 'dna' && <BaddieDNA onDNASelect={setMyDNA} selectedDNA={myDNA} />}
     </div>
   )
 }
@@ -1078,7 +1078,7 @@ function StudentSuite() {
   const { user } = useUser()
   const [theme, setTheme] = useState<SuiteTheme>(DEFAULT_THEME)
   const [selectedDNA, setSelectedDNA] = useState<DNA | null>(null)
-  const [activeTab, setActiveTab] = useState<'generate' | 'dna' | 'twins' | 'prompts' | 'aigenerator'>('generate')
+  const [adminTab, setAdminTab] = useState<ActiveTab>('generate')
   const [myPrompts, setMyPrompts] = useState<Array<{ id: number; prompt: string; category: string; shared: boolean }>>([])
   const [newPrompt, setNewPrompt] = useState('')
   const [newCat, setNewCat] = useState('Luxury Lifestyle')
@@ -1145,14 +1145,14 @@ function StudentSuite() {
       {/* Suite tabs */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', flexWrap: 'wrap' as const }}>
         {suiteTabs.map(([id, label]) => (
-          <button key={id} onClick={() => setActiveTab(id as ActiveTab)}
+          <button key={id} onClick={() => setAdminTab(id as ActiveTab)}
             style={{ padding: '8px 16px', borderRadius: '20px', fontSize: '11px', fontWeight: 500, cursor: 'pointer', fontFamily: theme.fontFamily, transition: 'all .2s', whiteSpace: 'nowrap', border: `0.5px solid ${activeTab === id ? theme.primaryColor : `${theme.primaryColor}20`}`, background: activeTab === id ? `${theme.primaryColor}20` : 'transparent', color: activeTab === id ? theme.primaryColor : `${theme.primaryColor}60` }}>
             {label}
           </button>
         ))}
       </div>
 
-      {activeTab === 'generate' && (
+      {adminTab === 'generate' && (
         <div>
           {selectedDNA && (
             <div style={{ background: `${theme.primaryColor}15`, border: `0.5px solid ${theme.primaryColor}40`, borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', fontSize: '11px', color: theme.primaryColor, fontFamily: "'DM Mono',monospace" }}>
