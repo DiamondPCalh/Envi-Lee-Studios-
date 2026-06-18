@@ -60,6 +60,7 @@ export default function SignInPage() {
       {/* Clerk Sign In */}
       <div style={{ position: 'relative', zIndex: 1 }}>
         <SignIn
+          fallbackRedirectUrl="/"
           appearance={{
             variables: {
               colorPrimary: '#9b6dff',
