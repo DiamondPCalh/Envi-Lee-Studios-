@@ -901,7 +901,7 @@ function AdminRoom({ isAdmin }: { isAdmin: boolean }) {
     <div>
       <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', flexWrap: 'wrap' as const }}>
         {tabs.map(([id, label]) => (
-          <button key={id} className={`tab-pill ${activeTab === id ? 'on' : 'off'}`} onClick={() => setActiveTab(id as ActiveTab)}>{label}</button>
+          <button key={id} className={`tab-pill ${activeTab === id ? 'on' : 'off'}`} onClick={() => setActiveTab(id as 'generate' | 'dna' | 'twins' | 'prompts' | 'aigenerator')}>{label}</button>
         ))}
       </div>
 
