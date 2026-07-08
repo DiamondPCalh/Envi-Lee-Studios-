@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { UserButton, useUser } from '@clerk/nextjs'
 import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
-
+import ContentCalendar from '../components/ContentCalendar'
 type Room = 'library' | 'admin' | 'suite'
 type ActiveTab = 'prompts' | 'generate' | 'calendar' | 'stacks' | 'dna' | 'twins' | 'aigenerator' | 'reverse'
 
