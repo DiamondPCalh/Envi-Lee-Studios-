@@ -144,7 +144,130 @@ const APPS = [
     tools: ['Pinterest Layout', 'Scene Breakdowns', 'Elite Features', 'Student Pipeline', 'Community'],
   },
 ]
+// HomeCalendar — add this component to app/page.tsx before the export default function HomePage()
 
+function HomeCalendar() {
+  const [entries, setEntries] = useState<Record<string, string>>({})
+  const [addingDay, setAddingDay] = useState<string | null>(null)
+  const [inputVal, setInputVal] = useState('')
+
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const today = new Date()
+
+  function getDate(i: number) {
+    const d = new Date()
+    d.setDate(d.getDate() - d.getDay() + i)
+    return d
+  }
+
+  function saveEntry(key: string) {
+    if (!inputVal.trim()) { setAddingDay(null); return }
+    setEntries(e => ({ ...e, [key]: inputVal.trim() }))
+    setInputVal(''); setAddingDay(null)
+  }
+
+  function downloadPDF() {
+    const rows = days.map((day, i) => {
+      const d = getDate(i)
+      const key = d.toDateString()
+      const isToday = key === today.toDateString()
+      const entry = entries[key] || ''
+      return { day, date: d.getDate(), isToday, entry }
+    })
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  body { font-family: Arial, sans-serif; padding: 32px; color: #111; }
+  h1 { font-size: 22px; text-align: center; margin-bottom: 4px; }
+  h2 { font-size: 11px; text-align: center; color: #888; margin-bottom: 20px; letter-spacing: 2px; text-transform: uppercase; }
+  .divider { width: 60px; height: 3px; background: #9b6dff; margin: 0 auto 24px; }
+  .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; }
+  .cell { border: 1px solid #eee; border-radius: 8px; padding: 12px; min-height: 90px; }
+  .cell.today { border-color: #9b6dff; background: #f8f5ff; }
+  .day-label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 4px; }
+  .date-num { font-size: 18px; font-weight: 700; color: #9b6dff; margin-bottom: 6px; }
+  .entry-text { font-size: 11px; color: #333; line-height: 1.5; }
+  .footer { margin-top: 24px; text-align: center; font-size: 10px; color: #ccc; }
+</style>
+</head>
+<body>
+  <h1>Content Calendar</h1>
+  <h2>Envi Lee Creator Studios™ · Week of ${today.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</h2>
+  <div class="divider"></div>
+  <div class="grid">
+    ${rows.map(r => `
+    <div class="cell${r.isToday ? ' today' : ''}">
+      <div class="day-label">${r.day}</div>
+      <div class="date-num">${r.date}</div>
+      <div class="entry-text">${r.entry}</div>
+    </div>`).join('')}
+  </div>
+  <div class="footer">Envi Lee Creator Studios™ · Generated ${new Date().toLocaleDateString()}</div>
+</body>
+</html>`
+
+    const win = window.open('', '_blank')
+    if (win) {
+      win.document.write(html)
+      win.document.close()
+      setTimeout(() => win.print(), 500)
+    }
+  }
+
+  return (
+    <div style={{ background: 'rgba(255,255,255,0.02)', border: '0.5px solid rgba(108,86,126,0.2)', borderRadius: '16px', padding: '24px', marginBottom: '32px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <div>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '16px', fontWeight: 800, color: '#f8f0ff', marginBottom: '2px' }}>Content Calendar</div>
+          <div style={{ fontSize: '11px', color: 'rgba(155,109,255,0.6)', fontFamily: "'DM Mono', monospace" }}>Click any day to add content · Download as PDF</div>
+        </div>
+        <button onClick={downloadPDF} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #6c567e, #9b6dff)', color: '#fff', fontSize: '11px', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>
+          ⬇ Download PDF
+        </button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px' }}>
+        {days.map((day, i) => {
+          const date = getDate(i)
+          const key = date.toDateString()
+          const isToday = key === today.toDateString()
+          const entry = entries[key]
+          return (
+            <div key={day}
+              style={{ textAlign: 'center', padding: '10px 6px', background: isToday ? 'rgba(155,109,255,0.15)' : 'rgba(255,255,255,0.02)', border: `0.5px solid ${isToday ? 'rgba(155,109,255,0.4)' : 'rgba(108,86,126,0.15)'}`, borderRadius: '8px', minHeight: '80px', cursor: 'pointer' }}
+              onClick={() => { setAddingDay(key); setInputVal(entry || '') }}>
+              <div style={{ fontSize: '9px', color: isToday ? '#9b6dff' : 'rgba(120,100,150,0.6)', fontFamily: "'DM Mono', monospace", textTransform: 'uppercase' as const, letterSpacing: '.7px', marginBottom: '4px' }}>{day}</div>
+              <div style={{ fontSize: '16px', fontWeight: 700, color: isToday ? '#9b6dff' : 'rgba(180,160,200,0.5)', marginBottom: '6px' }}>{date.getDate()}</div>
+              {entry ? (
+                <div style={{ fontSize: '9px', color: '#9b6dff', lineHeight: '1.4', padding: '0 2px' }}>{entry.slice(0, 30)}{entry.length > 30 ? '…' : ''}</div>
+              ) : (
+                <div style={{ fontSize: '9px', color: 'rgba(108,86,126,0.4)', fontFamily: "'DM Mono', monospace" }}>+ Add</div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {addingDay && (
+        <div style={{ marginTop: '12px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <input
+            autoFocus
+            value={inputVal}
+            onChange={e => setInputVal(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') saveEntry(addingDay); if (e.key === 'Escape') setAddingDay(null) }}
+            placeholder={`What are you posting on ${new Date(addingDay).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}?`}
+            style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(155,109,255,0.3)', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#f8f0ff', fontFamily: "'DM Sans', sans-serif", outline: 'none' }}
+          />
+          <button onClick={() => saveEntry(addingDay)} style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #6c567e, #9b6dff)', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Save</button>
+          <button onClick={() => setAddingDay(null)} style={{ padding: '10px 12px', borderRadius: '8px', border: '0.5px solid rgba(108,86,126,0.3)', background: 'transparent', color: 'rgba(155,109,255,0.6)', fontSize: '12px', cursor: 'pointer' }}>✕</button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function HomePage() {
   const { user } = useUser()
