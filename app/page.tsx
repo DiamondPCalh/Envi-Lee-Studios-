@@ -325,46 +325,7 @@ export default function HomePage() {
             </div>
 
             {/* CONTENT CALENDAR */}
-            <div style={{ background: 'rgba(255,255,255,0.02)', border: '0.5px solid rgba(108,86,126,0.2)', borderRadius: '16px', padding: '24px', marginBottom: '32px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <div>
-                  <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '16px', fontWeight: 800, color: '#f8f0ff', marginBottom: '2px' }}>Content Calendar</div>
-                  <div style={{ fontSize: '11px', color: 'rgba(155,109,255,0.6)', fontFamily: "'DM Mono', monospace" }}>Plan your content · Download to Canva</div>
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button style={{ padding: '8px 16px', borderRadius: '8px', border: '0.5px solid rgba(108,86,126,0.3)', background: 'transparent', color: 'rgba(155,109,255,0.8)', fontSize: '11px', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                    + Add Post
-                  </button>
-                  <button style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #6c567e, #9b6dff)', color: '#fff', fontSize: '11px', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>
-                    ⬇ Download to Canva
-                  </button>
-                </div>
-              </div>
-
-              {/* Calendar grid - current week */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px' }}>
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, i) => {
-                  const date = new Date()
-                  date.setDate(date.getDate() - date.getDay() + i)
-                  const isToday = date.toDateString() === new Date().toDateString()
-                  return (
-                    <div key={day} style={{
-                      textAlign: 'center',
-                      padding: '10px 6px',
-                      background: isToday ? 'rgba(155,109,255,0.15)' : 'rgba(255,255,255,0.02)',
-                      border: `0.5px solid ${isToday ? 'rgba(155,109,255,0.4)' : 'rgba(108,86,126,0.15)'}`,
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      minHeight: '70px',
-                    }}>
-                      <div style={{ fontSize: '9px', color: isToday ? '#9b6dff' : 'rgba(120,100,150,0.6)', fontFamily: "'DM Mono', monospace", textTransform: 'uppercase', letterSpacing: '.7px', marginBottom: '4px' }}>{day}</div>
-                      <div style={{ fontSize: '16px', fontWeight: 700, color: isToday ? '#9b6dff' : 'rgba(180,160,200,0.5)', marginBottom: '6px' }}>{date.getDate()}</div>
-                      <div style={{ fontSize: '9px', color: 'rgba(108,86,126,0.4)', fontFamily: "'DM Mono', monospace" }}>+ Plan</div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
+            <HomeCalendar />
 
             {/* PROFIT CALCULATOR QUICK */}
             <div style={{ background: 'rgba(255,255,255,0.02)', border: '0.5px solid rgba(0,255,136,0.2)', borderRadius: '16px', padding: '24px' }}>
