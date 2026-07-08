@@ -487,6 +487,35 @@ function LifestyleStore() {
 
 // ── UGC SHOPPING ──────────────────────────────────────────────
 function UGCShopping() {
+  const { user } = useUser()
+  const adminId = process.env.NEXT_PUBLIC_ADMIN_USER_ID
+  const isAdmin = user?.id === adminId
+  const [customStores, setCustomStores] = useState<Array<{id:number;name:string;url:string;desc:string;icon:string}>>([])
+  const [addingStore, setAddingStore] = useState(false)
+  const [storeName, setStoreName] = useState('')
+  const [storeUrl, setStoreUrl] = useState('')
+  const [storeDesc, setStoreDesc] = useState('')
+  const [storeIcon, setStoreIcon] = useState('🛍')
+
+  useEffect(() => {
+    const saved = JSON.parse(localStorage.getItem('customStores') || '[]')
+    setCustomStores(saved)
+  }, [])
+
+  function addStore() {
+    if (!storeName.trim() || !storeUrl.trim()) return
+    const updated = [...customStores, { id: Date.now(), name: storeName, url: storeUrl.startsWith('http') ? storeUrl : 'https://' + storeUrl, desc: storeDesc, icon: storeIcon }]
+    setCustomStores(updated)
+    localStorage.setItem('customStores', JSON.stringify(updated))
+    setStoreName(''); setStoreUrl(''); setStoreDesc(''); setAddingStore(false)
+  }
+
+  function removeStore(id: number) {
+    const updated = customStores.filter(s => s.id !== id)
+    setCustomStores(updated)
+    localStorage.setItem('customStores', JSON.stringify(updated))
+  }
+
   return (
     <div className="pg-in">
       <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '32px', fontWeight: 400, color: 'var(--w)', marginBottom: '4px' }}>
@@ -494,6 +523,68 @@ function UGCShopping() {
       </div>
       <div style={{ fontSize: '12px', color: 'var(--mu3)', marginBottom: '24px' }}>Shop products to feature in your UGC content — all major platforms in one place.</div>
 
+      {/* Envi Lee Apparel — Featured Store */}
+      <div style={{ background: 'var(--pink3)', border: '0.5px solid var(--pb)', borderRadius: '14px', padding: '20px 24px', marginBottom: '28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ width: '56px', height: '56px', borderRadius: '12px', background: 'var(--ombre)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', flexShrink: 0 }}>✦</div>
+          <div>
+            <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '18px', fontWeight: 800, color: 'var(--pink)', marginBottom: '2px' }}>Envi Lee Apparel</div>
+            <div style={{ fontSize: '12px', color: 'var(--mu3)', marginBottom: '4px' }}>Official Envi Lee clothing — real products for you and AI twin styling</div>
+            <div style={{ fontSize: '10px', color: 'rgba(255,45,120,0.5)', fontFamily: "'DM Mono',monospace" }}>envileapparel.store</div>
+          </div>
+        </div>
+        <a href="https://envileapparel.store" target="_blank" rel="noreferrer" className="pink-btn" style={{ fontSize: '13px', padding: '10px 20px', textDecoration: 'none', display: 'inline-block', flexShrink: 0 }}>
+          Shop Now ↗
+        </a>
+      </div>
+
+      {/* Custom stores — admin managed */}
+      {customStores.length > 0 && (
+        <div style={{ marginBottom: '28px' }}>
+          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(255,45,120,0.5)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '12px' }}>Connected Stores</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '12px' }}>
+            {customStores.map(store => (
+              <div key={store.id} style={{ position: 'relative' }}>
+                <a href={store.url} target="_blank" rel="noreferrer" className="social-card" style={{ textDecoration: 'none', display: 'flex' }}>
+                  <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'var(--pink3)', border: '0.5px solid var(--pb)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', flexShrink: 0 }}>{store.icon}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--w)', marginBottom: '2px' }}>{store.name}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--mu3)' }}>{store.desc || store.url}</div>
+                  </div>
+                  <div style={{ marginLeft: 'auto', color: 'var(--pink)', fontSize: '16px', flexShrink: 0 }}>→</div>
+                </a>
+                {isAdmin && <button onClick={() => removeStore(store.id)} className="del-btn" style={{ position: 'absolute', top: '6px', right: '6px', fontSize: '9px', padding: '2px 6px' }}>✕</button>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Admin — add store URL */}
+      {isAdmin && (
+        <div style={{ marginBottom: '28px' }}>
+          {!addingStore ? (
+            <button className="ghost-btn" onClick={() => setAddingStore(true)} style={{ fontSize: '12px' }}>+ Connect a Store URL</button>
+          ) : (
+            <div className="card hi" style={{ maxWidth: '500px' }}>
+              <div className="ftitle">Connect a Store</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: '8px', marginBottom: '10px' }}>
+                <input className="finp" placeholder="Store name e.g. My Boutique" value={storeName} onChange={e => setStoreName(e.target.value)} />
+                <input className="finp" placeholder="Icon" value={storeIcon} onChange={e => setStoreIcon(e.target.value)} />
+              </div>
+              <input className="finp" placeholder="Store URL e.g. myboutique.com" value={storeUrl} onChange={e => setStoreUrl(e.target.value)} style={{ marginBottom: '10px' }} />
+              <input className="finp" placeholder="Short description (optional)" value={storeDesc} onChange={e => setStoreDesc(e.target.value)} style={{ marginBottom: '12px' }} />
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="pink-btn" onClick={addStore} style={{ fontSize: '12px', padding: '9px 16px' }}>Connect Store ↗</button>
+                <button className="ghost-btn" onClick={() => setAddingStore(false)}>Cancel</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Regular UGC Stores */}
+      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(255,45,120,0.4)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '14px' }}>UGC Shopping Platforms</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '14px' }}>
         {UGC_STORES.map(store => (
           <a key={store.name} href={store.url} target="_blank" rel="noreferrer" className="social-card" style={{ textDecoration: 'none' }}>
