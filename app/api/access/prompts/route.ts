@@ -25,5 +25,5 @@ export async function GET(req: NextRequest) {
 
   // Temporary: grant access to all signed in users for testing
   // Remove this line when ready to enforce payment
-  return NextResponse.json({ hasAccess: true, role: 'test' })
+  return NextResponse.json({ hasAccess: true, role: 'test' }) 
 }
