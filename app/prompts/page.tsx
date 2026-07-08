@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { UserButton, useUser } from '@clerk/nextjs'
 import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
-import ContentCalendar from '../components/ContentCalendar'
+
 type Room = 'library' | 'admin' | 'suite'
 type ActiveTab = 'prompts' | 'generate' | 'calendar' | 'stacks' | 'dna' | 'twins' | 'aigenerator' | 'reverse'
 
@@ -203,7 +203,7 @@ function PaywallGate({ children }: { children: React.ReactNode }) {
     async function check() {
       if (!user) { setHasAccess(false); return }
       try {
-        const res = await fetch(`/api/access/prompts?userId=${user.id}`)
+        const res = await fetch('/api/access/prompts')
         const data = await res.json()
         setHasAccess(data.hasAccess)
       } catch { setHasAccess(false) }
@@ -980,11 +980,121 @@ function AdminRoom({ isAdmin }: { isAdmin: boolean }) {
 }
 
 // ── MAIN LIBRARY ROOM ─────────────────────────────────────────
+interface PromptItem {
+  id: number
+  prompt: string
+  category: string
+  publishedAt: string
+  imageUrl?: string
+}
+
+function PromptCard({ p, onSelect, isSelected }: { p: PromptItem; onSelect: () => void; isSelected: boolean }) {
+  const [imageUrl, setImageUrl] = useState(p.imageUrl || '')
+  const [generating, setGenerating] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  async function generateImage() {
+    if (imageUrl) return
+    setGenerating(true)
+    try {
+      const res = await fetch('/api/generate/image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: p.prompt, style: 'luxury', size: 'portrait' }),
+      })
+      const data = await res.json()
+      if (data.imageUrl) {
+        setImageUrl(data.imageUrl)
+        // Save image back to library
+        const saved = JSON.parse(localStorage.getItem('promptLibrary') || '[]')
+        const updated = saved.map((item: PromptItem) => item.id === p.id ? { ...item, imageUrl: data.imageUrl } : item)
+        localStorage.setItem('promptLibrary', JSON.stringify(updated))
+      }
+    } catch (e) { console.error(e) }
+    finally { setGenerating(false) }
+  }
+
+  function copy() {
+    navigator.clipboard?.writeText(p.prompt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
+  }
+
+  return (
+    <div className="prompt-card" style={{ marginBottom: '12px' }}>
+      {/* LEFT + RIGHT layout */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', gap: '0' }}>
+        {/* LEFT — prompt info */}
+        <div style={{ padding: '14px', borderRight: '0.5px solid rgba(192,132,252,0.1)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span className="badge-pink">{p.category}</span>
+            <span style={{ fontSize: '10px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace" }}>{new Date(p.publishedAt).toLocaleDateString()}</span>
+          </div>
+          <div style={{ fontSize: '13px', color: 'var(--w2)', lineHeight: '1.6', marginBottom: '10px' }}>
+            {isSelected ? p.prompt : p.prompt.slice(0, 140) + (p.prompt.length > 140 ? '…' : '')}
+          </div>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' as const }}>
+            <button onClick={onSelect} className="ghost-p" style={{ fontSize: '10px', padding: '4px 10px' }}>
+              {isSelected ? 'Hide ↑' : 'View Prompt →'}
+            </button>
+            <button onClick={copy} className="ghost-l" style={{ fontSize: '10px', padding: '4px 10px' }}>
+              {copied ? '✓ Copied!' : 'Copy'}
+            </button>
+          </div>
+
+          {/* Expanded detail */}
+          {isSelected && (
+            <div style={{ marginTop: '14px', borderTop: '0.5px solid rgba(192,132,252,0.1)', paddingTop: '14px' }}>
+              <div style={{ fontSize: '10px', color: 'var(--pink)', fontFamily: "'DM Mono',monospace", textTransform: 'uppercase' as const, letterSpacing: '.7px', marginBottom: '8px' }}>Take this prompt to:</div>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' as const, marginBottom: '12px' }}>
+                {VIDEO_APPS.map(app => (
+                  <a key={app.format} href={app.url} target="_blank" rel="noreferrer"
+                    style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', background: 'var(--s2)', border: '0.5px solid rgba(192,132,252,0.15)', borderRadius: '6px', textDecoration: 'none', fontSize: '11px', color: 'var(--w2)', transition: 'all .15s' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--pb)'; (e.currentTarget as HTMLElement).style.color = 'var(--pink)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(192,132,252,0.15)'; (e.currentTarget as HTMLElement).style.color = 'var(--w2)' }}>
+                    <span>{app.icon}</span>{app.name}
+                  </a>
+                ))}
+              </div>
+              <div style={{ fontSize: '10px', color: 'var(--lilac)', fontFamily: "'DM Mono',monospace", textTransform: 'uppercase' as const, letterSpacing: '.7px', marginBottom: '6px' }}>Or generate here:</div>
+              <button className="p-btn" onClick={() => {}} style={{ fontSize: '11px', padding: '7px 14px' }}>
+                ✦ Generate in App
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT — photo */}
+        <div style={{ background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', minHeight: '180px', position: 'relative' as const, cursor: imageUrl ? 'default' : 'pointer' }}
+          onClick={() => !imageUrl && !generating && generateImage()}>
+          {generating ? (
+            <div style={{ textAlign: 'center', padding: '16px' }}>
+              <div className="lbar" style={{ width: '60px', margin: '0 auto 8px' }}><div className="lbar-fill" /></div>
+              <div style={{ fontSize: '10px', color: 'var(--pink)' }}>Generating…</div>
+            </div>
+          ) : imageUrl ? (
+            <img src={imageUrl} alt="Generated" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          ) : (
+            <div style={{ textAlign: 'center', padding: '16px', opacity: 0.5 }}>
+              <div style={{ fontSize: '24px', marginBottom: '6px' }}>◈</div>
+              <div style={{ fontSize: '10px', color: 'var(--mu3)', lineHeight: '1.4' }}>Click to generate photo</div>
+            </div>
+          )}
+          {imageUrl && (
+            <div style={{ position: 'absolute', bottom: '6px', right: '6px', display: 'flex', gap: '4px' }}>
+              <a href={imageUrl} download style={{ padding: '3px 8px', borderRadius: '4px', background: 'rgba(0,0,0,0.75)', color: 'var(--pink)', fontSize: '10px', textDecoration: 'none' }}>⬇</a>
+              <button onClick={() => { setImageUrl(''); generateImage() }} style={{ padding: '3px 8px', borderRadius: '4px', background: 'rgba(0,0,0,0.75)', color: 'var(--lilac)', fontSize: '10px', border: 'none', cursor: 'pointer' }}>↺</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function MainLibraryRoom() {
   const [selectedCat, setSelectedCat] = useState('All')
   const [selectedDNA] = useState<DNA | null>(null)
-  const [prompts, setPrompts] = useState<Array<{ id: number; prompt: string; category: string; publishedAt: string }>>([])
-  const [activePrompt, setActivePrompt] = useState<string | null>(null)
+  const [prompts, setPrompts] = useState<PromptItem[]>([])
+  const [activePromptId, setActivePromptId] = useState<number | null>(null)
   const [showGenerate, setShowGenerate] = useState(false)
 
   useEffect(() => {
@@ -992,7 +1102,7 @@ function MainLibraryRoom() {
     if (saved.length === 0) {
       const sample = CATEGORIES.slice(0, 10).map((cat, i) => ({
         id: i + 1,
-        prompt: `${cat} content — luxurious ${cat.toLowerCase()} scene with Black woman creator, designer outfit, cinematic lighting, photorealistic, 4K, fashion editorial`,
+        prompt: `${cat} — Black woman creator, deep brown skin with natural texture and visible pores, ${cat.toLowerCase()} scene, natural window light, candid moment. Shot on Sony A7R IV, 50mm lens f/1.8, shallow depth of field, RAW photo, no filter, no smoothing, very human and real.`,
         category: cat,
         publishedAt: new Date().toISOString(),
       }))
@@ -1028,30 +1138,23 @@ function MainLibraryRoom() {
         </div>
       )}
 
-      {/* Video apps panel */}
+      {/* Prompt list — Left prompt + Right photo */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px', gap: '20px' }}>
         <div>
-          {/* Prompt list */}
           {filtered.map(p => (
-            <div key={p.id} className="prompt-card" style={{ marginBottom: '10px' }} onClick={() => setActivePrompt(p.prompt)}>
-              <div style={{ padding: '14px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="badge-pink">{p.category}</span>
-                  <span style={{ fontSize: '10px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace" }}>{new Date(p.publishedAt).toLocaleDateString()}</span>
-                </div>
-                <div style={{ fontSize: '13px', color: 'var(--w2)', lineHeight: '1.6', marginBottom: '8px' }}>{p.prompt.slice(0, 120)}…</div>
-                {activePrompt === p.prompt && (
-                  <div className="output-box" style={{ marginTop: '10px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '10px', color: 'var(--pink)', fontFamily: "'DM Mono',monospace" }}>Full Prompt</span>
-                      <CopyBtn text={p.prompt} />
-                    </div>
-                    <div className="output-text">{p.prompt}</div>
-                  </div>
-                )}
-              </div>
-            </div>
+            <PromptCard
+              key={p.id}
+              p={p}
+              isSelected={activePromptId === p.id}
+              onSelect={() => setActivePromptId(activePromptId === p.id ? null : p.id)}
+            />
           ))}
+          {filtered.length === 0 && (
+            <div className="card" style={{ textAlign: 'center', padding: '40px', opacity: 0.5 }}>
+              <div style={{ fontSize: '32px', marginBottom: '10px', opacity: 0.3 }}>◈</div>
+              <div style={{ fontSize: '13px', color: 'var(--mu3)' }}>No prompts in this category yet</div>
+            </div>
+          )}
         </div>
 
         {/* Video apps side panel */}
