@@ -4,7 +4,7 @@ import { UserButton, useUser } from '@clerk/nextjs'
 import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 
-type SuiteTool = 'dashboard' | 'characters' | 'tryon' | 'calculator' | 'saved' | 'pricing' | 'admin'A
+type SuiteTool = 'dashboard' | 'characters' | 'tryon' | 'calculator' | 'saved' | 'pricing' | 'admin'
 
 async function callAPI(endpoint: string, body: Record<string, string>): Promise<string> {
   const res = await fetch(`/api/${endpoint}`, {
