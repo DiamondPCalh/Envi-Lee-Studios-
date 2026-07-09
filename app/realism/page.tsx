@@ -306,7 +306,7 @@ function LessonGenerator({ lesson, labName, onImagesGenerated }: { lesson: Lesso
           <div>
             <div className="card hi" style={{ marginBottom: '12px' }}>
               <div className="ftitle">✨ The Prompt</div>
-              <div style={{ fontSize: '12px', color: 'var(--w2)', lineHeight: '1.8', background: 'var(--bg3)', borderRadius: '8px', padding: '12px', marginBottom: '10px', fontFamily: "'DM Mono',monospace", fontSize: '11px' }}>
+              <div style={{ fontSize: '11px', color: 'var(--w2)', lineHeight: '1.8', background: 'var(--bg3)', borderRadius: '8px', padding: '12px', marginBottom: '10px', fontFamily: "'DM Mono',monospace" }}>
                 {lesson.prompt}
               </div>
               <CopyBtn text={lesson.prompt} />
@@ -346,7 +346,7 @@ function LessonGenerator({ lesson, labName, onImagesGenerated }: { lesson: Lesso
             {lesson.videoPrompt && (
               <div className="card orange">
                 <div style={{ fontSize: '10px', color: 'var(--orange)', fontFamily: "'DM Mono',monospace", textTransform: 'uppercase', letterSpacing: '.8px', marginBottom: '8px' }}>🎬 Video Motion Prompt</div>
-                <div style={{ fontSize: '12px', color: 'var(--w2)', lineHeight: '1.6', fontFamily: "'DM Mono',monospace", fontSize: '11px' }}>{lesson.videoPrompt}</div>
+                <div style={{ fontSize: '11px', color: 'var(--w2)', lineHeight: '1.6', fontFamily: "'DM Mono',monospace" }}>{lesson.videoPrompt}</div>
                 <div style={{ marginTop: '8px' }}><CopyBtn text={lesson.videoPrompt} /></div>
               </div>
             )}
