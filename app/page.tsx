@@ -144,7 +144,9 @@ const APPS = [
     tools: ['Pinterest Layout', 'Scene Breakdowns', 'Elite Features', 'Student Pipeline', 'Community'],
   },
 ]
- function HomeCalendar() {
+
+
+function HomeCalendar() {
   const [entries, setEntries] = useState<Record<string, string>>({})
   const [addingDay, setAddingDay] = useState<string | null>(null)
   const [inputVal, setInputVal] = useState('')
