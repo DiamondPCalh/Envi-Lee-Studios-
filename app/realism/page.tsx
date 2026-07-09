@@ -768,6 +768,420 @@ function Dashboard({ setLab, progress }: { setLab: (l: Lab) => void; progress: R
 }
 
 // ── COMING SOON LAB ───────────────────────────────────────────
+
+// ── BODY LAB ──────────────────────────────────────────────────
+const BODY_LESSONS: Record<string, Lesson> = {
+  'Curvy Hourglass': {
+    prompt: `Full body portrait Black woman, curvy hourglass figure, natural weight distribution, realistic body proportions, slight belly softness visible, natural thigh thickness, skin compression at waistband, clothing fitting naturally over curves, no artificial waist cinching, natural standing pose with weight on one hip, 35mm lens, f/2.8, natural light, Sony A7R IV, RAW photo, full body visible`,
+    negativePrompt: `perfect hourglass, unrealistic waist, photoshopped, artificial curves, plastic body, CGI, distorted proportions, too thin waist, fake curves`,
+    camera: `35mm lens
+f/2.8
+Full body shot
+Sony A7R IV`,
+    lighting: `Natural window light
+Soft fill
+Shows body shape naturally`,
+    whyItWorks: `Real curvy bodies have natural weight distribution — slight softness at the belly, natural thigh thickness, and skin compression where clothing meets skin. The 35mm lens shows the full body without distortion.`,
+    mistakes: `Unrealistically small waists with large hips scream AI. Real bodies have natural transitions and soft areas. Never use "perfect hourglass" — say "natural curves" instead.`,
+  },
+  'Athletic Body': {
+    prompt: `Full body portrait athletic Black woman, toned muscles with natural definition, realistic muscle striations visible, natural body fat distribution, slight muscle pump from movement, skin compression during pose, natural veining on forearms, sweat glistening naturally on skin, gym outfit fitting over muscle, 50mm lens, f/2, natural gym lighting, Sony A7R IV, RAW photo`,
+    negativePrompt: `unrealistic muscles, bodybuilder, CGI muscle, plastic body, fake definition, over-rendered muscles, artificial pump`,
+    camera: `50mm lens
+f/2
+Full body
+Sony A7R IV`,
+    lighting: `Natural gym lighting
+Side light shows definition
+No beauty light`,
+    whyItWorks: `Athletic bodies have muscle definition that comes with natural body fat — not zero fat CGI bodies. Natural muscle striations, realistic veining, and sweat create authenticity.`,
+    mistakes: `CGI-level muscle definition with zero body fat looks inhuman. Real athletic bodies still have natural softness in certain areas.`,
+  },
+  'Plus Size Realism': {
+    prompt: `Full body portrait plus size Black woman, natural body proportions, realistic fat distribution — natural belly, thighs touching naturally, upper arm softness, skin folds at waist when seated, clothing fitting realistically over plus size figure, natural posture and confidence, no artificial slimming, 35mm lens, f/2.8, natural warm light, Sony A7R IV, RAW photo`,
+    negativePrompt: `artificially slimmed, distorted, unrealistic, CGI, perfect proportions for plus size, plastic, fake body`,
+    camera: `35mm lens
+f/2.8
+Full body
+Sony A7R IV`,
+    lighting: `Warm natural light
+Celebrates the figure
+No harsh shadows`,
+    whyItWorks: `Plus size bodies have beautiful natural proportions — thighs that touch, natural belly, upper arm softness. These are human features that AI often tries to remove. Embrace them.`,
+    mistakes: `Artificially slimming plus size figures or creating unrealistic proportions. Real plus size bodies are proportional and beautiful as they are.`,
+  },
+  'Pregnant Body': {
+    prompt: `Portrait pregnant Black woman, 7 months pregnant belly, natural belly shape and skin texture, visible linea nigra on belly, natural skin stretching on belly sides, belly button popping naturally, natural pregnancy glow without over-smoothing, comfortable maternity outfit, natural pregnancy posture, hands naturally cradling belly, 50mm lens, f/2, warm natural light, Sony A7R IV, RAW`,
+    negativePrompt: `fake belly, CGI belly, perfect smooth belly, artificial pregnancy, plastic skin, over-smooth`,
+    camera: `50mm lens
+f/2
+Medium shot
+Sony A7R IV`,
+    lighting: `Warm window light
+Golden glow
+Celebrates pregnancy`,
+    whyItWorks: `Pregnancy has specific physical details — linea nigra, belly button changes, natural skin stretching patterns. These details signal authentic pregnancy representation.`,
+    mistakes: `Generic round belly without pregnancy-specific details looks like a costume. Real pregnancy bellies have unique skin changes and natural asymmetry.`,
+  },
+}
+
+function BodyLab({ onComplete }: { onComplete: () => void }) {
+  const [selectedLesson, setSelectedLesson] = useState('Curvy Hourglass')
+  const [completedLessons, setCompletedLessons] = useState<string[]>([])
+
+  return (
+    <div className="pg-in">
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(234,53,130,0.5)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Lab 04</div>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '32px', fontWeight: 400, color: 'var(--w)', marginBottom: '4px' }}>
+          Body <span style={{ color: 'var(--pink)' }}>Lab</span>
+        </div>
+        <div style={{ fontSize: '13px', color: 'var(--mu3)', marginBottom: '8px' }}>Master every body type with realistic proportions, natural weight distribution, and authentic representation.</div>
+        <span className="tag tag-pink">{completedLessons.length}/{Object.keys(BODY_LESSONS).length} completed</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: '20px' }}>
+        <div>
+          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(234,53,130,0.4)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>Lessons</div>
+          {Object.keys(BODY_LESSONS).map(lesson => (
+            <div key={lesson} className={`lesson-card ${selectedLesson === lesson ? 'active' : ''}`} onClick={() => setSelectedLesson(lesson)}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: '12px', color: selectedLesson === lesson ? 'var(--pink)' : 'var(--w2)', fontWeight: selectedLesson === lesson ? 600 : 400 }}>{lesson}</div>
+                {completedLessons.includes(lesson) && <span style={{ color: '#00ff88', fontSize: '12px' }}>✓</span>}
+              </div>
+            </div>
+          ))}
+          <button className="r-btn" onClick={() => { if (!completedLessons.includes(selectedLesson)) setCompletedLessons(prev => [...prev, selectedLesson]) }} style={{ width: '100%', fontSize: '11px', padding: '9px', marginTop: '12px' }}>Mark Complete ✓</button>
+          {completedLessons.length === Object.keys(BODY_LESSONS).length && (
+            <button className="ghost-r" onClick={onComplete} style={{ width: '100%', fontSize: '11px', padding: '9px', marginTop: '8px' }}>Continue to Hands Lab →</button>
+          )}
+        </div>
+        <div>
+          <LessonGenerator key={selectedLesson} lesson={BODY_LESSONS[selectedLesson]} labName="Body Lab" onImagesGenerated={() => { if (!completedLessons.includes(selectedLesson)) setCompletedLessons(prev => [...prev, selectedLesson]) }} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── HANDS LAB ─────────────────────────────────────────────────
+const HANDS_LESSONS: Record<string, Lesson> = {
+  'Holding a Phone': {
+    prompt: `Close-up realistic hands holding smartphone, Black woman hands, natural skin tone with melanin, realistic knuckle texture, natural finger wrap around phone, slight skin compression where fingers grip, natural nail length with slight wear, phone screen reflecting naturally, veins slightly visible on back of hand, natural hand position not perfectly posed, 85mm macro, f/2.8, natural light, Sony A7R IV, RAW photo`,
+    negativePrompt: `perfect hands, CGI hands, plastic hands, uniform skin tone, fake nails, artificial grip, distorted fingers, too many fingers, too few fingers`,
+    camera: `85mm macro
+f/2.8
+Close-up
+Sony A7R IV`,
+    lighting: `Natural window light
+Side light shows knuckle texture
+No ring light`,
+    whyItWorks: `Hands are the hardest part for AI to get right. Real hands have knuckle texture, natural skin compression when gripping, slight vein visibility, and melanin variation between knuckles and palm.`,
+    mistakes: `Too many or too few fingers is the classic AI fail. Always specify the natural grip position and skin texture. Perfectly posed hands look robotic — specify "natural relaxed grip".`,
+  },
+  'Holding Coffee': {
+    prompt: `Close-up realistic hand holding coffee cup, Black woman hand, natural finger wrap around warm cup, slight steam rising, skin slightly warming from cup heat, natural relaxed grip, melanin-rich skin with natural knuckle darkness, slight nail color visible, coffee cup at natural tilt, 85mm, f/2, warm cafe lighting, Sony A7R IV, RAW photo, candid moment`,
+    negativePrompt: `CGI hands, plastic, perfect grip, artificial, too many fingers, distorted, fake nails, uniform skin`,
+    camera: `85mm lens
+f/2
+Close-up
+Warm cafe light`,
+    lighting: `Warm cafe lighting
+Soft warm tones
+Steam lit naturally`,
+    whyItWorks: `The warmth interaction — skin warming from the cup, slight moisture — adds to realism. Natural grip means the cup tilts slightly and fingers aren't perfectly spaced.`,
+    mistakes: `A perfectly centered cup with perfectly spaced fingers is an AI tell. Real people hold cups at natural angles with relaxed uneven grip.`,
+  },
+  'Manicured Nails Close-Up': {
+    prompt: `Extreme close-up manicured nails, Black woman hands, deep melanin skin, natural cuticle texture, nail with gel polish, slight reflection on polish surface, natural nail shape — slightly oval, cuticle pushed back naturally, skin texture around nail bed, slight natural wear on nail edges, knuckle skin texture visible, 100mm macro, f/4, studio light, Sony A7R IV, RAW`,
+    negativePrompt: `CGI nails, perfect nails, plastic, fake, artificial, uniform skin, too shiny, glass nails, unrealistic length`,
+    camera: `100mm macro
+f/4
+Extreme close-up
+Sony A7R IV`,
+    lighting: `Soft studio light
+Shows nail reflection naturally
+Reveals skin texture`,
+    whyItWorks: `Natural nails have slight wear at edges, natural cuticle texture, and realistic polish reflection. The skin around the nail bed has its own texture and melanin variation.`,
+    mistakes: `Glass-smooth nails with zero natural wear or cuticle texture look immediately AI-generated. Real manicures have natural variation.`,
+  },
+  'Typing on Keyboard': {
+    prompt: `Realistic hands typing on laptop keyboard, Black woman hands, natural typing position with slight finger bend, skin compression on fingertips touching keys, natural hand angle during typing, melanin-rich skin visible between keys, natural knuckle texture, slight motion blur on moving fingers, wrist resting naturally, 50mm lens, f/2.8, office lighting, Sony A7R IV, RAW`,
+    negativePrompt: `perfect hands, CGI, plastic, too many fingers, distorted, artificial pose, hovering hands, fake typing`,
+    camera: `50mm lens
+f/2.8
+Medium close-up
+Sony A7R IV`,
+    lighting: `Natural office light
+Screen glow on hands
+Natural shadows`,
+    whyItWorks: `Typing hands have specific positions — slight finger bend, fingertip compression on keys, wrist angle. The screen glow adds natural environmental lighting to the hands.`,
+    mistakes: `Perfectly flat hovering hands that aren't actually touching the keys. Real typing has contact, compression, and natural motion.`,
+  },
+  'Natural Vein Detail': {
+    prompt: `Close-up back of hand, Black woman, natural vein structure visible under skin, melanin-rich skin with natural tonal variation between knuckles and smooth skin, natural aging texture on knuckles, slight natural roughness, realistic nail base without polish, natural hand relaxed flat, skin pores on back of hand visible, 100mm macro, f/4, side raking light, Sony A7R IV, RAW`,
+    negativePrompt: `smooth hands, plastic, CGI, no veins, artificial, uniform skin tone, fake, airbrushed`,
+    camera: `100mm macro
+f/4
+Raking side light
+Sony A7R IV`,
+    lighting: `Raking side light
+Reveals vein structure
+Shows skin texture`,
+    whyItWorks: `Veins under skin are one of the most human details you can add to hands. Natural knuckle darkness in melanin-rich skin, pores on the back of the hand, and natural roughness all signal real human hands.`,
+    mistakes: `Perfectly smooth backs of hands without any texture or vein visibility look plastic. Real hands always have texture, especially around knuckles.`,
+  },
+}
+
+function HandsLab({ onComplete }: { onComplete: () => void }) {
+  const [selectedLesson, setSelectedLesson] = useState('Holding a Phone')
+  const [completedLessons, setCompletedLessons] = useState<string[]>([])
+
+  return (
+    <div className="pg-in">
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(234,53,130,0.5)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Lab 05</div>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '32px', fontWeight: 400, color: 'var(--w)', marginBottom: '4px' }}>
+          Hands <span style={{ color: 'var(--pink)' }}>Lab</span>
+        </div>
+        <div style={{ fontSize: '13px', color: 'var(--mu3)', marginBottom: '8px' }}>The most requested and most difficult section. Master hand realism and your AI images will be undetectable.</div>
+        <div style={{ background: 'var(--og)', border: '0.5px solid var(--ob)', borderRadius: '8px', padding: '10px 14px', marginBottom: '12px', fontSize: '12px', color: 'var(--orange)' }}>
+          ⚡ Pro Tip: Hands are the #1 way people spot AI images. Master this lab and your content will be undeniable.
+        </div>
+        <span className="tag tag-pink">{completedLessons.length}/{Object.keys(HANDS_LESSONS).length} completed</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: '20px' }}>
+        <div>
+          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(234,53,130,0.4)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>Lessons</div>
+          {Object.keys(HANDS_LESSONS).map(lesson => (
+            <div key={lesson} className={`lesson-card ${selectedLesson === lesson ? 'active' : ''}`} onClick={() => setSelectedLesson(lesson)}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: '12px', color: selectedLesson === lesson ? 'var(--pink)' : 'var(--w2)', fontWeight: selectedLesson === lesson ? 600 : 400 }}>{lesson}</div>
+                {completedLessons.includes(lesson) && <span style={{ color: '#00ff88', fontSize: '12px' }}>✓</span>}
+              </div>
+            </div>
+          ))}
+          <button className="r-btn" onClick={() => { if (!completedLessons.includes(selectedLesson)) setCompletedLessons(prev => [...prev, selectedLesson]) }} style={{ width: '100%', fontSize: '11px', padding: '9px', marginTop: '12px' }}>Mark Complete ✓</button>
+          {completedLessons.length === Object.keys(HANDS_LESSONS).length && (
+            <button className="ghost-r" onClick={onComplete} style={{ width: '100%', fontSize: '11px', padding: '9px', marginTop: '8px' }}>Continue to Clothing Lab →</button>
+          )}
+        </div>
+        <div>
+          <LessonGenerator key={selectedLesson} lesson={HANDS_LESSONS[selectedLesson]} labName="Hands Lab" onImagesGenerated={() => { if (!completedLessons.includes(selectedLesson)) setCompletedLessons(prev => [...prev, selectedLesson]) }} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── CLOTHING LAB ──────────────────────────────────────────────
+const CLOTHING_LESSONS: Record<string, Lesson> = {
+  'Denim Realism': {
+    prompt: `Close-up denim jeans on Black woman, realistic denim texture with visible weave, natural fading pattern from wear, stress marks at pocket corners, slight whisker creases at thighs, natural fabric drape, stitching visible on seams, belt loop texture, waistband sitting naturally on body with slight compression, 85mm, f/2.8, natural light, Sony A7R IV, RAW photo`,
+    negativePrompt: `perfect denim, CGI fabric, plastic looking, artificial texture, no texture, flat, uniform color, fake fading`,
+    camera: `85mm lens
+f/2.8
+Medium close-up
+Sony A7R IV`,
+    lighting: `Natural side light
+Shows fabric texture
+Reveals weave detail`,
+    whyItWorks: `Real denim has wear patterns that form from use — whisker creases at the thighs, stress marks at stress points, and natural fading. These details cannot be perfectly uniform.`,
+    mistakes: `Perfectly uniform denim with no wear or texture variation immediately reads as AI. Real denim tells the story of the person wearing it.`,
+  },
+  'Silk & Satin': {
+    prompt: `Silk dress on Black woman, natural silk drape and movement, realistic reflection on silk surface — not uniformly shiny, natural fabric pooling and gathering, subtle color shift as fabric moves, slight wrinkle at body contact points, natural bias cut movement, 85mm, f/2, soft studio light, Sony A7R IV, RAW photo`,
+    negativePrompt: `plastic silk, CGI reflection, uniform shine, artificial drape, fake fabric, too shiny, reflective plastic`,
+    camera: `85mm lens
+f/2
+Full or medium shot
+Sony A7R IV`,
+    lighting: `Soft directional studio light
+Shows silk movement
+Natural reflection`,
+    whyItWorks: `Silk has a complex light interaction — it shifts color as it moves and doesn't reflect uniformly. Natural gathering and pooling at body curves creates authentic fabric behavior.`,
+    mistakes: `Uniform metallic shine on silk looks like plastic wrap. Real silk has variation in sheen based on the angle of light and fabric direction.`,
+  },
+  'Clothing Compression': {
+    prompt: `Close-up clothing compression on body, Black woman wearing fitted outfit, natural skin pushing against fabric, realistic compression rolls at waistband, fabric stretched over curves, natural wrinkle formation at joint areas — elbow, knee, hip, fabric stress lines pointing toward body tension points, realistic fabric give and stretch, 50mm, f/2.8, natural light, Sony A7R IV, RAW`,
+    negativePrompt: `perfect fit, no compression, unrealistic, CGI, plastic body, seamless clothing, artificial drape`,
+    camera: `50mm lens
+f/2.8
+Medium shot
+Sony A7R IV`,
+    lighting: `Natural light
+Shows fabric detail
+Slight side angle`,
+    whyItWorks: `Clothing interacts with bodies in specific ways — compression at tight spots, natural wrinkle formation at joints, and stress lines pointing toward tension points. These physics-based details sell realism.`,
+    mistakes: `Clothing that fits with zero compression or wrinkles on a real body doesn't exist. Even the most fitted clothes create some interaction with the body.`,
+  },
+  'Wet Clothing': {
+    prompt: `Portrait Black woman with wet clothing, fabric darkened from water, wet fabric clinging to body naturally, water droplets on fabric surface, fabric texture more visible when wet, natural wet fabric weight pulling garment down, water marks and wet patterns natural, hair wet and sticking to neck, 50mm, f/2, natural outdoor light, Sony A7R IV, RAW photo`,
+    negativePrompt: `perfect wet look, CGI wet, uniform wet pattern, plastic wet fabric, artificial, fake water`,
+    camera: `50mm lens
+f/2
+Medium shot
+Natural light`,
+    lighting: `Natural outdoor light
+Overcast preferred
+Shows wet texture`,
+    whyItWorks: `Wet clothing follows specific physical rules — fabric darkens unevenly, clings to body in natural patterns based on water flow and gravity, and the weight changes how it drapes.`,
+    mistakes: `Uniformly wet fabric with perfect wet patterns doesn't exist. Water flows naturally and creates irregular wet patterns.`,
+  },
+}
+
+function ClothingLab({ onComplete }: { onComplete: () => void }) {
+  const [selectedLesson, setSelectedLesson] = useState('Denim Realism')
+  const [completedLessons, setCompletedLessons] = useState<string[]>([])
+
+  return (
+    <div className="pg-in">
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(234,53,130,0.5)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Lab 06</div>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '32px', fontWeight: 400, color: 'var(--w)', marginBottom: '4px' }}>
+          Clothing <span style={{ color: 'var(--pink)' }}>Lab</span>
+        </div>
+        <div style={{ fontSize: '13px', color: 'var(--mu3)', marginBottom: '8px' }}>Master fabric realism — folds, texture, compression, and movement that makes clothing feel real and wearable.</div>
+        <span className="tag tag-pink">{completedLessons.length}/{Object.keys(CLOTHING_LESSONS).length} completed</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: '20px' }}>
+        <div>
+          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(234,53,130,0.4)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>Lessons</div>
+          {Object.keys(CLOTHING_LESSONS).map(lesson => (
+            <div key={lesson} className={`lesson-card ${selectedLesson === lesson ? 'active' : ''}`} onClick={() => setSelectedLesson(lesson)}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: '12px', color: selectedLesson === lesson ? 'var(--pink)' : 'var(--w2)', fontWeight: selectedLesson === lesson ? 600 : 400 }}>{lesson}</div>
+                {completedLessons.includes(lesson) && <span style={{ color: '#00ff88', fontSize: '12px' }}>✓</span>}
+              </div>
+            </div>
+          ))}
+          <button className="r-btn" onClick={() => { if (!completedLessons.includes(selectedLesson)) setCompletedLessons(prev => [...prev, selectedLesson]) }} style={{ width: '100%', fontSize: '11px', padding: '9px', marginTop: '12px' }}>Mark Complete ✓</button>
+          {completedLessons.length === Object.keys(CLOTHING_LESSONS).length && (
+            <button className="ghost-r" onClick={onComplete} style={{ width: '100%', fontSize: '11px', padding: '9px', marginTop: '8px' }}>Continue to Camera Lab →</button>
+          )}
+        </div>
+        <div>
+          <LessonGenerator key={selectedLesson} lesson={CLOTHING_LESSONS[selectedLesson]} labName="Clothing Lab" onImagesGenerated={() => { if (!completedLessons.includes(selectedLesson)) setCompletedLessons(prev => [...prev, selectedLesson]) }} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── CAMERA LAB ────────────────────────────────────────────────
+const CAMERA_LESSONS: Record<string, Lesson> = {
+  '50mm Standard': {
+    prompt: `Portrait Black woman shot on 50mm lens, natural perspective with no distortion, background compression natural, subject to background relationship realistic, natural depth of field at f/1.8, slight bokeh on background elements, face proportions natural and undistorted, environmental context visible, Sony A7R IV, 50mm f/1.8, ISO 400, natural light, RAW photo`,
+    negativePrompt: `wide angle distortion, fisheye, telephoto compression, artificial perspective, CGI`,
+    camera: `50mm lens — the "nifty fifty"
+f/1.8 aperture
+ISO 400
+Sony A7R IV
+Natural perspective`,
+    lighting: `Natural light
+No flash
+Available light photography`,
+    whyItWorks: `The 50mm lens sees the world closest to how the human eye perceives it. No distortion, natural proportions, and beautiful background separation at f/1.8. This is the most versatile lens for AI influencer content.`,
+    mistakes: `Mixing perspective cues from different focal lengths in one image — background appears too compressed (telephoto) with too-wide foreground (wide angle). Specify your lens and stick to its characteristics.`,
+    videoPrompt: `Shot on Sony A7R IV 50mm f/1.8, slow natural camera movement, handheld slight motion, subject breathing visible, natural perspective maintained throughout`,
+  },
+  '85mm Portrait': {
+    prompt: `Portrait Black woman shot on 85mm lens, beautiful subject to background compression, background elements pleasingly out of focus, face filling frame naturally, no wide angle distortion, beautiful bokeh quality, natural skin rendering, subject standing 6-8 feet from background, Sony A7R IV, 85mm f/1.4, ISO 400, natural window light, RAW photo`,
+    negativePrompt: `wide angle, fisheye, distorted face, flat background, no bokeh, CGI, artificial`,
+    camera: `85mm lens — portrait king
+f/1.4 aperture
+ISO 400
+Sony A7R IV
+6-8ft subject to background`,
+    lighting: `Natural window light
+Soft and flattering
+Background separate from subject`,
+    whyItWorks: `The 85mm is called the portrait lens for a reason — it compresses the background beautifully while keeping facial proportions natural. At f/1.4, the bokeh is so smooth it feels cinematic.`,
+    mistakes: `Specifying 85mm but the image shows wide angle perspective — AI often ignores lens specifications. Reinforce with "beautiful background compression, subject clearly separated from background".`,
+    videoPrompt: `85mm cinematic portrait, slow dolly in, beautiful background bokeh constant, face sharp throughout movement, Sony A7R IV`,
+  },
+  '35mm Lifestyle': {
+    prompt: `Lifestyle shot Black woman shot on 35mm lens, natural environmental context visible, slight perspective that places subject in scene, natural depth with foreground elements, environmental storytelling, subject interacting with space, wider context of location visible, Sony A7R IV, 35mm f/2, ISO 800, natural available light, RAW photo, candid moment`,
+    negativePrompt: `fisheye distortion, too wide, face distortion, artificial perspective, CGI, posed`,
+    camera: `35mm lens — lifestyle choice
+f/2 aperture
+ISO 800
+Sony A7R IV
+Environmental portrait`,
+    lighting: `Available natural light
+Environmental light sources
+No controlled lighting`,
+    whyItWorks: `35mm places the subject in their environment naturally. You see where they are, what surrounds them, and get environmental context. Perfect for lifestyle and vlog-style content.`,
+    mistakes: `35mm has slight perspective enhancement — objects closer to the lens appear slightly larger. This can create mild distortion if the subject is too close to camera. Keep subject at natural distance.`,
+    videoPrompt: `35mm handheld lifestyle video, natural camera shake, environmental audio implied, wide context visible, candid movement, Sony A7R IV`,
+  },
+  'iPhone Aesthetic': {
+    prompt: `Portrait mode iPhone aesthetic photo, Black woman, natural computational portrait mode bokeh, realistic portrait mode edge detection — slight halo at hair edges, natural iPhone color processing — slightly warm, portrait lighting mode creating soft shadows, realistic iPhone camera grain at low light, 26mm equivalent focal length perspective, natural iPhone skin smoothing but not excessive, casual social media aesthetic`,
+    negativePrompt: `DSLR quality, professional photography, no grain, artificial iPhone look, CGI, fake portrait mode`,
+    camera: `iPhone 15 Pro equivalent
+26mm main camera
+Portrait mode
+Computational photography`,
+    lighting: `iPhone portrait lighting
+Studio light mode or natural
+Computational bokeh`,
+    whyItWorks: `iPhone photos have a distinct look — warm color processing, computational portrait mode with characteristic edge behavior, and a certain quality that everyone recognizes as phone photography. This creates an authentic social media feel.`,
+    mistakes: `Making iPhone shots look too perfect or DSLR-quality defeats the purpose. iPhone aesthetic has its own beautiful imperfections — slight softness, computational artifacts, warm processing.`,
+    videoPrompt: `iPhone cinematic mode video, 1080p, natural stabilization, slight warmth, portrait mode depth effect, authentic phone video quality`,
+  },
+  'Macro Close-Up': {
+    prompt: `Macro photography extreme close-up, Black woman skin detail, 100mm macro lens, f/4 for depth, incredible skin detail — individual pores visible in sharp focus, subsurface texture, micro hair, sharp focus plane with dramatic falloff, bokeh so smooth background disappears, macro photography aesthetic, Sony A7R IV, 100mm macro, f/4, ring flash fill, RAW`,
+    negativePrompt: `smooth skin, no pores, plastic, CGI, flat focus, no depth, artificial macro`,
+    camera: `100mm macro lens
+f/4
+Macro extension
+Sony A7R IV
+Ring flash or LED panel`,
+    lighting: `Ring flash for macro
+Even illumination
+Reveals all texture detail`,
+    whyItWorks: `Macro photography reveals incredible skin detail that the naked eye can barely see. Individual pores, micro-texture, subsurface patterns — all of these create undeniable human realism at the macro scale.`,
+    mistakes: `Macro without extreme depth of field loss looks wrong. Real macro has very shallow depth — only a paper-thin plane of focus at extreme close distances.`,
+  },
+}
+
+function CameraLab({ onComplete }: { onComplete: () => void }) {
+  const [selectedLesson, setSelectedLesson] = useState('50mm Standard')
+  const [completedLessons, setCompletedLessons] = useState<string[]>([])
+
+  return (
+    <div className="pg-in">
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(234,53,130,0.5)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Lab 07</div>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '32px', fontWeight: 400, color: 'var(--w)', marginBottom: '4px' }}>
+          Camera <span style={{ color: 'var(--pink)' }}>Lab</span>
+        </div>
+        <div style={{ fontSize: '13px', color: 'var(--mu3)', marginBottom: '8px' }}>Understanding lenses changes everything. Each focal length creates a completely different world — master them all.</div>
+        <span className="tag tag-pink">{completedLessons.length}/{Object.keys(CAMERA_LESSONS).length} completed</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: '20px' }}>
+        <div>
+          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(234,53,130,0.4)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>Lessons</div>
+          {Object.keys(CAMERA_LESSONS).map(lesson => (
+            <div key={lesson} className={`lesson-card ${selectedLesson === lesson ? 'active' : ''}`} onClick={() => setSelectedLesson(lesson)}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: '12px', color: selectedLesson === lesson ? 'var(--pink)' : 'var(--w2)', fontWeight: selectedLesson === lesson ? 600 : 400 }}>{lesson}</div>
+                {completedLessons.includes(lesson) && <span style={{ color: '#00ff88', fontSize: '12px' }}>✓</span>}
+              </div>
+            </div>
+          ))}
+          <button className="r-btn" onClick={() => { if (!completedLessons.includes(selectedLesson)) setCompletedLessons(prev => [...prev, selectedLesson]) }} style={{ width: '100%', fontSize: '11px', padding: '9px', marginTop: '12px' }}>Mark Complete ✓</button>
+          {completedLessons.length === Object.keys(CAMERA_LESSONS).length && (
+            <button className="ghost-r" onClick={onComplete} style={{ width: '100%', fontSize: '11px', padding: '9px', marginTop: '8px' }}>Continue to Lighting Lab →</button>
+          )}
+        </div>
+        <div>
+          <LessonGenerator key={selectedLesson} lesson={CAMERA_LESSONS[selectedLesson]} labName="Camera Lab" onImagesGenerated={() => { if (!completedLessons.includes(selectedLesson)) setCompletedLessons(prev => [...prev, selectedLesson]) }} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ComingSoon({ labName, icon, num }: { labName: string; icon: string; num: string }) {
   return (
     <div className="pg-in">
@@ -880,10 +1294,6 @@ export default function RealismStudioPage() {
   }
 
   const comingSoonLabs = [
-    { id: 'body', name: 'Body Lab', icon: '💪', num: '04' },
-    { id: 'hands', name: 'Hands Lab', icon: '✋', num: '05' },
-    { id: 'clothing', name: 'Clothing Lab', icon: '👗', num: '06' },
-    { id: 'camera', name: 'Camera Lab', icon: '📷', num: '07' },
     { id: 'lighting', name: 'Lighting Lab', icon: '💡', num: '08' },
     { id: 'pose', name: 'Pose Lab', icon: '🧍', num: '09' },
     { id: 'video', name: 'Video Lab', icon: '🎥', num: '10' },
@@ -946,7 +1356,14 @@ export default function RealismStudioPage() {
               {activeLab === 'face' && <FaceLab onComplete={() => { completeLab('face'); setActiveLab('skin') }} />}
               {activeLab === 'skin' && <SkinLab onComplete={() => { completeLab('skin'); setActiveLab('hair') }} />}
               {activeLab === 'hair' && <HairLab onComplete={() => { completeLab('hair'); setActiveLab('body') }} />}
-              {comingSoonLabs.map(lab => activeLab === lab.id && <ComingSoon key={lab.id} labName={lab.name} icon={lab.icon} num={lab.num} />)}
+              {activeLab === 'body' && <BodyLab onComplete={() => { completeLab('body'); setActiveLab('hands') }} />}
+              {activeLab === 'hands' && <HandsLab onComplete={() => { completeLab('hands'); setActiveLab('clothing') }} />}
+              {activeLab === 'clothing' && <ClothingLab onComplete={() => { completeLab('clothing'); setActiveLab('camera') }} />}
+              {activeLab === 'camera' && <CameraLab onComplete={() => { completeLab('camera'); setActiveLab('lighting') }} />}
+              {['lighting','pose','video','social','consistency','library','builder','score'].map(id => {
+                const lab = comingSoonLabs.find(l => l.id === id)
+                return lab && activeLab === id ? <ComingSoon key={id} labName={lab.name} icon={lab.icon} num={lab.num} /> : null
+              })}
             </main>
           </div>
         </AccessGate>
