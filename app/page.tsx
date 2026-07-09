@@ -144,7 +144,7 @@ const APPS = [
     tools: ['Pinterest Layout', 'Scene Breakdowns', 'Elite Features', 'Student Pipeline', 'Community'],
   },
 ]
-
+ 
 
 export default function HomePage() {
   const { user } = useUser()
