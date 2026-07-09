@@ -143,6 +143,21 @@ const APPS = [
     tag: 'All Schools',
     tools: ['Pinterest Layout', 'Scene Breakdowns', 'Elite Features', 'Student Pipeline', 'Community'],
   },
+  {
+    id: 'realism',
+    name: 'Realism Studio™',
+    full: 'Envi Lee Realism Studio™',
+    desc: 'The AI Realism Operating System — 15 labs to master photorealistic human generation',
+    icon: '◉',
+    path: '/realism',
+    accent: '#ea3582',
+    accent2: '#ee732d',
+    gradient: 'linear-gradient(135deg, #ea3582, #ee732d)',
+    border: 'rgba(234,53,130,0.4)',
+    glow: 'rgba(234,53,130,0.15)',
+    tag: 'Academy Students',
+    tools: ['Face Lab', 'Skin Lab', 'Hair Lab', 'Body Lab', 'Realism Score™'],
+  },
 ]
 
 
