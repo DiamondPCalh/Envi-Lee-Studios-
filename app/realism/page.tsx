@@ -215,7 +215,7 @@ function RealismScoreCard({ score, onClose }: { score: ScoreData; onClose: () =>
 
 // ── LESSON GENERATOR ──────────────────────────────────────────
 interface Lesson {
-  title: string
+  title?: string
   prompt: string
   negativePrompt: string
   camera: string
