@@ -1964,6 +1964,394 @@ function ConsistencyLab({ onComplete }: { onComplete: () => void }) {
   )
 }
 
+
+// ── REALISM SCORE™ LAB ────────────────────────────────────────
+function RealismScoreLab() {
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null)
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null)
+  const [prompt, setPrompt] = useState('')
+  const [scoring, setScoring] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [scoreData, setScoreData] = useState<ScoreData | null>(null)
+  const [history, setHistory] = useState<Array<{ image: string; score: ScoreData; prompt: string; date: string }>>([])
+  const [activeTab, setActiveTab] = useState<'score' | 'generate' | 'history' | 'learn'>('score')
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const saved = JSON.parse(localStorage.getItem('realismScoreHistory') || '[]')
+    setHistory(saved)
+  }, [])
+
+  function handleImageUpload(file: File) {
+    const reader = new FileReader()
+    reader.onload = e => setUploadedImage(e.target?.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  async function scoreImage(imageUrl: string, imagePrompt: string) {
+    setScoring(true)
+    setScoreData(null)
+    try {
+      const res = await fetch('/api/realism/score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl, labName: 'Realism Score™ Lab', prompt: imagePrompt }),
+      })
+      const data = await res.json()
+      setScoreData(data.score)
+      // Save to history
+      const newEntry = { image: imageUrl, score: data.score, prompt: imagePrompt, date: new Date().toISOString() }
+      const updated = [newEntry, ...history].slice(0, 20)
+      setHistory(updated)
+      localStorage.setItem('realismScoreHistory', JSON.stringify(updated))
+    } catch (e) {
+      console.error(e)
+    }
+    setScoring(false)
+  }
+
+  async function generateAndScore() {
+    if (!prompt.trim()) return
+    setGenerating(true)
+    setScoreData(null)
+    setGeneratedImage(null)
+    try {
+      const res = await fetch('/api/generate/image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, style: 'cinematic', size: 'portrait' }),
+      })
+      const data = await res.json()
+      if (data.imageUrl) {
+        setGeneratedImage(data.imageUrl)
+        setGenerating(false)
+        await scoreImage(data.imageUrl, prompt)
+      }
+    } catch (e) { console.error(e) }
+    setGenerating(false)
+  }
+
+  function getColor(n: number) { return n >= 80 ? '#00ff88' : n >= 60 ? 'var(--orange)' : 'var(--pink)' }
+  function getLabel(n: number) { return n >= 85 ? '✦ Excellent' : n >= 70 ? '◈ Good' : n >= 55 ? '⚠ Needs Work' : '✕ Improve' }
+  function getAdvice(n: number) { return n >= 85 ? 'This is undeniable. Keep this approach.' : n >= 70 ? 'Good realism. Small tweaks will push it higher.' : n >= 55 ? 'The AI is showing. Focus on the weak areas below.' : 'Significant AI tells present. Study the relevant lab.' }
+
+  const categories = scoreData ? [
+    { label: 'Skin Texture', score: scoreData.skin, lab: 'skin', tip: 'Go to Skin Lab' },
+    { label: 'Face Realism', score: scoreData.face, lab: 'face', tip: 'Go to Face Lab' },
+    { label: 'Hair Detail', score: scoreData.hair, lab: 'hair', tip: 'Go to Hair Lab' },
+    { label: 'Hand Accuracy', score: scoreData.hands, lab: 'hands', tip: 'Go to Hands Lab' },
+    { label: 'Lighting Quality', score: scoreData.lighting, lab: 'lighting', tip: 'Go to Lighting Lab' },
+    { label: 'Fabric Realism', score: scoreData.fabric, lab: 'clothing', tip: 'Go to Clothing Lab' },
+    { label: 'Anatomy', score: scoreData.anatomy, lab: 'body', tip: 'Go to Body Lab' },
+  ] : []
+
+  return (
+    <div className="pg-in">
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(234,53,130,0.5)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Lab 15</div>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '32px', fontWeight: 400, color: 'var(--w)', marginBottom: '4px' }}>
+          Realism <span style={{ color: 'var(--pink)' }}>Score™</span>
+        </div>
+        <div style={{ fontSize: '13px', color: 'var(--mu3)', marginBottom: '16px' }}>
+          Upload any AI-generated image and get a detailed realism analysis — what works, what's off, and exactly how to improve it.
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '24px', flexWrap: 'wrap' as const }}>
+        {[
+          ['score', '⭐ Score My Image'],
+          ['generate', '◈ Generate & Score'],
+          ['history', '◉ Score History'],
+          ['learn', '📖 What Gets Scored'],
+        ].map(([id, label]) => (
+          <button key={id} onClick={() => setActiveTab(id as 'score' | 'generate' | 'history' | 'learn')}
+            style={{ padding: '8px 16px', borderRadius: '20px', fontSize: '11px', fontWeight: 500, cursor: 'pointer', border: `0.5px solid ${activeTab === id ? 'var(--pb)' : 'rgba(234,53,130,0.1)'}`, background: activeTab === id ? 'var(--pg)' : 'transparent', color: activeTab === id ? 'var(--pink)' : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif", transition: 'all .2s' }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* SCORE TAB */}
+      {activeTab === 'score' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+          {/* Upload */}
+          <div>
+            <div className="card hi" style={{ marginBottom: '14px' }}>
+              <div className="ftitle">Upload Your AI Image</div>
+              <div
+                style={{ border: '1.5px dashed rgba(234,53,130,0.2)', borderRadius: '10px', minHeight: '240px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: 'var(--pg)', overflow: 'hidden', position: 'relative' }}
+                onClick={() => !uploadedImage && fileRef.current?.click()}
+                onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleImageUpload(f) }}
+                onDragOver={e => e.preventDefault()}>
+                <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleImageUpload(f) }} />
+                {uploadedImage ? (
+                  <>
+                    <img src={uploadedImage} alt="uploaded" style={{ width: '100%', display: 'block' }} />
+                    <div style={{ position: 'absolute', top: '8px', right: '8px', display: 'flex', gap: '5px' }}>
+                      <button onClick={e => { e.stopPropagation(); fileRef.current?.click() }} style={{ padding: '4px 10px', borderRadius: '5px', background: 'rgba(0,0,0,0.8)', color: 'var(--pink)', fontSize: '10px', border: 'none', cursor: 'pointer' }}>Replace</button>
+                      <button onClick={e => { e.stopPropagation(); setUploadedImage(null); setScoreData(null) }} style={{ padding: '4px 10px', borderRadius: '5px', background: 'rgba(0,0,0,0.8)', color: '#ff6b9d', fontSize: '10px', border: 'none', cursor: 'pointer' }}>Clear</button>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ textAlign: 'center', opacity: 0.6 }}>
+                    <div style={{ fontSize: '36px', marginBottom: '10px' }}>📸</div>
+                    <div style={{ fontSize: '13px', color: 'var(--mu3)', marginBottom: '4px' }}>Drop image here or click to upload</div>
+                    <div style={{ fontSize: '11px', color: 'var(--mu2)' }}>JPG, PNG, WEBP — any AI generated image</div>
+                  </div>
+                )}
+              </div>
+            </div>
+            {uploadedImage && (
+              <button className="r-btn" onClick={() => scoreImage(uploadedImage, 'Uploaded image for realism analysis')} disabled={scoring} style={{ width: '100%', fontSize: '13px' }}>
+                {scoring ? '⟳ Analyzing realism…' : '⭐ Get Realism Score™'}
+              </button>
+            )}
+            {scoring && <div className="lbar" style={{ marginTop: '10px' }}><div className="lbar-fill" /></div>}
+          </div>
+
+          {/* Score result */}
+          <div>
+            {scoreData ? (
+              <div>
+                {/* Overall score */}
+                <div style={{ background: 'var(--s1)', border: '0.5px solid var(--pb)', borderRadius: '14px', padding: '24px', marginBottom: '14px', textAlign: 'center' }}>
+                  <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(234,53,130,0.5)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Overall Realism Score™</div>
+                  <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '72px', fontWeight: 900, background: 'var(--r-grad)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', lineHeight: 1, marginBottom: '8px' }}>
+                    {scoreData.overall}
+                  </div>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: getColor(scoreData.overall), marginBottom: '6px' }}>{getLabel(scoreData.overall)}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--mu3)', lineHeight: '1.6' }}>{getAdvice(scoreData.overall)}</div>
+                </div>
+
+                {/* Category breakdown */}
+                <div className="card hi" style={{ marginBottom: '14px' }}>
+                  <div className="ftitle">Category Breakdown</div>
+                  {categories.map(cat => (
+                    <div key={cat.label} style={{ marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '12px', color: 'var(--w2)' }}>{cat.label}</span>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 700, color: getColor(cat.score) }}>{cat.score}</span>
+                          {cat.score < 70 && (
+                            <span style={{ fontSize: '9px', padding: '2px 7px', background: 'var(--pg)', border: '0.5px solid var(--pb)', borderRadius: '20px', color: 'var(--pink)', fontFamily: "'DM Mono',monospace", cursor: 'pointer' }}>Study {cat.tip.replace('Go to ', '')}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="score-bar">
+                        <div className="score-fill" style={{ width: `${cat.score}%`, background: getColor(cat.score), transition: 'width 1.2s ease' }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Improvement tips */}
+                {scoreData.tips.length > 0 && (
+                  <div className="card">
+                    <div className="ftitle">💡 How to Improve This Score</div>
+                    {scoreData.tips.map((tip, i) => (
+                      <div key={i} style={{ display: 'flex', gap: '10px', marginBottom: '10px', padding: '10px', background: 'var(--bg3)', borderRadius: '8px' }}>
+                        <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'var(--pg)', border: '0.5px solid var(--pb)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '10px', color: 'var(--pink)', fontWeight: 700 }}>{i + 1}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--w2)', lineHeight: '1.6' }}>{tip}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="card" style={{ textAlign: 'center', padding: '60px 20px', opacity: 0.5 }}>
+                <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }}>⭐</div>
+                <div style={{ fontSize: '13px', color: 'var(--mu3)', marginBottom: '6px' }}>Upload an image to get your Realism Score™</div>
+                <div style={{ fontSize: '11px', color: 'var(--mu2)' }}>AI analyzes 7 categories of realism</div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* GENERATE & SCORE TAB */}
+      {activeTab === 'generate' && (
+        <div>
+          <div className="card hi" style={{ marginBottom: '20px' }}>
+            <div className="ftitle">Write a Prompt — Generate & Score Instantly</div>
+            <textarea className="fta" style={{ minHeight: '120px', marginBottom: '12px' }}
+              placeholder="Write your realism prompt here — apply everything you've learned in the labs. The AI will generate the image AND score it for realism instantly..."
+              value={prompt} onChange={e => setPrompt(e.target.value)} />
+            <div style={{ background: 'var(--og)', border: '0.5px solid var(--ob)', borderRadius: '8px', padding: '10px 14px', marginBottom: '12px', fontSize: '11px', color: 'var(--orange)', lineHeight: '1.6' }}>
+              💡 Remember: Include visible pores, natural texture, Sony A7R IV, 50mm f/1.8, RAW photo, no smoothing, no filter
+            </div>
+            <button className="r-btn" onClick={generateAndScore} disabled={generating || scoring || !prompt.trim()} style={{ width: '100%', fontSize: '13px' }}>
+              {generating ? '◈ Generating image…' : scoring ? '⭐ Scoring realism…' : '◈ Generate + Score with Nano Banana Pro'}
+            </button>
+            {(generating || scoring) && <div className="lbar" style={{ marginTop: '10px' }}><div className="lbar-fill" /></div>}
+          </div>
+
+          {(generatedImage || generating) && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <div>
+                <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'var(--pink)', textTransform: 'uppercase', letterSpacing: '.8px', marginBottom: '8px' }}>Generated Image</div>
+                <div className="image-window" style={{ minHeight: '320px' }}>
+                  {generating ? (
+                    <div style={{ textAlign: 'center', padding: '30px' }}>
+                      <div className="lbar" style={{ width: '80px', margin: '0 auto 10px' }}><div className="lbar-fill" /></div>
+                      <div style={{ fontSize: '12px', color: 'var(--pink)' }}>Generating with Nano Banana Pro…</div>
+                    </div>
+                  ) : generatedImage ? (
+                    <>
+                      <img src={generatedImage} alt="Generated" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <div style={{ position: 'absolute', bottom: '6px', right: '6px' }}>
+                        <a href={generatedImage} download style={{ padding: '4px 10px', borderRadius: '5px', background: 'rgba(0,0,0,0.8)', color: 'var(--pink)', fontSize: '10px', textDecoration: 'none' }}>⬇ Download</a>
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+
+              <div>
+                {scoreData ? (
+                  <div>
+                    <div style={{ textAlign: 'center', padding: '20px', background: 'var(--s1)', border: '0.5px solid var(--pb)', borderRadius: '12px', marginBottom: '12px' }}>
+                      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '56px', fontWeight: 900, background: 'var(--r-grad)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', lineHeight: 1, marginBottom: '6px' }}>{scoreData.overall}</div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: getColor(scoreData.overall) }}>{getLabel(scoreData.overall)}</div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                      {categories.map(cat => (
+                        <div key={cat.label} style={{ padding: '8px 10px', background: 'var(--bg3)', borderRadius: '8px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                            <span style={{ fontSize: '10px', color: 'var(--mu3)' }}>{cat.label}</span>
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: getColor(cat.score) }}>{cat.score}</span>
+                          </div>
+                          <div className="score-bar">
+                            <div className="score-fill" style={{ width: `${cat.score}%`, background: getColor(cat.score) }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {scoreData.tips.map((tip, i) => (
+                      <div key={i} className="tip-box" style={{ marginBottom: '6px', fontSize: '11px' }}>→ {tip}</div>
+                    ))}
+                  </div>
+                ) : scoring ? (
+                  <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
+                    <div className="lbar" style={{ width: '80px', margin: '0 auto 10px' }}><div className="lbar-fill" /></div>
+                    <div style={{ fontSize: '12px', color: 'var(--pink)' }}>Analyzing realism across 7 categories…</div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* HISTORY TAB */}
+      {activeTab === 'history' && (
+        <div>
+          <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '18px', fontWeight: 700, color: 'var(--w)', marginBottom: '16px' }}>Your Score History</div>
+          {history.length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: '40px', opacity: 0.5 }}>
+              <div style={{ fontSize: '32px', marginBottom: '10px', opacity: 0.3 }}>⭐</div>
+              <div style={{ fontSize: '13px', color: 'var(--mu3)' }}>No scores yet — score your first image to track your progress</div>
+            </div>
+          ) : (
+            <div>
+              {/* Average score */}
+              <div style={{ background: 'var(--pg)', border: '0.5px solid var(--pb)', borderRadius: '12px', padding: '16px 20px', marginBottom: '20px', display: 'flex', gap: '20px', alignItems: 'center' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '36px', fontWeight: 900, color: 'var(--pink)' }}>
+                    {Math.round(history.reduce((sum, h) => sum + h.score.overall, 0) / history.length)}
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace", textTransform: 'uppercase' }}>Average Score</div>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '16px', fontWeight: 700, color: 'var(--w)', marginBottom: '4px' }}>Your Realism Journey</div>
+                  <div style={{ fontSize: '12px', color: 'var(--mu3)' }}>{history.length} images scored · {history.filter(h => h.score.overall >= 75).length} scored 75+</div>
+                  {history.length >= 2 && (
+                    <div style={{ fontSize: '12px', color: history[0].score.overall > history[history.length - 1].score.overall ? '#00ff88' : 'var(--orange)', marginTop: '4px' }}>
+                      {history[0].score.overall > history[history.length - 1].score.overall
+                        ? `↑ Improved by ${history[0].score.overall - history[history.length - 1].score.overall} points`
+                        : `Keep practicing — consistency builds realism`}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
+                {history.map((item, i) => (
+                  <div key={i} className="card" style={{ overflow: 'hidden' }}>
+                    <div style={{ height: '140px', overflow: 'hidden', borderRadius: '8px', marginBottom: '10px', background: 'var(--bg3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <img src={item.image} alt="scored" style={{ width: '100%', objectFit: 'cover', height: '100%' }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '22px', fontWeight: 900, color: getColor(item.score.overall) }}>{item.score.overall}</div>
+                      <span style={{ fontSize: '10px', padding: '2px 8px', background: `${getColor(item.score.overall)}20`, color: getColor(item.score.overall), borderRadius: '20px', fontFamily: "'DM Mono',monospace" }}>{getLabel(item.score.overall).replace('✦ ', '').replace('◈ ', '').replace('⚠ ', '').replace('✕ ', '')}</span>
+                    </div>
+                    <div style={{ fontSize: '10px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace" }}>{new Date(item.date).toLocaleDateString()}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--mu2)', marginTop: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{item.prompt.slice(0, 50)}…</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* LEARN TAB */}
+      {activeTab === 'learn' && (
+        <div>
+          <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '20px', fontWeight: 800, color: 'var(--w)', marginBottom: '6px' }}>What Gets Scored</div>
+          <div style={{ fontSize: '13px', color: 'var(--mu3)', marginBottom: '24px' }}>Understanding each scoring category helps you write better prompts and target the right labs.</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px' }}>
+            {[
+              { label: 'Skin Texture', score: '0-100', icon: '🔬', desc: 'Visible pores, natural surface texture, skin tone variation, subsurface scattering. Smooth plastic skin scores lowest. Visible pores with natural imperfections score highest.', lab: 'Skin Lab', weight: 'High weight' },
+              { label: 'Face Realism', score: '0-100', icon: '👁️', desc: 'Natural facial asymmetry, realistic eye reflections, natural lip texture, authentic expressions. Perfect symmetry and doll-like features score lowest.', lab: 'Face Lab', weight: 'High weight' },
+              { label: 'Hair Detail', score: '0-100', icon: '💇', desc: 'Individual strand behavior, natural texture for hair type, realistic movement, scalp visibility. Plastic-looking uniform hair scores lowest.', lab: 'Hair Lab', weight: 'Medium weight' },
+              { label: 'Hand Accuracy', score: '0-100', icon: '✋', desc: 'Correct finger count, natural proportions, knuckle texture, realistic grip. Wrong finger count and plastic hands score lowest.', lab: 'Hands Lab', weight: 'High weight' },
+              { label: 'Lighting Quality', score: '0-100', icon: '💡', desc: 'Consistent light source direction, natural shadows, realistic catchlights, environmental lighting. Ring light catchlights and flat lighting score lowest.', lab: 'Lighting Lab', weight: 'Medium weight' },
+              { label: 'Fabric Realism', score: '0-100', icon: '👗', desc: 'Natural fabric folds, compression at body contact points, realistic texture for fabric type. Floating fabric with no body interaction scores lowest.', lab: 'Clothing Lab', weight: 'Medium weight' },
+              { label: 'Anatomy', score: '0-100', icon: '💪', desc: 'Natural body proportions, realistic weight distribution, natural pose physics. Impossible body proportions and unnatural poses score lowest.', lab: 'Body Lab', weight: 'Medium weight' },
+            ].map(item => (
+              <div key={item.label} className="card hi">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '22px' }}>{item.icon}</span>
+                    <div>
+                      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '14px', fontWeight: 700, color: 'var(--pink)' }}>{item.label}</div>
+                      <div style={{ fontSize: '9px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace" }}>Scored {item.score}</div>
+                    </div>
+                  </div>
+                  <span className="tag tag-pink" style={{ fontSize: '9px' }}>{item.weight}</span>
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--w2)', lineHeight: '1.6', marginBottom: '10px' }}>{item.desc}</div>
+                <div style={{ fontSize: '10px', color: 'var(--orange)', fontFamily: "'DM Mono',monospace" }}>Study → {item.lab}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginTop: '24px', background: 'var(--pg)', border: '0.5px solid var(--pb)', borderRadius: '12px', padding: '20px' }}>
+            <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '16px', fontWeight: 700, color: 'var(--pink)', marginBottom: '10px' }}>✦ How to Consistently Score 80+</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              {[
+                'Always include "visible skin pores, natural texture"',
+                'Use Sony A7R IV + specific lens (85mm, 50mm, 35mm)',
+                'Add "natural facial asymmetry" to face prompts',
+                'Include RAW photo, no filter, no smoothing always',
+                'Specify the light source direction explicitly',
+                'Add knuckle and vein detail for hand shots',
+                'Include natural fabric interaction with body',
+                'Never use: flawless, perfect, polished, glossy',
+              ].map(tip => (
+                <div key={tip} style={{ display: 'flex', gap: '8px', fontSize: '12px', color: 'var(--w2)' }}>
+                  <span style={{ color: 'var(--pink)', flexShrink: 0 }}>✦</span>{tip}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ComingSoon({ labName, icon, num }: { labName: string; icon: string; num: string }) {
   return (
     <div className="pg-in">
@@ -2149,10 +2537,7 @@ export default function RealismStudioPage() {
               {activeLab === 'consistency' && <ConsistencyLab onComplete={() => { completeLab('consistency'); setActiveLab('library') }} />}
               {activeLab === 'library' && <PromptLibrary />}
               {activeLab === 'builder' && <ProjectBuilder />}
-              {['score'].map(id => {
-                const lab = comingSoonLabs.find(l => l.id === id)
-                return lab && activeLab === id ? <ComingSoon key={id} labName={lab.name} icon={lab.icon} num={lab.num} /> : null
-              })}
+              {activeLab === 'score' && <RealismScoreLab />}
             </main>
           </div>
         </AccessGate>
