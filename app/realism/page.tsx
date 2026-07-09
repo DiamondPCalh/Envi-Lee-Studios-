@@ -1182,6 +1182,788 @@ function CameraLab({ onComplete }: { onComplete: () => void }) {
   )
 }
 
+
+// ── LIGHTING LAB ──────────────────────────────────────────────
+const LIGHTING_LESSONS: Record<string, Lesson> = {
+  'Golden Hour': {
+    prompt: `Portrait Black woman in golden hour light, warm orange-gold sunlight hitting skin at low angle, warm color cast on melanin-rich skin, deep warm shadows on opposite side of face, slight lens flare from direct sun angle, hair lit from behind creating natural rim light, warm golden glow on surroundings, magic hour atmosphere, 85mm, f/2, ISO 800, Sony A7R IV, RAW photo`,
+    negativePrompt: `cold light, blue light, midday harsh light, studio light, ring light, artificial, CGI, flat lighting`,
+    camera: `85mm lens
+f/2
+ISO 800
+Sony A7R IV
+Golden hour timing`,
+    lighting: `Natural golden hour sun
+45-60 min before sunset
+Warm orange-gold cast
+Natural rim light from sun`,
+    whyItWorks: `Golden hour light transforms melanin-rich skin into something extraordinary — the warm tones interact with the natural undertones of Black and brown skin to create incredible warmth and depth. The low angle creates natural rim lighting.`,
+    mistakes: `Simulating golden hour with just an orange filter. Real golden hour has direction — the light comes from a low angle creating natural shadows and rim lighting. Specify the angle and direction.`,
+    videoPrompt: `Golden hour cinematic, warm light shifting slightly as sun moves, natural rim light on hair, skin glowing in warm light, 85mm Sony A7R IV, slow motion capture`,
+  },
+  'Natural Window Light': {
+    prompt: `Portrait Black woman in natural window light, soft directional light from large window left side, natural shadow falling across right side of face, soft catchlight in eyes from window shape (rectangular not circular), natural skin tone rendering, room visible in background at lower exposure, dust particles visible in light shaft, 85mm, f/2, ISO 400, Sony A7R IV, RAW photo`,
+    negativePrompt: `ring light, studio light, even flat lighting, CGI light, artificial, harsh shadows, flash`,
+    camera: `85mm lens
+f/2
+ISO 400
+Sony A7R IV
+Near window placement`,
+    lighting: `Large north-facing window
+Soft diffused natural light
+One directional source
+Natural falloff`,
+    whyItWorks: `Window light is the most flattering natural light source — soft enough to be beautiful but directional enough to create dimension. The rectangular catchlight in the eyes immediately signals natural light.`,
+    mistakes: `Circular catchlights in eyes signal ring light which signals AI photography. Always specify window-shaped catchlights or natural environmental catchlights.`,
+    videoPrompt: `Natural window light video, light subtly shifting as clouds pass, natural shadows moving slightly, dust motes visible in light beam, authentic home environment, Sony A7R IV`,
+  },
+  'Neon Night': {
+    prompt: `Portrait Black woman in neon lighting at night, pink and purple neon signs casting colored light on skin, melanin-rich skin absorbing and reflecting neon colors beautifully, natural shadows between neon light sources, slight motion blur in background from people passing, authentic nightlife environment, neon light in hair, 35mm, f/1.8, ISO 3200, Sony A7R IV, RAW photo, high grain`,
+    negativePrompt: `flat neon, CGI neon, artificial neon, no grain, clean night, studio simulated neon, plastic`,
+    camera: `35mm lens
+f/1.8
+ISO 3200
+Sony A7R IV
+High ISO night photography`,
+    lighting: `Real neon signage
+Mixed color sources
+High ISO natural grain
+No flash`,
+    whyItWorks: `Neon light on Black skin creates stunning color interactions — the saturated colors absorb into the melanin creating unique color mixing. High ISO grain at night is authentic and beautiful, not a flaw to hide.`,
+    mistakes: `Clean noiseless neon night shots don't exist without professional lighting equipment. Real nightlife photography has grain, slight motion, and imperfect color mixing.`,
+    videoPrompt: `Neon night video, ISO 3200 grain visible, neon colors shifting in reflections, natural night environment movement, authentic nightlife, Sony A7R IV 35mm`,
+  },
+  'Golden Hour Luxury Hotel': {
+    prompt: `Portrait Black woman in luxury hotel room, late afternoon golden light through sheer curtains, warm glow on skin and bedding, hotel room details visible — marble, premium textures, natural shadows from curtain folds on floor, aspirational lifestyle photography, candid moment, 50mm, f/2, ISO 640, Sony A7R IV, RAW photo`,
+    negativePrompt: `cold light, flash, flat lighting, CGI hotel, artificial, perfect lighting, studio`,
+    camera: `50mm lens
+f/2
+ISO 640
+Sony A7R IV
+Available light only`,
+    lighting: `Sheer curtain diffused golden light
+Warm luxury atmosphere
+No artificial lighting
+Golden hour only`,
+    whyItWorks: `Luxury hotel content with natural window light creates an aspirational but authentic feel. The sheer curtains diffuse golden hour light creating a soft ethereal glow while revealing the premium hotel environment.`,
+    mistakes: `Perfectly lit hotel rooms without visible light source direction look like catalog photography — beautiful but clearly artificial. The light source should be identifiable.`,
+  },
+}
+
+function LightingLab({ onComplete }: { onComplete: () => void }) {
+  const [selectedLesson, setSelectedLesson] = useState('Golden Hour')
+  const [completedLessons, setCompletedLessons] = useState<string[]>([])
+  return (
+    <div className="pg-in">
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(234,53,130,0.5)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Lab 08</div>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '32px', fontWeight: 400, color: 'var(--w)', marginBottom: '4px' }}>Lighting <span style={{ color: 'var(--pink)' }}>Lab</span></div>
+        <div style={{ fontSize: '13px', color: 'var(--mu3)', marginBottom: '8px' }}>Light is everything. Master how different light sources interact with melanin-rich skin to create stunning realistic images.</div>
+        <span className="tag tag-pink">{completedLessons.length}/{Object.keys(LIGHTING_LESSONS).length} completed</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: '20px' }}>
+        <div>
+          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(234,53,130,0.4)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>Lessons</div>
+          {Object.keys(LIGHTING_LESSONS).map(lesson => (
+            <div key={lesson} className={`lesson-card ${selectedLesson === lesson ? 'active' : ''}`} onClick={() => setSelectedLesson(lesson)}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: '12px', color: selectedLesson === lesson ? 'var(--pink)' : 'var(--w2)', fontWeight: selectedLesson === lesson ? 600 : 400 }}>{lesson}</div>
+                {completedLessons.includes(lesson) && <span style={{ color: '#00ff88', fontSize: '12px' }}>✓</span>}
+              </div>
+            </div>
+          ))}
+          <button className="r-btn" onClick={() => { if (!completedLessons.includes(selectedLesson)) setCompletedLessons(prev => [...prev, selectedLesson]) }} style={{ width: '100%', fontSize: '11px', padding: '9px', marginTop: '12px' }}>Mark Complete ✓</button>
+          {completedLessons.length === Object.keys(LIGHTING_LESSONS).length && (
+            <button className="ghost-r" onClick={onComplete} style={{ width: '100%', fontSize: '11px', padding: '9px', marginTop: '8px' }}>Continue to Pose Lab →</button>
+          )}
+        </div>
+        <div><LessonGenerator key={selectedLesson} lesson={LIGHTING_LESSONS[selectedLesson]} labName="Lighting Lab" onImagesGenerated={() => { if (!completedLessons.includes(selectedLesson)) setCompletedLessons(prev => [...prev, selectedLesson]) }} /></div>
+      </div>
+    </div>
+  )
+}
+
+// ── POSE LAB ──────────────────────────────────────────────────
+const POSE_LESSONS: Record<string, Lesson> = {
+  'Candid Walking Shot': {
+    prompt: `Candid walking shot Black woman, natural mid-stride captured, weight shifting from back to front foot, natural arm swing, slight motion blur on moving foot, hair movement from walking, clothing movement from motion, looking slightly ahead not at camera, urban environment, authentic candid moment, 35mm, f/2.8, 1/250s to freeze motion with slight blur, Sony A7R IV, RAW`,
+    negativePrompt: `posed walking, fake stride, CGI motion, stiff, artificial, looking at camera, perfect pose`,
+    camera: `35mm lens
+f/2.8
+1/250s shutter
+Sony A7R IV
+Candid capture`,
+    lighting: `Natural street light
+Available light
+Authentic environment`,
+    whyItWorks: `Real walking has weight shift, arm counter-swing, slight motion blur on moving elements, and natural hair and clothing movement. The subject not looking at camera creates authentic candid energy.`,
+    mistakes: `"Walking" poses where both feet are on the ground with equal weight — this is standing, not walking. Real walking always has one foot raised with clear weight transfer.`,
+    videoPrompt: `Candid walking video, natural stride, slight camera follow movement, environmental sounds implied, natural momentum, Sony A7R IV 35mm`,
+  },
+  'Mirror Selfie': {
+    prompt: `Mirror selfie Black woman, phone visible in hand at natural selfie angle, mirror reflection showing back and side details, natural selfie expression — slight smile or serious, natural arm position holding phone, bathroom or bedroom mirror with realistic reflection, slight imperfection in mirror (smudge or water spot), natural lighting in reflection, 26mm iPhone equivalent, natural light`,
+    negativePrompt: `perfect mirror, CGI reflection, artificial, perfect phone position, fake selfie, no phone visible, no reflection`,
+    camera: `iPhone selfie equivalent
+26mm perspective
+Selfie angle
+Natural hand position`,
+    lighting: `Natural bathroom/bedroom light
+Environmental light source
+No ring light`,
+    whyItWorks: `Mirror selfies have specific elements — the phone is visible in the reflection, the angle is slightly upward at arm length, and the mirror itself has natural imperfections. The background in the mirror tells a story about the space.`,
+    mistakes: `A "mirror selfie" without the phone being visible, or without seeing the reflection of the space behind the subject. Real mirror selfies reveal the room.`,
+  },
+  'Luxury Lifestyle Pose': {
+    prompt: `Luxury lifestyle portrait Black woman, relaxed confident pose in luxury setting, natural weight distribution leaning against luxury surface, candid wealth aesthetic, designer items naturally placed, aspirational but not posed, slight interaction with environment — touching surface or item, confident relaxed body language, 50mm, f/2, golden hour light, Sony A7R IV, RAW, editorial lifestyle`,
+    negativePrompt: `stiff pose, obviously posed, fake luxury, CGI, artificial, catalog pose, symmetrical stance`,
+    camera: `50mm lens
+f/2
+Editorial distance
+Sony A7R IV`,
+    lighting: `Golden hour
+Warm luxury lighting
+Natural environment`,
+    whyItWorks: `Luxury lifestyle photography feels effortless — the subject appears to be living in their world, not posing for a photo. Natural interaction with the environment and candid body language creates aspirational authenticity.`,
+    mistakes: `Stiff symmetrical poses with perfect posture in luxury settings look like catalog photography. Real luxury lifestyle content looks like someone captured a genuine moment.`,
+  },
+  'Gym Content Pose': {
+    prompt: `Gym content Black woman, natural workout pose with realistic exertion, slight sweat visible on skin, natural post-workout flush on face, workout clothes with natural compression, hair pulled back naturally with flyaways, natural grip on equipment, realistic workout environment, 35mm, f/2, gym lighting, Sony A7R IV, RAW photo`,
+    negativePrompt: `perfect makeup at gym, no sweat, CGI body, artificial exertion, fake gym, plastic body, posed unnaturally`,
+    camera: `35mm lens
+f/2
+Environmental shot
+Sony A7R IV`,
+    lighting: `Natural gym lighting
+Slightly harsh is okay
+Authentic environment`,
+    whyItWorks: `Real gym content shows authentic exertion — natural sweat, workout flush, flyaway hair, and the honest physical reality of working out. This authenticity is what makes gym content relatable.`,
+    mistakes: `Perfect makeup, no sweat, and a perfectly lit body in a gym screams AI or highly produced content. Real gym content has beautiful honest imperfection.`,
+  },
+}
+
+function PoseLab({ onComplete }: { onComplete: () => void }) {
+  const [selectedLesson, setSelectedLesson] = useState('Candid Walking Shot')
+  const [completedLessons, setCompletedLessons] = useState<string[]>([])
+  return (
+    <div className="pg-in">
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(234,53,130,0.5)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Lab 09</div>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '32px', fontWeight: 400, color: 'var(--w)', marginBottom: '4px' }}>Pose <span style={{ color: 'var(--pink)' }}>Lab</span></div>
+        <div style={{ fontSize: '13px', color: 'var(--mu3)', marginBottom: '8px' }}>Natural movement and authentic posing — the difference between a photo that feels lived-in and one that feels generated.</div>
+        <span className="tag tag-pink">{completedLessons.length}/{Object.keys(POSE_LESSONS).length} completed</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: '20px' }}>
+        <div>
+          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(234,53,130,0.4)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>Lessons</div>
+          {Object.keys(POSE_LESSONS).map(lesson => (
+            <div key={lesson} className={`lesson-card ${selectedLesson === lesson ? 'active' : ''}`} onClick={() => setSelectedLesson(lesson)}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: '12px', color: selectedLesson === lesson ? 'var(--pink)' : 'var(--w2)', fontWeight: selectedLesson === lesson ? 600 : 400 }}>{lesson}</div>
+                {completedLessons.includes(lesson) && <span style={{ color: '#00ff88', fontSize: '12px' }}>✓</span>}
+              </div>
+            </div>
+          ))}
+          <button className="r-btn" onClick={() => { if (!completedLessons.includes(selectedLesson)) setCompletedLessons(prev => [...prev, selectedLesson]) }} style={{ width: '100%', fontSize: '11px', padding: '9px', marginTop: '12px' }}>Mark Complete ✓</button>
+          {completedLessons.length === Object.keys(POSE_LESSONS).length && (
+            <button className="ghost-r" onClick={onComplete} style={{ width: '100%', fontSize: '11px', padding: '9px', marginTop: '8px' }}>Continue to Video Lab →</button>
+          )}
+        </div>
+        <div><LessonGenerator key={selectedLesson} lesson={POSE_LESSONS[selectedLesson]} labName="Pose Lab" onImagesGenerated={() => { if (!completedLessons.includes(selectedLesson)) setCompletedLessons(prev => [...prev, selectedLesson]) }} /></div>
+      </div>
+    </div>
+  )
+}
+
+// ── PROMPT LIBRARY ────────────────────────────────────────────
+const PROMPT_CATEGORIES = [
+  'Close-Up Face', 'Realistic Eyes', 'Luxury Selfie', 'Morning Routine',
+  'Mirror Selfie', 'Gym Session', 'Luxury Vacation', 'Shopping Vlog',
+  'Airport Content', 'Date Night', 'GRWM', 'Makeup Tutorial',
+  'Fashion Shoot', 'Coffee Shop', 'Beach Walk', 'Office Content',
+  'Podcast Setup', 'Cooking Content', 'Night Out', 'Hotel Room',
+  'Car Content', 'Bookshelf Aesthetic', 'Rooftop Content', 'Rainy Day',
+]
+
+const LIBRARY_PROMPTS: Record<string, { prompt: string; negative: string; camera: string; lighting: string; videoPrompt: string; bestFor: string }> = {
+  'Close-Up Face': {
+    prompt: `Ultra close-up portrait Black woman, 85mm lens, f/1.4, natural skin pores and texture, subsurface scattering visible, micro peach fuzz, visible capillaries, real eyelashes with gaps, natural facial asymmetry, realistic lips, HDR, RAW photography, Sony A7R IV, no filter, very human and real`,
+    negative: `flawless, perfect skin, glossy, plastic, airbrushed, CGI, beauty filter, ring light catchlights, symmetric`,
+    camera: `85mm · f/1.4 · ISO 400 · Sony A7R IV`,
+    lighting: `Soft natural window light · No ring light · Natural shadows`,
+    videoPrompt: `Slow breathing visible, natural micro expressions, realistic eye blinking, 85mm Sony A7R IV, subtle head movement`,
+    bestFor: `TikTok close-up, Instagram portrait, thumbnail`,
+  },
+  'Luxury Selfie': {
+    prompt: `Luxury lifestyle selfie Black woman, deep melanin skin with natural texture, high-end hotel or penthouse background, designer outfit fitting naturally, natural selfie angle slightly above, confident relaxed expression, soft natural light from large windows, visible high-end environment details, Sony A7R IV portrait mode equivalent, natural skin texture, no filter`,
+    negative: `perfect skin, plastic, CGI, artificial selfie angle, fake luxury background, beauty filter, ring light`,
+    camera: `Portrait mode · 26mm equivalent · Natural angle`,
+    lighting: `Large window natural light · Luxury environment`,
+    videoPrompt: `Lifestyle vlog selfie video, natural handheld, authentic luxury environment, natural lighting shifts`,
+    bestFor: `Instagram, TikTok, luxury lifestyle content`,
+  },
+  'Morning Routine': {
+    prompt: `Morning routine Black woman, natural bedroom morning light, soft diffused early morning sun, natural sleepy but beautiful expression, hair in morning state — slightly tousled, natural skin without full makeup, comfortable morning outfit or robe, cozy bedroom environment, authentic morning atmosphere, 50mm, f/2, ISO 640, Sony A7R IV, RAW`,
+    negative: `full makeup morning, perfect hair, artificial morning, CGI, studio light, fake bedroom`,
+    camera: `50mm · f/2 · ISO 640 · Sony A7R IV`,
+    lighting: `Early morning natural window light · Soft cool to warm shift · No artificial light`,
+    videoPrompt: `Morning vlog, natural morning light, authentic getting-ready energy, natural pace, Sony A7R IV 50mm`,
+    bestFor: `YouTube morning routine, TikTok day-in-life, Instagram stories`,
+  },
+  'Airport Content': {
+    prompt: `Airport content Black woman, luxury travel aesthetic, natural airport terminal lighting — slightly cool fluorescent mixed with natural window light, designer carry-on, confident traveler energy, gate seating or terminal walkway, authentic airport environment with other travelers visible, natural candid travel moment, 35mm, f/2, ISO 1600, Sony A7R IV, RAW`,
+    negative: `empty airport, fake airport, CGI terminal, perfect lighting, artificial, studio, posed`,
+    camera: `35mm · f/2 · ISO 1600 · Sony A7R IV`,
+    lighting: `Natural airport mixed lighting · Available light only · Authentic terminal environment`,
+    videoPrompt: `Airport travel vlog, authentic terminal environment, natural traveler movement, available light, Sony A7R IV 35mm`,
+    bestFor: `Travel content, lifestyle, luxury influencer`,
+  },
+  'Coffee Shop': {
+    prompt: `Coffee shop content Black woman, warm cafe lighting — mix of window light and Edison bulbs, natural interaction with coffee cup, natural skin texture in warm light, bokeh cafe background with people and furniture, authentic coffee shop atmosphere, 50mm, f/2, ISO 800, Sony A7R IV, RAW, candid moment`,
+    negative: `empty cafe, fake background, CGI, perfect lighting, artificial, studio, posed`,
+    camera: `50mm · f/2 · ISO 800 · Sony A7R IV`,
+    lighting: `Cafe available light · Mix of natural and Edison warm · Beautiful bokeh background`,
+    videoPrompt: `Cafe vlog, warm cozy atmosphere, natural ambient sound implied, authentic cafe environment, Sony A7R IV 50mm`,
+    bestFor: `Instagram, TikTok cafe aesthetic, lifestyle content`,
+  },
+}
+
+function PromptLibrary() {
+  const [selectedCat, setSelectedCat] = useState('Close-Up Face')
+  const [copied, setCopied] = useState<string | null>(null)
+  const [images, setImages] = useState<(string | null)[]>([null, null, null, null])
+  const [generating, setGenerating] = useState(false)
+  const [search, setSearch] = useState('')
+
+  const filteredCats = PROMPT_CATEGORIES.filter(c => c.toLowerCase().includes(search.toLowerCase()))
+  const currentPrompt = LIBRARY_PROMPTS[selectedCat]
+
+  function copy(text: string, key: string) {
+    navigator.clipboard?.writeText(text).then(() => { setCopied(key); setTimeout(() => setCopied(null), 2000) })
+  }
+
+  async function generate() {
+    if (!currentPrompt) return
+    setGenerating(true)
+    setImages([null, null, null, null])
+    for (let i = 0; i < 4; i++) {
+      try {
+        const res = await fetch('/api/generate/image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: currentPrompt.prompt, style: 'cinematic', size: 'portrait' }) })
+        const data = await res.json()
+        if (data.imageUrl) setImages(prev => prev.map((img, idx) => idx === i ? data.imageUrl : img))
+      } catch { }
+      if (i < 3) await new Promise(r => setTimeout(r, 1200))
+    }
+    setGenerating(false)
+  }
+
+  return (
+    <div className="pg-in">
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(234,53,130,0.5)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Lab 13</div>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '32px', fontWeight: 400, color: 'var(--w)', marginBottom: '4px' }}>Prompt <span style={{ color: 'var(--pink)' }}>Library</span></div>
+        <div style={{ fontSize: '13px', color: 'var(--mu3)', marginBottom: '8px' }}>Ready-to-use realism prompts for every content type. Copy, customize, and generate.</div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: '20px' }}>
+        <div>
+          <input className="finp" placeholder="Search prompts..." value={search} onChange={e => setSearch(e.target.value)} style={{ marginBottom: '10px' }} />
+          <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
+            {filteredCats.map(cat => (
+              <div key={cat} className={`lesson-card ${selectedCat === cat ? 'active' : ''}`} onClick={() => { setSelectedCat(cat); setImages([null, null, null, null]) }} style={{ marginBottom: '4px' }}>
+                <div style={{ fontSize: '12px', color: selectedCat === cat ? 'var(--pink)' : 'var(--w2)', fontWeight: selectedCat === cat ? 600 : 400 }}>{cat}</div>
+                {!LIBRARY_PROMPTS[cat] && <div style={{ fontSize: '9px', color: 'var(--mu2)', fontFamily: "'DM Mono',monospace", marginTop: '2px' }}>Coming soon</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          {currentPrompt ? (
+            <div>
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '20px', fontWeight: 800, color: 'var(--pink)', marginBottom: '16px' }}>{selectedCat}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                <div className="card hi">
+                  <div className="ftitle">✨ Full Prompt</div>
+                  <div style={{ fontSize: '11px', color: 'var(--w2)', lineHeight: '1.7', fontFamily: "'DM Mono',monospace", marginBottom: '10px' }}>{currentPrompt.prompt}</div>
+                  <button className="ghost-r" onClick={() => copy(currentPrompt.prompt, 'prompt')} style={{ fontSize: '10px' }}>{copied === 'prompt' ? '✓ Copied!' : 'Copy Prompt'}</button>
+                </div>
+                <div className="card">
+                  <div className="ftitle">🚫 Negative Prompt</div>
+                  <div style={{ fontSize: '11px', color: '#ff6b6b', lineHeight: '1.7', fontFamily: "'DM Mono',monospace", marginBottom: '10px' }}>{currentPrompt.negative}</div>
+                  <button className="ghost-r" onClick={() => copy(currentPrompt.negative, 'negative')} style={{ fontSize: '10px' }}>{copied === 'negative' ? '✓ Copied!' : 'Copy Negative'}</button>
+                </div>
+                <div className="card">
+                  <div className="ftitle">📷 Camera Settings</div>
+                  <div style={{ fontSize: '12px', color: 'var(--w2)', lineHeight: '1.6' }}>{currentPrompt.camera}</div>
+                </div>
+                <div className="card">
+                  <div className="ftitle">💡 Lighting</div>
+                  <div style={{ fontSize: '12px', color: 'var(--w2)', lineHeight: '1.6' }}>{currentPrompt.lighting}</div>
+                </div>
+                <div className="card orange">
+                  <div style={{ fontSize: '10px', color: 'var(--orange)', fontFamily: "'DM Mono',monospace", textTransform: 'uppercase' as const, letterSpacing: '.7px', marginBottom: '8px' }}>🎬 Video Prompt</div>
+                  <div style={{ fontSize: '11px', color: 'var(--w2)', lineHeight: '1.6', fontFamily: "'DM Mono',monospace", marginBottom: '8px' }}>{currentPrompt.videoPrompt}</div>
+                  <button className="ghost-o" onClick={() => copy(currentPrompt.videoPrompt, 'video')} style={{ fontSize: '10px' }}>{copied === 'video' ? '✓ Copied!' : 'Copy Video Prompt'}</button>
+                </div>
+                <div className="card">
+                  <div className="ftitle">📱 Best For</div>
+                  <div style={{ fontSize: '12px', color: 'var(--pink)', lineHeight: '1.6' }}>{currentPrompt.bestFor}</div>
+                </div>
+              </div>
+              <button className="r-btn" onClick={generate} disabled={generating} style={{ width: '100%', fontSize: '13px', marginBottom: '14px' }}>
+                {generating ? '◈ Generating 4 images…' : '◈ Generate 4 Images with Nano Banana Pro'}
+              </button>
+              {generating && <div className="lbar" style={{ marginBottom: '14px' }}><div className="lbar-fill" /></div>}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
+                {images.map((img, i) => <ImageWindow key={i} src={img || undefined} loading={generating && !img} index={i} />)}
+              </div>
+            </div>
+          ) : (
+            <div className="card" style={{ textAlign: 'center', padding: '40px', opacity: 0.5 }}>
+              <div style={{ fontSize: '32px', marginBottom: '10px', opacity: 0.3 }}>📚</div>
+              <div style={{ fontSize: '13px', color: 'var(--mu3)' }}>Select a category to see the prompt</div>
+              <div style={{ fontSize: '11px', color: 'var(--mu2)', marginTop: '6px' }}>More prompts being added regularly</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── PROJECT BUILDER ───────────────────────────────────────────
+interface AITwinProject {
+  name: string; skinTone: string; hairType: string; hairColor: string
+  eyeColor: string; bodyType: string; faceShape: string; personality: string
+  style: string; vibe: string; niche: string; voiceId: string
+  wardrobe: string; jewelry: string; makeup: string; colors: string
+  faceImage?: string; bodyImage?: string
+}
+
+function ProjectBuilder() {
+  const { user } = useUser()
+  const [step, setStep] = useState(1)
+  const [twin, setTwin] = useState<Partial<AITwinProject>>({})
+  const [faceImages, setFaceImages] = useState<string[]>([])
+  const [generatingFace, setGeneratingFace] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  function update(key: keyof AITwinProject, val: string) { setTwin(t => ({ ...t, [key]: val })) }
+
+  async function generateFace() {
+    setGeneratingFace(true)
+    const prompt = `Ultra realistic close-up portrait of an AI influencer, ${twin.skinTone || 'deep brown'} skin with natural texture and visible pores, ${twin.hairType || 'natural'} ${twin.hairColor || 'black'} hair, ${twin.eyeColor || 'dark brown'} eyes, ${twin.faceShape || 'oval'} face shape, ${twin.personality || 'confident'} expression, ${twin.vibe || 'luxurious'} energy, 85mm lens f/1.4, natural window light, Sony A7R IV, RAW photo, no filter, very human and real`
+    try {
+      const res = await fetch('/api/generate/image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, style: 'cinematic', size: 'portrait' }) })
+      const data = await res.json()
+      if (data.imageUrl) setFaceImages(prev => [...prev, data.imageUrl].slice(0, 4))
+    } catch { }
+    setGeneratingFace(false)
+  }
+
+  function saveTwin() {
+    const twins = JSON.parse(localStorage.getItem(`realismTwins_${user?.id}`) || '[]')
+    twins.unshift({ ...twin, id: Date.now(), faceImage: faceImages[0], createdAt: new Date().toISOString() })
+    localStorage.setItem(`realismTwins_${user?.id}`, JSON.stringify(twins))
+    setSaved(true)
+    setTimeout(() => setSaved(false), 3000)
+  }
+
+  const steps = [
+    { num: 1, label: 'Face', desc: 'Define facial features' },
+    { num: 2, label: 'Body', desc: 'Body type and physique' },
+    { num: 3, label: 'Hair', desc: 'Hair type and style' },
+    { num: 4, label: 'Voice', desc: 'Voice and personality' },
+    { num: 5, label: 'Wardrobe', desc: 'Style and fashion' },
+    { num: 6, label: 'Generate', desc: 'Create your AI twin' },
+  ]
+
+  return (
+    <div className="pg-in">
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(234,53,130,0.5)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Lab 14</div>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '32px', fontWeight: 400, color: 'var(--w)', marginBottom: '4px' }}>Project <span style={{ color: 'var(--pink)' }}>Builder</span></div>
+        <div style={{ fontSize: '13px', color: 'var(--mu3)', marginBottom: '16px' }}>Build your complete AI twin from scratch — step by step until you have a fully realized AI influencer.</div>
+      </div>
+
+      {/* Step progress */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '28px', flexWrap: 'wrap' as const }}>
+        {steps.map(s => (
+          <div key={s.num} onClick={() => setStep(s.num)}
+            className={`progress-step ${step === s.num ? 'current' : step > s.num ? 'done' : 'pending'}`}
+            style={{ cursor: 'pointer', flex: 1, minWidth: '100px' }}>
+            <div className="step-num" style={{ background: step > s.num ? 'rgba(0,255,136,0.2)' : step === s.num ? 'var(--pg)' : 'var(--s2)', color: step > s.num ? '#00ff88' : step === s.num ? 'var(--pink)' : 'var(--mu3)', border: `0.5px solid ${step > s.num ? 'rgba(0,255,136,0.3)' : step === s.num ? 'var(--pb)' : 'rgba(234,53,130,0.1)'}` }}>
+              {step > s.num ? '✓' : s.num}
+            </div>
+            <div>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: step === s.num ? 'var(--pink)' : step > s.num ? '#00ff88' : 'var(--mu3)' }}>{s.label}</div>
+              <div style={{ fontSize: '10px', color: 'var(--mu2)', fontFamily: "'DM Mono',monospace" }}>{s.desc}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Step content */}
+      {step === 1 && (
+        <div className="card hi">
+          <div className="ftitle">Step 1 — Define the Face</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <F label="AI Twin Name"><input className="finp" placeholder="e.g. Nova, Luxe, Zara" value={twin.name || ''} onChange={e => update('name', e.target.value)} /></F>
+            <F label="Skin Tone"><select className="fsel" value={twin.skinTone || ''} onChange={e => update('skinTone', e.target.value)}>
+              <option value="">Select...</option>
+              {['Fair ivory', 'Light beige', 'Warm honey', 'Medium golden brown', 'Rich brown', 'Deep brown', 'Ebony', 'Deep ebony'].map(s => <option key={s}>{s}</option>)}
+            </select></F>
+            <F label="Eye Color"><select className="fsel" value={twin.eyeColor || ''} onChange={e => update('eyeColor', e.target.value)}>
+              <option value="">Select...</option>
+              {['Deep black', 'Dark brown', 'Medium brown', 'Honey brown', 'Hazel', 'Grey', 'Amber'].map(s => <option key={s}>{s}</option>)}
+            </select></F>
+            <F label="Face Shape"><select className="fsel" value={twin.faceShape || ''} onChange={e => update('faceShape', e.target.value)}>
+              <option value="">Select...</option>
+              {['Oval', 'Round', 'Heart', 'Square', 'Diamond', 'Oblong'].map(s => <option key={s}>{s}</option>)}
+            </select></F>
+            <F label="Niche"><input className="finp" placeholder="e.g. Luxury lifestyle, CEO Baddie" value={twin.niche || ''} onChange={e => update('niche', e.target.value)} /></F>
+            <F label="Overall Vibe"><input className="finp" placeholder="e.g. Mysterious luxury, Bold confident" value={twin.vibe || ''} onChange={e => update('vibe', e.target.value)} /></F>
+          </div>
+          <button className="r-btn" onClick={() => setStep(2)} style={{ marginTop: '8px', fontSize: '12px' }}>Next: Build Body →</button>
+        </div>
+      )}
+
+      {step === 2 && (
+        <div className="card hi">
+          <div className="ftitle">Step 2 — Build the Body</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <F label="Body Type"><select className="fsel" value={twin.bodyType || ''} onChange={e => update('bodyType', e.target.value)}>
+              <option value="">Select...</option>
+              {['Petite', 'Slim toned', 'Athletic', 'Curvy hourglass', 'Thick curvy', 'Plus size goddess', 'Tall lean', 'Muscular'].map(s => <option key={s}>{s}</option>)}
+            </select></F>
+            <F label="Height Feel"><select className="fsel" value={twin.personality || ''} onChange={e => update('personality', e.target.value)}>
+              <option value="">Select...</option>
+              {['Petite and powerful', 'Average height', 'Tall and commanding', 'Model height'].map(s => <option key={s}>{s}</option>)}
+            </select></F>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+            <button className="ghost-r" onClick={() => setStep(1)}>← Back</button>
+            <button className="r-btn" onClick={() => setStep(3)} style={{ fontSize: '12px' }}>Next: Define Hair →</button>
+          </div>
+        </div>
+      )}
+
+      {step === 3 && (
+        <div className="card hi">
+          <div className="ftitle">Step 3 — Define the Hair</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <F label="Hair Type"><select className="fsel" value={twin.hairType || ''} onChange={e => update('hairType', e.target.value)}>
+              <option value="">Select...</option>
+              {['Natural 4C coils', 'Natural curls 3C', 'Locs', 'Box braids', 'Knotless braids', 'Straight relaxed', 'Wavy', 'Afro', 'TWA', 'Silk press'].map(s => <option key={s}>{s}</option>)}
+            </select></F>
+            <F label="Hair Color"><select className="fsel" value={twin.hairColor || ''} onChange={e => update('hairColor', e.target.value)}>
+              <option value="">Select...</option>
+              {['Jet black', 'Dark brown', 'Honey blonde', 'Burgundy', 'Auburn', 'Silver', 'Platinum blonde', 'Ombre black to brown'].map(s => <option key={s}>{s}</option>)}
+            </select></F>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+            <button className="ghost-r" onClick={() => setStep(2)}>← Back</button>
+            <button className="r-btn" onClick={() => setStep(4)} style={{ fontSize: '12px' }}>Next: Voice & Personality →</button>
+          </div>
+        </div>
+      )}
+
+      {step === 4 && (
+        <div className="card hi">
+          <div className="ftitle">Step 4 — Voice & Personality</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <F label="Personality traits"><input className="finp" placeholder="e.g. Bold, mysterious, warm, commanding" value={twin.personality || ''} onChange={e => update('personality', e.target.value)} /></F>
+            <F label="ElevenLabs Voice ID (optional)"><input className="finp" placeholder="Voice ID from ElevenLabs" value={twin.voiceId || ''} onChange={e => update('voiceId', e.target.value)} /></F>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+            <button className="ghost-r" onClick={() => setStep(3)}>← Back</button>
+            <button className="r-btn" onClick={() => setStep(5)} style={{ fontSize: '12px' }}>Next: Wardrobe →</button>
+          </div>
+        </div>
+      )}
+
+      {step === 5 && (
+        <div className="card hi">
+          <div className="ftitle">Step 5 — Wardrobe & Style</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <F label="Style preference"><input className="finp" placeholder="e.g. Luxury streetwear, designer pieces, soft girl" value={twin.style || ''} onChange={e => update('style', e.target.value)} /></F>
+            <F label="Signature colors"><input className="finp" placeholder="e.g. Black, gold, cream, burgundy" value={twin.colors || ''} onChange={e => update('colors', e.target.value)} /></F>
+            <F label="Jewelry style"><input className="finp" placeholder="e.g. Gold hoops, minimalist, statement pieces" value={twin.jewelry || ''} onChange={e => update('jewelry', e.target.value)} /></F>
+            <F label="Makeup style"><input className="finp" placeholder="e.g. Natural glam, bold lip, no makeup look" value={twin.makeup || ''} onChange={e => update('makeup', e.target.value)} /></F>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+            <button className="ghost-r" onClick={() => setStep(4)}>← Back</button>
+            <button className="r-btn" onClick={() => setStep(6)} style={{ fontSize: '12px' }}>Next: Generate →</button>
+          </div>
+        </div>
+      )}
+
+      {step === 6 && (
+        <div>
+          <div className="card hi" style={{ marginBottom: '16px' }}>
+            <div className="ftitle">Step 6 — Generate Your AI Twin</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '14px' }}>
+              {[
+                ['Name', twin.name], ['Skin', twin.skinTone], ['Eyes', twin.eyeColor],
+                ['Body', twin.bodyType], ['Hair', `${twin.hairType} ${twin.hairColor}`],
+                ['Style', twin.style], ['Vibe', twin.vibe], ['Niche', twin.niche],
+              ].filter(([, v]) => v).map(([label, value]) => (
+                <div key={label as string} style={{ padding: '6px 10px', background: 'var(--bg3)', borderRadius: '6px' }}>
+                  <div style={{ fontSize: '9px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace", textTransform: 'uppercase' as const }}>{label}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--pink)' }}>{value}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button className="r-btn" onClick={generateFace} disabled={generatingFace} style={{ flex: 1, fontSize: '12px' }}>
+                {generatingFace ? '◈ Generating AI Twin…' : '◈ Generate AI Twin Face'}
+              </button>
+              <button className="ghost-r" onClick={() => setStep(1)}>Edit Details</button>
+            </div>
+          </div>
+
+          {faceImages.length > 0 && (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '14px' }}>
+                {faceImages.map((img, i) => <ImageWindow key={i} src={img} index={i} />)}
+                {Array(4 - faceImages.length).fill(null).map((_, i) => <ImageWindow key={`empty-${i}`} index={faceImages.length + i} />)}
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="r-btn" onClick={saveTwin} style={{ flex: 1, fontSize: '12px' }}>
+                  {saved ? '✓ AI Twin Saved to Prompt Bank!' : '💾 Save AI Twin to Prompt Bank'}
+                </button>
+                <button className="ghost-r" onClick={generateFace} disabled={generatingFace} style={{ fontSize: '12px' }}>↺ Regenerate</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── VIDEO LAB (simplified) ────────────────────────────────────
+function VideoLab({ onComplete }: { onComplete: () => void }) {
+  const VIDEO_LESSONS = {
+    'Natural Breathing': {
+      prompt: `Portrait Black woman, ultra realistic, natural breathing movement, subtle chest rise visible, slight shoulder movement, soft natural expression, 85mm, f/1.4, natural window light, Sony A7R IV, RAW photo, candid moment`,
+      negativePrompt: `static, rigid, CGI, plastic, artificial, posed`,
+      camera: `85mm · f/1.4 · Sony A7R IV`, lighting: `Natural window light · Soft and directional`,
+      whyItWorks: `Natural breathing is the most human thing you can describe. Chest rise, shoulder movement, and subtle expression changes all indicate life and humanity.`,
+      mistakes: `Completely static subjects with no natural movement indication look like statues. Even still photos benefit from implied natural movement.`,
+      videoPrompt: `Natural breathing visible in chest rise, subtle shoulder movement every 3-4 seconds, micro expression changes, natural eye movement, 85mm Sony A7R IV, very slow motion`,
+    },
+    'Natural Eye Movement': {
+      prompt: `Extreme close-up eyes Black woman, natural eye movement — slight gaze shift, natural blinking pattern, realistic iris expansion and contraction, catchlight movement, natural eye moisture, micro expressions around eye area, 100mm macro, f/2.8, natural light, Sony A7R IV, RAW`,
+      negativePrompt: `staring eyes, unblinking, CGI eyes, artificial, plastic, doll eyes`,
+      camera: `100mm macro · f/2.8 · Sony A7R IV`, lighting: `Natural diffused light · Window catchlight`,
+      whyItWorks: `Eyes are the window to realism. Natural blinking patterns, slight gaze movement, and realistic iris behavior all make eyes feel alive.`,
+      mistakes: `Unblinking eyes that stare directly forward are immediately recognized as AI. Real eyes constantly make micro movements.`,
+      videoPrompt: `Natural eye blinking every 3-4 seconds, subtle gaze shifts, realistic iris movement, natural eye moisture catching light, 100mm macro Sony A7R IV`,
+    },
+    'Hair Movement': {
+      prompt: `Portrait Black woman, natural hair movement from slight wind or head movement, individual hair strands moving naturally, hair physics visible — heavier locs moving differently than fine strands, natural hair separation during movement, hair returning to natural position, 85mm, f/1.8, outdoor light, Sony A7R IV, RAW`,
+      negativePrompt: `static hair, CGI hair movement, plastic hair, artificial wind, uniform movement`,
+      camera: `85mm · f/1.8 · Sony A7R IV`, lighting: `Natural outdoor light · Wind implied`,
+      whyItWorks: `Different hair types have completely different movement physics — fine hair moves like silk, locs move with weight and mass, braids swing as a unit. Specifying the hair type determines the movement pattern.`,
+      mistakes: `Uniform hair movement where all strands move identically — real hair has different weights and textures that move at different rates.`,
+      videoPrompt: `Natural hair movement from gentle breeze, physics-based movement per hair type, individual strand behavior visible, natural settling, Sony A7R IV 85mm slow motion`,
+    },
+  }
+  const [selectedLesson, setSelectedLesson] = useState('Natural Breathing')
+  const [completedLessons, setCompletedLessons] = useState<string[]>([])
+  return (
+    <div className="pg-in">
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(234,53,130,0.5)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Lab 10</div>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '32px', fontWeight: 400, color: 'var(--w)', marginBottom: '4px' }}>Video <span style={{ color: 'var(--pink)' }}>Lab</span></div>
+        <div style={{ fontSize: '13px', color: 'var(--mu3)', marginBottom: '8px' }}>Master movement, breathing, blinking, and all the micro details that make AI video feel undeniably human.</div>
+        <span className="tag tag-pink">{completedLessons.length}/{Object.keys(VIDEO_LESSONS).length} completed</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: '20px' }}>
+        <div>
+          {Object.keys(VIDEO_LESSONS).map(lesson => (
+            <div key={lesson} className={`lesson-card ${selectedLesson === lesson ? 'active' : ''}`} onClick={() => setSelectedLesson(lesson)}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: '12px', color: selectedLesson === lesson ? 'var(--pink)' : 'var(--w2)', fontWeight: selectedLesson === lesson ? 600 : 400 }}>{lesson}</div>
+                {completedLessons.includes(lesson) && <span style={{ color: '#00ff88', fontSize: '12px' }}>✓</span>}
+              </div>
+            </div>
+          ))}
+          <button className="r-btn" onClick={() => { if (!completedLessons.includes(selectedLesson)) setCompletedLessons(prev => [...prev, selectedLesson]) }} style={{ width: '100%', fontSize: '11px', padding: '9px', marginTop: '12px' }}>Mark Complete ✓</button>
+          {completedLessons.length === Object.keys(VIDEO_LESSONS).length && (
+            <button className="ghost-r" onClick={onComplete} style={{ width: '100%', fontSize: '11px', padding: '9px', marginTop: '8px' }}>Continue to Social Lab →</button>
+          )}
+        </div>
+        <div><LessonGenerator key={selectedLesson} lesson={(VIDEO_LESSONS as Record<string, Lesson>)[selectedLesson]} labName="Video Lab" onImagesGenerated={() => { if (!completedLessons.includes(selectedLesson)) setCompletedLessons(prev => [...prev, selectedLesson]) }} /></div>
+      </div>
+    </div>
+  )
+}
+
+// ── SOCIAL MEDIA LAB ──────────────────────────────────────────
+function SocialMediaLab({ onComplete }: { onComplete: () => void }) {
+  const SOCIAL_LESSONS = {
+    'TikTok Vertical Content': {
+      prompt: `TikTok-style vertical content Black woman creator, 9:16 ratio composition, face and upper body in frame, natural TikTok lighting — ring light visible in catchlight or natural window, authentic creator energy, bedroom or studio background, phone-filmed aesthetic, natural makeup, relatable expression, Sony A7R IV portrait mode equivalent, natural skin texture`,
+      negativePrompt: `horizontal format, professional photography look, CGI, plastic, perfect studio`,
+      camera: `9:16 vertical · Portrait mode · Creator setup`, lighting: `Natural window or soft ring light · Creator aesthetic`,
+      whyItWorks: `TikTok content has a specific feel — it's personal, intimate, and slightly imperfect. The vertical format, creator lighting, and relatable energy all signal authentic content.`,
+      mistakes: `Overly produced photography aesthetic for TikTok. TikTok content feels personal and immediate, not magazine editorial.`,
+      videoPrompt: `TikTok vertical video, creator talking to camera energy, natural lighting, authentic content creator vibe, 9:16 aspect ratio, handheld natural movement`,
+    },
+    'Instagram Feed Aesthetic': {
+      prompt: `Instagram feed aesthetic Black woman, curated lifestyle photography feel, warm consistent color grade, beautiful but authentic moment, editorial quality without being corporate, aspirational lifestyle setting, natural interaction with environment, 50mm, f/2, golden hour or natural window, Sony A7R IV, RAW, Instagram-worthy composition`,
+      negativePrompt: `stock photo, corporate, CGI, artificial, poor composition, flat lighting`,
+      camera: `50mm · f/2 · Sony A7R IV · Feed composition`, lighting: `Golden hour or natural window · Consistent warm tone`,
+      whyItWorks: `Instagram feed photography sits between editorial and authentic — beautiful and curated but still feeling like a real moment. The color consistency and composition quality matters more here than other platforms.`,
+      mistakes: `Too polished = stock photo. Too raw = TikTok. Instagram feed content lives in the beautiful middle ground.`,
+      videoPrompt: `Instagram reel aesthetic, smooth B-roll quality, beautiful color grade, lifestyle moment, Sony A7R IV 50mm, cinematic but personal`,
+    },
+    'YouTube Thumbnail': {
+      prompt: `YouTube thumbnail portrait Black woman, highly expressive reaction face — surprise, shock, or excitement, bright clear lighting on face, bold readable expression from small size, clean background that doesn't compete with face, natural skin texture visible even at thumbnail size, slightly dramatic but authentic expression, 85mm, f/1.8, bright natural light, Sony A7R IV, RAW`,
+      negativePrompt: `boring expression, flat lighting, cluttered background, CGI, plastic, small face in frame`,
+      camera: `85mm · f/1.8 · Close crop · Sony A7R IV`, lighting: `Bright natural light · Face clearly lit · High contrast`,
+      whyItWorks: `YouTube thumbnails need to communicate emotion at 120px wide. Expressive authentic faces, clear bright lighting, and readable expressions at any size are essential.`,
+      mistakes: `Subtle expressions that look boring at thumbnail size. YouTube thumbnails need clear readable emotion that works at the smallest display size.`,
+      videoPrompt: `YouTube intro energy, high energy authentic expression, bright and inviting, clear face lighting, Sony A7R IV 85mm`,
+    },
+  }
+  const [selectedLesson, setSelectedLesson] = useState('TikTok Vertical Content')
+  const [completedLessons, setCompletedLessons] = useState<string[]>([])
+  return (
+    <div className="pg-in">
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(234,53,130,0.5)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Lab 11</div>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '32px', fontWeight: 400, color: 'var(--w)', marginBottom: '4px' }}>Social Media <span style={{ color: 'var(--pink)' }}>Lab</span></div>
+        <div style={{ fontSize: '13px', color: 'var(--mu3)', marginBottom: '8px' }}>Every platform has its own visual language. Master what makes content feel native on TikTok vs Instagram vs YouTube.</div>
+        <span className="tag tag-pink">{completedLessons.length}/{Object.keys(SOCIAL_LESSONS).length} completed</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: '20px' }}>
+        <div>
+          {Object.keys(SOCIAL_LESSONS).map(lesson => (
+            <div key={lesson} className={`lesson-card ${selectedLesson === lesson ? 'active' : ''}`} onClick={() => setSelectedLesson(lesson)}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: '12px', color: selectedLesson === lesson ? 'var(--pink)' : 'var(--w2)', fontWeight: selectedLesson === lesson ? 600 : 400 }}>{lesson}</div>
+                {completedLessons.includes(lesson) && <span style={{ color: '#00ff88', fontSize: '12px' }}>✓</span>}
+              </div>
+            </div>
+          ))}
+          <button className="r-btn" onClick={() => { if (!completedLessons.includes(selectedLesson)) setCompletedLessons(prev => [...prev, selectedLesson]) }} style={{ width: '100%', fontSize: '11px', padding: '9px', marginTop: '12px' }}>Mark Complete ✓</button>
+          {completedLessons.length === Object.keys(SOCIAL_LESSONS).length && (
+            <button className="ghost-r" onClick={onComplete} style={{ width: '100%', fontSize: '11px', padding: '9px', marginTop: '8px' }}>Continue to Consistency Lab →</button>
+          )}
+        </div>
+        <div><LessonGenerator key={selectedLesson} lesson={(SOCIAL_LESSONS as Record<string, Lesson>)[selectedLesson]} labName="Social Media Lab" onImagesGenerated={() => { if (!completedLessons.includes(selectedLesson)) setCompletedLessons(prev => [...prev, selectedLesson]) }} /></div>
+      </div>
+    </div>
+  )
+}
+
+// ── CONSISTENCY LAB ───────────────────────────────────────────
+function ConsistencyLab({ onComplete }: { onComplete: () => void }) {
+  const [face, setFace] = useState('')
+  const [scenario, setScenario] = useState('Luxury hotel lobby')
+  const [outfit, setOutfit] = useState('Designer black dress')
+  const [generating, setGenerating] = useState(false)
+  const [images, setImages] = useState<(string | null)[]>([null, null, null, null])
+  const [basePrompt, setBasePrompt] = useState('')
+
+  const scenarios = ['Luxury hotel lobby', 'Coffee shop morning', 'City street fashion', 'Gym workout', 'Airport travel', 'Beach vacation', 'Office CEO moment', 'Night out']
+  const outfits = ['Designer black dress', 'Luxury casual — cream set', 'Gym fit — sports bra and leggings', 'Business power suit', 'Silk robe luxury morning', 'Street style — oversized blazer', 'Beach coverup', 'Evening gown']
+
+  function buildPrompt(scen: string, out: string) {
+    const fp = face || 'Black woman, deep brown skin with natural pores and texture, natural locs, oval face, honey brown eyes'
+    return `${fp}, ${out}, ${scen} setting, natural realistic lighting, Sony A7R IV 50mm f/1.8, RAW photo, no filter, natural skin texture, very human and real, same face and identity as reference`
+  }
+
+  async function generateSet() {
+    setGenerating(true)
+    setImages([null, null, null, null])
+    const scenariosToUse = [scenario, 'Morning coffee shop', 'City street walk', 'Gym session']
+    for (let i = 0; i < 4; i++) {
+      const prompt = buildPrompt(scenariosToUse[i] || scenario, outfit)
+      if (i === 0) setBasePrompt(prompt)
+      try {
+        const res = await fetch('/api/generate/image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, style: 'cinematic', size: 'portrait' }) })
+        const data = await res.json()
+        if (data.imageUrl) setImages(prev => prev.map((img, idx) => idx === i ? data.imageUrl : img))
+      } catch { }
+      if (i < 3) await new Promise(r => setTimeout(r, 1200))
+    }
+    setGenerating(false)
+  }
+
+  return (
+    <div className="pg-in">
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(234,53,130,0.5)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Lab 12</div>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '32px', fontWeight: 400, color: 'var(--w)', marginBottom: '4px' }}>Consistency <span style={{ color: 'var(--pink)' }}>Lab</span></div>
+        <div style={{ fontSize: '13px', color: 'var(--mu3)', marginBottom: '8px' }}>Your biggest selling point — ONE face that stays identical across 500 images and 100 videos. Different outfits, locations, lighting. Same person.</div>
+        <div style={{ background: 'var(--pg)', border: '0.5px solid var(--pb)', borderRadius: '8px', padding: '10px 14px', marginBottom: '12px', fontSize: '12px', color: 'var(--pink)', lineHeight: '1.6' }}>
+          ✦ The key to consistency: Lock in your face description once and use it IDENTICALLY in every prompt. Not similar — identical. Word for word.
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+        <div className="card hi">
+          <div className="ftitle">Your AI Twin DNA Lock</div>
+          <F label="Face description (this stays IDENTICAL in every prompt)">
+            <textarea className="fta" style={{ minHeight: '100px' }} placeholder="e.g. Black woman, deep ebony skin with natural pores and texture, natural 4C coils pulled back, almond-shaped dark brown eyes with natural lashes, full natural lips, heart face shape, slight natural asymmetry..." value={face} onChange={e => setFace(e.target.value)} />
+          </F>
+          <F label="Starting scenario">
+            <select className="fsel" value={scenario} onChange={e => setScenario(e.target.value)}>
+              {scenarios.map(s => <option key={s}>{s}</option>)}
+            </select>
+          </F>
+          <F label="Starting outfit">
+            <select className="fsel" value={outfit} onChange={e => setOutfit(e.target.value)}>
+              {outfits.map(o => <option key={o}>{o}</option>)}
+            </select>
+          </F>
+          <button className="r-btn" onClick={generateSet} disabled={generating} style={{ width: '100%', fontSize: '12px' }}>
+            {generating ? '◈ Generating consistency test…' : '◈ Generate 4 Different Scenarios — Same Face'}
+          </button>
+        </div>
+        <div className="card">
+          <div className="ftitle">Consistency Tips</div>
+          {[
+            ['Use the EXACT same face description', 'Copy-paste word for word — even one changed word shifts the face'],
+            ['Specify facial asymmetry', 'Add "slight natural asymmetry" — perfect symmetry = AI tell'],
+            ['Lock the eye color precisely', '"Honey brown eyes with dark limbal ring" not just "brown eyes"'],
+            ['Include a distinctive feature', 'A unique detail like a specific beauty mark makes the face consistent'],
+            ['Use Soul ID for video', 'For video content connect to Soul ID in Academy Studios'],
+            ['Save your face description', 'Store it in your Baddie DNA profile in the Prompt Bank'],
+          ].map(([tip, detail]) => (
+            <div key={tip} style={{ marginBottom: '12px', padding: '10px', background: 'var(--bg3)', borderRadius: '8px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--pink)', marginBottom: '3px' }}>✦ {tip}</div>
+              <div style={{ fontSize: '11px', color: 'var(--mu3)', lineHeight: '1.5' }}>{detail}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {generating && <div className="lbar" style={{ marginBottom: '14px' }}><div className="lbar-fill" /></div>}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '16px' }}>
+        {images.map((img, i) => (
+          <div key={i}>
+            <ImageWindow src={img || undefined} loading={generating && !img} index={i} />
+            <div style={{ fontSize: '10px', color: 'var(--mu3)', textAlign: 'center', marginTop: '4px', fontFamily: "'DM Mono',monospace" }}>
+              {[scenario, 'Coffee shop', 'City street', 'Gym'][i]}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {images.some(Boolean) && (
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '13px', color: 'var(--mu3)', marginBottom: '12px' }}>Do all 4 images look like the same person? If yes — you have consistency! If no — refine your face description.</div>
+          <button className="r-btn" onClick={onComplete} style={{ fontSize: '12px', padding: '10px 20px' }}>✦ Lab Complete — Continue to Prompt Library →</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ComingSoon({ labName, icon, num }: { labName: string; icon: string; num: string }) {
   return (
     <div className="pg-in">
@@ -1294,7 +2076,7 @@ export default function RealismStudioPage() {
   }
 
   const comingSoonLabs = [
-    { id: 'lighting', name: 'Lighting Lab', icon: '💡', num: '08' },
+    { id: 'score', name: 'Realism Score™', icon: '⭐', num: '15' },
     { id: 'pose', name: 'Pose Lab', icon: '🧍', num: '09' },
     { id: 'video', name: 'Video Lab', icon: '🎥', num: '10' },
     { id: 'social', name: 'Social Media Lab', icon: '📱', num: '11' },
@@ -1360,7 +2142,14 @@ export default function RealismStudioPage() {
               {activeLab === 'hands' && <HandsLab onComplete={() => { completeLab('hands'); setActiveLab('clothing') }} />}
               {activeLab === 'clothing' && <ClothingLab onComplete={() => { completeLab('clothing'); setActiveLab('camera') }} />}
               {activeLab === 'camera' && <CameraLab onComplete={() => { completeLab('camera'); setActiveLab('lighting') }} />}
-              {['lighting','pose','video','social','consistency','library','builder','score'].map(id => {
+              {activeLab === 'lighting' && <LightingLab onComplete={() => { completeLab('lighting'); setActiveLab('pose') }} />}
+              {activeLab === 'pose' && <PoseLab onComplete={() => { completeLab('pose'); setActiveLab('video') }} />}
+              {activeLab === 'video' && <VideoLab onComplete={() => { completeLab('video'); setActiveLab('social') }} />}
+              {activeLab === 'social' && <SocialMediaLab onComplete={() => { completeLab('social'); setActiveLab('consistency') }} />}
+              {activeLab === 'consistency' && <ConsistencyLab onComplete={() => { completeLab('consistency'); setActiveLab('library') }} />}
+              {activeLab === 'library' && <PromptLibrary />}
+              {activeLab === 'builder' && <ProjectBuilder />}
+              {['score'].map(id => {
                 const lab = comingSoonLabs.find(l => l.id === id)
                 return lab && activeLab === id ? <ComingSoon key={id} labName={lab.name} icon={lab.icon} num={lab.num} /> : null
               })}
