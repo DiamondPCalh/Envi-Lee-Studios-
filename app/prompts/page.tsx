@@ -1351,7 +1351,7 @@ function StudentSuite() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '10px' }}>
             {myPrompts.map(p => (
-              <div key={p.id} className="card">
+              <<SuitePromptCard     key={p.id}     p={p}     theme={theme}     onDelete={(id) => {       const updated = myPrompts.filter(mp => mp.id !== id)       setMyPrompts(updated)       localStorage.setItem(`myPrompts_${user?.id}`, JSON.stringify(updated))     }}   /> ))}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                   <span style={{ fontSize: '10px', padding: '2px 8px', background: `${theme.primaryColor}20`, color: theme.primaryColor, borderRadius: '20px', fontFamily: "'DM Mono',monospace" }}>{p.category}</span>
                   <div style={{ display: 'flex', gap: '6px' }}>
