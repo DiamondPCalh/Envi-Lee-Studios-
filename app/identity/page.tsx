@@ -918,6 +918,20 @@ function AssetVault({ character, onSave }: { character: Character | null; onSave
   )
 }
 
+
+function buildMemoryQuery(charName: string | undefined, mems: Array<{date:string;event:string;location:string;outfit:string;mood:string;people:string;milestone:boolean}>, q: string): string {
+  const list = mems.slice(0,20).map(m => {
+    let line = `- [${new Date(m.date).toLocaleDateString()}] ${m.event}`
+    if (m.location) line += ' at ' + m.location
+    if (m.outfit) line += ', wearing ' + m.outfit
+    if (m.mood) line += ', mood: ' + m.mood
+    if (m.people) line += ', with ' + m.people
+    if (m.milestone) line += ' [MILESTONE]'
+    return line
+  }).join('\n')
+  return 'You are the memory AI for ' + (charName || 'this AI character') + '. Based on these memories, answer: ' + q + '\n\nMemories:\n' + list + '\n\nAnswer conversationally as her personal AI assistant.'
+}
+
 // ── MEMORY ENGINE™ ────────────────────────────────────────────
 function MemoryEngine({ character, onSave }: { character: Character | null; onSave: (c: Character) => void }) {
   const [memories, setMemories] = useState<Memory[]>(character?.memories || [])
@@ -964,15 +978,7 @@ function MemoryEngine({ character, onSave }: { character: Character | null; onSa
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'claude-sonnet-4-6', max_tokens: 500,
-          messages: [{ role: 'user', content: `You are the memory AI for ${character?.name || 'this AI character'}. Based on these logged memories, answer the question.
-
-Memories:
-${memories.slice(0, 20).map(m => `- [${new Date(m.date).toLocaleDateString()}] ${m.event}${m.location ? ` at ${m.location}` : ''}${m.outfit ? `, wearing ${m.outfit}` : ''}${m.mood ? `, mood: ${m.mood}` : ''}${m.people ? `, with ${m.people}` : ''}${m.milestone ? ' [MILESTONE]' : ''}`).join('
-')}
-
-Question: ${queryInput}
-
-Answer conversationally as if you're her personal AI assistant who knows everything about her life.` }],
+          messages: [{ role: 'user', content: buildMemoryQuery(character?.name, memories, queryInput) }],
         }),
       })
       const data = await res.json()
