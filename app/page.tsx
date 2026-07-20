@@ -1,0 +1,479 @@
+'use client'
+import { useState, useEffect } from 'react'
+import { UserButton, useUser } from '@clerk/nextjs'
+import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/nextjs'
+import { useRouter } from 'next/navigation'
+
+const APPS = [
+  {
+    id: 'pod',
+    name: 'POD Studios™',
+    full: 'Envi Lee POD Studios™',
+    desc: 'Mockup generator, design studio, AI model scenes, export tools, virtual shopping',
+    icon: '◈',
+    path: '/pod',
+    accent: '#ff6b6b',
+    accent2: '#ffd93d',
+    accent3: '#6bcb77',
+    gradient: 'linear-gradient(135deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff)',
+    border: 'rgba(255,107,107,0.4)',
+    glow: 'rgba(255,107,107,0.15)',
+    tag: 'POD Sellers',
+    tools: ['Mockup Generator', 'Design Studio', 'AI Model Scene', 'Export Tools', 'Virtual Store'],
+  },
+  {
+    id: 'ai',
+    name: 'AI Studios™',
+    full: 'Envi Lee AI Studios™',
+    desc: 'Content creation, CineFlow AI, brand deals, lip sync, storyboard, video generation, show production',
+    icon: '⊳',
+    path: '/ai-studios',
+    accent: '#00d4ff',
+    accent2: '#0099ff',
+    gradient: 'linear-gradient(135deg, #00d4ff, #0066ff)',
+    border: 'rgba(0,212,255,0.4)',
+    glow: 'rgba(0,212,255,0.15)',
+    tag: 'All Creators',
+    tools: ['CineFlow AI', 'Brand Deals', 'Lip Sync', 'Storyboard', 'Video Generator'],
+  },
+  {
+    id: 'music',
+    name: 'Music Studios™',
+    full: 'Envi Lee Music Studios™',
+    desc: 'AI lyrics, beat generator, voice cloning, artist development, community, DistroKid access',
+    icon: '♪',
+    path: '/music',
+    accent: '#ffe600',
+    accent2: '#ffaa00',
+    gradient: 'linear-gradient(135deg, #ffe600, #ff8800)',
+    border: 'rgba(255,230,0,0.4)',
+    glow: 'rgba(255,230,0,0.15)',
+    tag: 'Music Artists',
+    tools: ['AI Lyrics', 'Beat Generator', 'Voice Studio', 'Artist Dev', 'Community'],
+  },
+  {
+    id: 'academy',
+    name: 'Academy Studios™',
+    full: 'Envi Lee Academy Studios™',
+    desc: 'Build your AI twin, AUREN framework, virtual wardrobe, cinematic content shop, media kit',
+    icon: '✦',
+    path: '/academy',
+    accent: '#b06cff',
+    accent2: '#e8c76a',
+    gradient: 'linear-gradient(135deg, #7c3aed, #b06cff)',
+    border: 'rgba(176,108,255,0.4)',
+    glow: 'rgba(176,108,255,0.15)',
+    tag: 'Academy Students',
+    tools: ['AI Twin Builder', 'AUREN Framework', 'Virtual Store', 'Content Shop', 'Media Kit'],
+    hasBaddie: true,
+    hasKings: true,
+  },
+  {
+    id: 'suite',
+    name: 'Creator Suite™',
+    full: 'Envi Lee Creator Suite™',
+    desc: 'Profit calculator, consistent characters, saved work, all creator tools in one place',
+    icon: '◉',
+    path: '/suite',
+    accent: '#00ff88',
+    accent2: '#00cc66',
+    gradient: 'linear-gradient(135deg, #00ff88, #00cc66)',
+    border: 'rgba(0,255,136,0.4)',
+    glow: 'rgba(0,255,136,0.15)',
+    tag: 'All Students',
+    tools: ['Profit Calculator', 'Consistent Characters', 'Saved Work', 'All Tools', 'Templates'],
+  },
+  {
+    id: 'store',
+    name: 'Virtual Store™',
+    full: 'Envi Lee Virtual Store™',
+    desc: 'Shop Envi Lee designs, student POD products, lifestyle pieces, and UGC shopping',
+    icon: '✦',
+    path: '/store',
+    accent: '#ff2d78',
+    accent2: '#ff6fa8',
+    gradient: 'linear-gradient(135deg, #ff0080, #ff4da6, #ff80c0)',
+    border: 'rgba(255,45,120,0.4)',
+    glow: 'rgba(255,45,120,0.15)',
+    tag: 'Everyone',
+    tools: ['Envi Lee Collection', 'Student POD Shop', 'Lifestyle Store', 'UGC Shopping', 'Connect'],
+  },
+  {
+    id: 'legal',
+    name: 'Baddie Legal Vault™',
+    full: 'Envi Lee Baddie Legal Vault™',
+    desc: 'Protect your AI twin, content, and brand with legal forms, ID cards, and ownership documents',
+    icon: '⚖️',
+    path: '/legal',
+    accent: '#ff6a00',
+    accent2: '#ff9a3c',
+    gradient: 'linear-gradient(135deg, #ff6a00, #ff9a3c)',
+    border: 'rgba(255,106,0,0.4)',
+    glow: 'rgba(255,106,0,0.15)',
+    tag: 'Baddie + Kings',
+    tools: ['Birth Certificate', 'AI Twin ID Card', 'Prenup Agreement', 'Platform Protection', 'Legal Disclaimers'],
+  },
+  {
+    id: 'prompts',
+    name: 'Baddie Prompt Bank™',
+    full: 'Envi Lee Baddie Prompt Bank™',
+    desc: 'The Netflix of AI influencer prompts — generate a full month of content with one click',
+    icon: '◈',
+    path: '/prompts',
+    accent: '#ff6fd8',
+    accent2: '#c084fc',
+    gradient: 'linear-gradient(135deg, #ff6fd8, #c084fc, #a855f7)',
+    border: 'rgba(255,111,216,0.4)',
+    glow: 'rgba(255,111,216,0.15)',
+    tag: 'All Students',
+    tools: ['Baddie DNA™', 'One Click Generation', 'Private Suite', 'Prompt Library', '30-Day Calendar'],
+  },
+  {
+    id: 'vault',
+    name: 'Baddie Content Vault™',
+    full: 'Envi Lee Baddie Content Vault™',
+    desc: 'AI creator Netflix — real AI videos, step-by-step breakdowns, and full production pipelines',
+    icon: '⊳',
+    path: '/vault',
+    accent: '#ffe600',
+    accent2: '#00cfff',
+    gradient: 'linear-gradient(135deg, #ffe600, #00cfff)',
+    border: 'rgba(255,230,0,0.4)',
+    glow: 'rgba(255,230,0,0.15)',
+    tag: 'All Schools',
+    tools: ['Pinterest Layout', 'Scene Breakdowns', 'Elite Features', 'Student Pipeline', 'Community'],
+  },
+  {
+    id: 'realism',
+    name: 'Realism Studio™',
+    full: 'Envi Lee Realism Studio™',
+    desc: 'The AI Realism Operating System — 15 labs to master photorealistic human generation',
+    icon: '◉',
+    path: '/realism',
+    accent: '#ea3582',
+    accent2: '#ee732d',
+    gradient: 'linear-gradient(135deg, #ea3582, #ee732d)',
+    border: 'rgba(234,53,130,0.4)',
+    glow: 'rgba(234,53,130,0.15)',
+    tag: 'Academy Students',
+    tools: ['Face Lab', 'Skin Lab', 'Hair Lab', 'Body Lab', 'Realism Score™'],
+  },
+  {
+    id: 'identity',
+    name: 'Identity Blueprint Vault™',
+    full: 'Envi Lee Identity Blueprint Vault™',
+    desc: 'Build a complete AI celebrity empire — character, world, brand, business, and Digital Human Bible',
+    icon: '◈',
+    path: '/identity',
+    accent: '#6B21A8',
+    accent2: '#06B6D4',
+    gradient: 'linear-gradient(135deg, #6B21A8, #A855F7, #06B6D4)',
+    border: 'rgba(107,33,168,0.4)',
+    glow: 'rgba(107,33,168,0.15)',
+    tag: 'Academy Students',
+    tools: ['Birth Chamber', 'Identity DNA™', 'Memory Engine™', 'World Builder™', 'Creator Blueprint™'],
+  },
+  {
+    id: 'sparkle',
+    name: 'World of Sparkle™',
+    full: 'Envi Lee World of Sparkle™',
+    desc: 'Creative craft education — 15 worlds covering woodworking, resin, sewing, balloon art, DIY kits, patterns and more',
+    icon: '✨',
+    path: '/sparkle',
+    accent: '#9B59B6',
+    accent2: '#F9F900',
+    gradient: 'linear-gradient(135deg, #9B59B6, #C9A0DC, #FF006E, #F9F900)',
+    border: 'rgba(155,89,182,0.4)',
+    glow: 'rgba(155,89,182,0.15)',
+    tag: 'Members Only',
+    tools: ['Globe World Map', 'AI Craft Coach', 'Pattern Designer', 'Tutorial Theater', 'Sparkle Vision™'],
+  },
+]
+
+
+function HomeCalendar() {
+  const [entries, setEntries] = useState<Record<string, string>>({})
+  const [addingDay, setAddingDay] = useState<string | null>(null)
+  const [inputVal, setInputVal] = useState('')
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const today = new Date()
+
+  function getDate(i: number) {
+    const d = new Date()
+    d.setDate(d.getDate() - d.getDay() + i)
+    return d
+  }
+
+  function saveEntry(key: string) {
+    if (!inputVal.trim()) { setAddingDay(null); return }
+    setEntries(e => ({ ...e, [key]: inputVal.trim() }))
+    setInputVal(''); setAddingDay(null)
+  }
+
+  function downloadPDF() {
+    const rows = days.map((day, i) => {
+      const d = getDate(i)
+      const key = d.toDateString()
+      return { day, date: d.getDate(), isToday: key === today.toDateString(), entry: entries[key] || '' }
+    })
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;padding:32px;color:#111;}h1{font-size:22px;text-align:center;margin-bottom:4px;}h2{font-size:11px;text-align:center;color:#888;margin-bottom:20px;letter-spacing:2px;text-transform:uppercase;}.divider{width:60px;height:3px;background:#9b6dff;margin:0 auto 24px;}.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;}.cell{border:1px solid #eee;border-radius:8px;padding:12px;min-height:90px;}.cell.today{border-color:#9b6dff;background:#f8f5ff;}.day-label{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:4px;}.date-num{font-size:18px;font-weight:700;color:#9b6dff;margin-bottom:6px;}.entry-text{font-size:11px;color:#333;line-height:1.5;}.footer{margin-top:24px;text-align:center;font-size:10px;color:#ccc;}</style></head><body><h1>Content Calendar</h1><h2>Envi Lee Creator Studios</h2><div class="divider"></div><div class="grid">${rows.map(r => `<div class="cell${r.isToday ? ' today' : ''}"><div class="day-label">${r.day}</div><div class="date-num">${r.date}</div><div class="entry-text">${r.entry}</div></div>`).join('')}</div><div class="footer">Envi Lee Creator Studios · Generated ${new Date().toLocaleDateString()}</div></body></html>`
+    const win = window.open('', '_blank')
+    if (win) { win.document.write(html); win.document.close(); setTimeout(() => win.print(), 500) }
+  }
+
+  return (
+    <div style={{ background: 'rgba(255,255,255,0.02)', border: '0.5px solid rgba(108,86,126,0.2)', borderRadius: '16px', padding: '24px', marginBottom: '32px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <div>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '16px', fontWeight: 800, color: '#f8f0ff', marginBottom: '2px' }}>Content Calendar</div>
+          <div style={{ fontSize: '11px', color: 'rgba(155,109,255,0.6)', fontFamily: "'DM Mono', monospace" }}>Click any day to add content · Download as PDF</div>
+        </div>
+        <button onClick={downloadPDF} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #6c567e, #9b6dff)', color: '#fff', fontSize: '11px', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>
+          ⬇ Download PDF
+        </button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px' }}>
+        {days.map((day, i) => {
+          const date = getDate(i)
+          const key = date.toDateString()
+          const isToday = key === today.toDateString()
+          const entry = entries[key]
+          return (
+            <div key={day} style={{ textAlign: 'center', padding: '10px 6px', background: isToday ? 'rgba(155,109,255,0.15)' : 'rgba(255,255,255,0.02)', border: `0.5px solid ${isToday ? 'rgba(155,109,255,0.4)' : 'rgba(108,86,126,0.15)'}`, borderRadius: '8px', minHeight: '80px', cursor: 'pointer' }}
+              onClick={() => { setAddingDay(key); setInputVal(entry || '') }}>
+              <div style={{ fontSize: '9px', color: isToday ? '#9b6dff' : 'rgba(120,100,150,0.6)', fontFamily: "'DM Mono', monospace", textTransform: 'uppercase' as const, letterSpacing: '.7px', marginBottom: '4px' }}>{day}</div>
+              <div style={{ fontSize: '16px', fontWeight: 700, color: isToday ? '#9b6dff' : 'rgba(180,160,200,0.5)', marginBottom: '6px' }}>{date.getDate()}</div>
+              {entry
+                ? <div style={{ fontSize: '9px', color: '#9b6dff', lineHeight: '1.4', padding: '0 2px' }}>{entry.slice(0, 30)}{entry.length > 30 ? '…' : ''}</div>
+                : <div style={{ fontSize: '9px', color: 'rgba(108,86,126,0.4)', fontFamily: "'DM Mono', monospace" }}>+ Add</div>
+              }
+            </div>
+          )
+        })}
+      </div>
+      {addingDay && (
+        <div style={{ marginTop: '12px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <input autoFocus value={inputVal} onChange={e => setInputVal(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') saveEntry(addingDay); if (e.key === 'Escape') setAddingDay(null) }}
+            placeholder={`What are you posting on ${new Date(addingDay).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}?`}
+            style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(155,109,255,0.3)', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#f8f0ff', fontFamily: "'DM Sans', sans-serif", outline: 'none' }} />
+          <button onClick={() => saveEntry(addingDay)} style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #6c567e, #9b6dff)', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>Save</button>
+          <button onClick={() => setAddingDay(null)} style={{ padding: '10px 12px', borderRadius: '8px', border: '0.5px solid rgba(108,86,126,0.3)', background: 'transparent', color: 'rgba(155,109,255,0.6)', fontSize: '12px', cursor: 'pointer' }}>✕</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function HomePage() {
+  const { user } = useUser()
+  const router = useRouter()
+  const [hovered, setHovered] = useState<string | null>(null)
+  const [currentDate] = useState(new Date())
+
+  return (
+    <>
+      <SignedOut><RedirectToSignIn /></SignedOut>
+      <SignedIn>
+        <div style={{
+          minHeight: '100vh',
+          background: '#000',
+          color: '#f8f0ff',
+          fontFamily: "'DM Sans', sans-serif",
+          position: 'relative',
+          overflow: 'hidden',
+        }}>
+          {/* Background */}
+          <div style={{ position: 'fixed', inset: 0, background: 'radial-gradient(ellipse at 20% 20%, rgba(108,86,126,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, rgba(155,109,255,0.05) 0%, transparent 50%)', pointerEvents: 'none', zIndex: 0 }} />
+          <div style={{ position: 'fixed', inset: 0, backgroundImage: 'linear-gradient(rgba(108,86,126,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(108,86,126,0.03) 1px, transparent 1px)', backgroundSize: '44px 44px', pointerEvents: 'none', zIndex: 0 }} />
+
+          {/* TOPBAR */}
+          <header style={{
+            position: 'sticky', top: 0, zIndex: 100,
+            background: 'rgba(0,0,0,0.95)',
+            borderBottom: '0.5px solid rgba(108,86,126,0.2)',
+            height: '60px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 28px',
+            backdropFilter: 'blur(20px)',
+          }}>
+            {/* Logo */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <svg width="36" height="36" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="44" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeDasharray="240" strokeDashoffset="25" />
+                <text x="50" y="60" textAnchor="middle" fill="white" fontSize="34" fontFamily="Cormorant Garamond, serif" fontWeight="400">EL</text>
+              </svg>
+              <div>
+                <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '16px', fontWeight: 500, color: '#f8f0ff', letterSpacing: '1px' }}>Envi Lee Global Empire</div>
+                <div style={{ fontSize: '9px', color: 'rgba(155,109,255,0.6)', fontFamily: "'DM Mono', monospace", letterSpacing: '1.5px', textTransform: 'uppercase' }}>AI Creator Ecosystem</div>
+              </div>
+            </div>
+
+            {/* Right side */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              {/* Notification bell */}
+              <button style={{ width: '36px', height: '36px', borderRadius: '50%', border: '0.5px solid rgba(108,86,126,0.3)', background: 'transparent', color: 'rgba(155,109,255,0.6)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px' }}>
+                🔔
+              </button>
+              {/* User profile */}
+              {user && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 12px', background: 'rgba(155,109,255,0.08)', border: '0.5px solid rgba(155,109,255,0.2)', borderRadius: '24px' }}>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 600, color: '#f8f0ff' }}>{user.firstName || user.emailAddresses[0]?.emailAddress?.split('@')[0]}</div>
+                    <div style={{ fontSize: '9px', color: 'rgba(155,109,255,0.6)', fontFamily: "'DM Mono', monospace" }}>Creator Plan</div>
+                  </div>
+                  <UserButton afterSignOutUrl="/sign-in" appearance={{
+                    elements: { avatarBox: { width: '32px', height: '32px', border: '1.5px solid rgba(155,109,255,0.4)' } }
+                  }} />
+                </div>
+              )}
+            </div>
+          </header>
+
+          {/* MAIN CONTENT */}
+          <main style={{ padding: '40px 28px 60px', position: 'relative', zIndex: 1, maxWidth: '1400px', margin: '0 auto' }}>
+
+            {/* Welcome */}
+            <div style={{ marginBottom: '40px' }}>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '10px', color: 'rgba(155,109,255,0.6)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>
+                Welcome back
+              </div>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 'clamp(28px, 4vw, 48px)', fontWeight: 400, color: '#f8f0ff', letterSpacing: '-0.5px', lineHeight: 1.1 }}>
+                {user?.firstName || 'Creator'} <span style={{ color: '#9b6dff' }}>✦</span>
+              </div>
+              <div style={{ fontSize: '13px', color: 'rgba(120,100,150,0.8)', marginTop: '6px' }}>
+                {currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · Choose your studio to begin
+              </div>
+            </div>
+
+            {/* STATS ROW */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '48px' }}>
+              {[
+                { label: 'Studios Available', value: '12', color: '#9b6dff' },
+                { label: 'Tools Total', value: '50+', color: '#00d4ff' },
+                { label: 'AI Models', value: '3', color: '#ffe600' },
+                { label: 'Your Plan', value: user ? 'Active' : '—', color: '#00ff88' },
+              ].map(s => (
+                <div key={s.label} style={{ background: 'rgba(255,255,255,0.02)', border: '0.5px solid rgba(108,86,126,0.15)', borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '24px', fontWeight: 800, color: s.color, marginBottom: '4px' }}>{s.value}</div>
+                  <div style={{ fontSize: '10px', color: 'rgba(120,100,150,0.7)', fontFamily: "'DM Mono', monospace", textTransform: 'uppercase', letterSpacing: '.7px' }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* APP CARDS */}
+            <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '10px', color: 'rgba(155,109,255,0.5)', letterSpacing: '2px', textTransform: 'uppercase' }}>Your Studios</div>
+              <div style={{ fontSize: '11px', color: 'rgba(120,100,150,0.5)', fontFamily: "'DM Mono', monospace" }}>Click any studio to enter</div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px', marginBottom: '48px' }}>
+              {APPS.map(app => (
+                <div
+                  key={app.id}
+                  onClick={() => router.push(app.path)}
+                  onMouseEnter={() => setHovered(app.id)}
+                  onMouseLeave={() => setHovered(null)}
+                  style={{
+                    background: hovered === app.id ? `rgba(${app.id === 'pod' ? '255,107,107' : app.id === 'ai' ? '0,212,255' : app.id === 'music' ? '255,230,0' : app.id === 'academy' ? '176,108,255' : '0,255,136'},0.06)` : 'rgba(255,255,255,0.02)',
+                    border: `0.5px solid ${hovered === app.id ? app.border : 'rgba(108,86,126,0.2)'}`,
+                    borderRadius: '16px',
+                    padding: '24px',
+                    cursor: 'pointer',
+                    transition: 'all .3s ease',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    boxShadow: hovered === app.id ? `0 0 40px ${app.glow}` : 'none',
+                  }}>
+                  {/* Gradient top bar */}
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '2px', background: app.gradient, opacity: hovered === app.id ? 1 : 0.4, transition: 'opacity .3s' }} />
+
+                  {/* Tag */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <div style={{ fontSize: '9px', padding: '3px 8px', background: `${app.glow}`, border: `0.5px solid ${app.border}`, borderRadius: '20px', color: app.accent, fontFamily: "'DM Mono', monospace", letterSpacing: '.8px', textTransform: 'uppercase' }}>
+                      {app.tag}
+                    </div>
+                    <div style={{ fontSize: '22px', opacity: 0.6 }}>{app.icon}</div>
+                  </div>
+
+                  {/* Academy logos */}
+                  {app.hasBaddie && (
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                      <div style={{ fontSize: '9px', padding: '2px 8px', background: 'rgba(176,108,255,0.1)', border: '0.5px solid rgba(176,108,255,0.3)', borderRadius: '4px', color: '#b06cff', fontFamily: "'DM Mono', monospace" }}>BADDIE</div>
+                      <div style={{ fontSize: '9px', padding: '2px 8px', background: 'rgba(232,199,106,0.1)', border: '0.5px solid rgba(232,199,106,0.3)', borderRadius: '4px', color: '#e8c76a', fontFamily: "'DM Mono', monospace" }}>KING'S</div>
+                    </div>
+                  )}
+
+                  {/* App name */}
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '20px', fontWeight: 800, color: '#f8f0ff', marginBottom: '6px', letterSpacing: '-0.3px' }}>
+                    {app.name}
+                  </div>
+                  <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '11px', color: app.accent, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '10px', opacity: 0.8 }}>
+                    {app.full}
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'rgba(180,160,200,0.7)', lineHeight: '1.6', marginBottom: '16px' }}>
+                    {app.desc}
+                  </div>
+
+                  {/* Tools pills */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '16px' }}>
+                    {app.tools.map(t => (
+                      <span key={t} style={{ fontSize: '9px', padding: '2px 7px', background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(108,86,126,0.2)', borderRadius: '4px', color: 'rgba(180,160,200,0.6)', fontFamily: "'DM Mono', monospace" }}>
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Enter button */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '10px 14px',
+                    background: hovered === app.id ? app.gradient : 'rgba(255,255,255,0.04)',
+                    borderRadius: '8px',
+                    transition: 'all .3s',
+                  }}>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: hovered === app.id ? '#000' : app.accent, fontFamily: "'DM Sans', sans-serif", letterSpacing: '.3px' }}>
+                      Enter Studio
+                    </span>
+                    <span style={{ fontSize: '16px', color: hovered === app.id ? '#000' : app.accent }}>→</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* CONTENT CALENDAR */}
+            <HomeCalendar />
+
+            {/* PROFIT CALCULATOR QUICK */}
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '0.5px solid rgba(0,255,136,0.2)', borderRadius: '16px', padding: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <div>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '16px', fontWeight: 800, color: '#f8f0ff', marginBottom: '2px' }}>Quick Profit Calculator</div>
+                  <div style={{ fontSize: '11px', color: 'rgba(0,255,136,0.5)', fontFamily: "'DM Mono', monospace" }}>Estimate your POD earnings</div>
+                </div>
+                <button onClick={() => router.push('/suite')} style={{ padding: '8px 16px', borderRadius: '8px', border: '0.5px solid rgba(0,255,136,0.3)', background: 'transparent', color: 'rgba(0,255,136,0.8)', fontSize: '11px', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                  Full Calculator →
+                </button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
+                {[
+                  { label: 'Sell Price', placeholder: '$35', color: '#00ff88' },
+                  { label: 'Print Cost', placeholder: '$12', color: '#00ff88' },
+                  { label: 'Monthly Sales', placeholder: '50 units', color: '#00ff88' },
+                ].map(f => (
+                  <div key={f.label}>
+                    <div style={{ fontSize: '9px', color: 'rgba(0,255,136,0.5)', fontFamily: "'DM Mono', monospace", textTransform: 'uppercase', letterSpacing: '.7px', marginBottom: '6px' }}>{f.label}</div>
+                    <input placeholder={f.placeholder} style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(0,255,136,0.2)', borderRadius: '7px', padding: '8px 10px', fontSize: '13px', color: '#f8f0ff', fontFamily: "'DM Sans', sans-serif", outline: 'none', boxSizing: 'border-box' }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </main>
+        </div>
+      </SignedIn>
+    </>
+  )
+}
