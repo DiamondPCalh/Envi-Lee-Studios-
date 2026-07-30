@@ -1,30 +1,22 @@
 // app/api/access/prompts/route.ts
-// STRICT ACCESS — only approved academy emails get in
-
 import { NextRequest, NextResponse } from 'next/server'
 import { currentUser } from '@clerk/nextjs/server'
 
 export async function GET(req: NextRequest) {
   try {
-    // ── ADMIN BYPASS — check before anything else ────────────
     const adminId = process.env.ADMIN_USER_ID || ''
     const queryUserId = req.nextUrl.searchParams.get('userId') || ''
-    const queryEmail = req.nextUrl.searchParams.get('email') || ''
+    const queryEmail = (req.nextUrl.searchParams.get('email') || '').toLowerCase().trim()
+
+    // Admin bypass — check before everything else
     if (queryUserId && queryUserId === adminId) {
       return NextResponse.json({ hasAccess: true, role: 'admin' })
     }
 
     const user = await currentUser()
     if (!user) return NextResponse.json({ hasAccess: false })
-
-    const adminId = process.env.ADMIN_USER_ID
     if (user.id === adminId) return NextResponse.json({ hasAccess: true, role: 'admin' })
 
-    // Also check query param userId for client-side calls
-    const queryUserId = req.nextUrl.searchParams.get('userId')
-    if (queryUserId && queryUserId === adminId) return NextResponse.json({ hasAccess: true, role: 'admin' })
-
-    const queryEmail = req.nextUrl.searchParams.get('email') || ''
     const userEmail = queryEmail || (user.emailAddresses?.[0]?.emailAddress ?? '').toLowerCase().trim()
     const redisUrl = process.env.UPSTASH_REDIS_REST_URL
     const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN
@@ -64,7 +56,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Check ACADEMY_STUDENTS env var — exact email match only
+    // Check ACADEMY_STUDENTS env var
     if (userEmail) {
       const studentEmails: string[] = JSON.parse(process.env.ACADEMY_STUDENTS || '[]')
       if (studentEmails.map(e => e.toLowerCase().trim()).includes(userEmail)) {
@@ -73,7 +65,6 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json({ hasAccess: false })
-
   } catch (err) {
     console.error('[/api/access/prompts]', err)
     return NextResponse.json({ hasAccess: false })
