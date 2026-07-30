@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { UserButton, useUser } from '@clerk/nextjs'
+import { UserButton, useUser, SignedIn, SignedOut, RedirectToSignIn } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 
 type StoreTool = 'home' | 'envi' | 'pod' | 'lifestyle' | 'ugc' | 'social' | 'submit' | 'admin'
