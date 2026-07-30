@@ -2112,7 +2112,7 @@ function UniversalAccessGate({ children, appName }: { children: React.ReactNode;
             <div style={{ fontFamily:"'DM Mono',monospace", fontSize:'10px', color:'rgba(212,168,67,0.6)', textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:'8px' }}>VIP</div>
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:'36px', fontWeight:900, color:'#D4A843', marginBottom:'4px' }}>$65<span style={{ fontSize:'13px', fontWeight:400, color:'rgba(212,168,67,0.5)' }}>/mo</span></div>
             <div style={{ fontSize:'12px', color:'rgba(255,255,255,0.5)', lineHeight:'1.7', marginBottom:'16px' }}>Everything in Member plus exclusive VIP perks</div>
-            {['Everything in Member','Early access to new apps','First to know what's coming','Discounts on virtual store','Discounts on physical products','Private VIP community'].map(f => (
+            {["Everything in Member","Early access to new apps","First to know whats coming","Discounts on virtual store","Discounts on physical products","Private VIP community"].map(f => (
               <div key={f} style={{ display:'flex', gap:'7px', fontSize:'11px', color:'rgba(255,255,255,0.6)', marginBottom:'5px' }}>
                 <span style={{ color:'#D4A843' }}>✦</span>{f}
               </div>
