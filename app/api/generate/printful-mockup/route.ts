@@ -118,8 +118,9 @@ export async function POST(req: NextRequest) {
 
       if (!publicUrl) return NextResponse.json({ error: 'Could not get a public image URL. Please paste an image URL directly.' }, { status: 400 })
 
+      const variantIdNum = parseInt(variantId as string)
       const mockupBody = {
-        variant_ids: [parseInt(variantId as string)],
+        variant_ids: [variantIdNum],
         format: 'jpg',
         files: [{
           placement: (placement as string) || 'front',
@@ -128,8 +129,11 @@ export async function POST(req: NextRequest) {
         }],
       }
 
-      const { ok, status, data } = await pf<{ result?: { task_key?: string; status?: string }; error?: string }>(
-        apiKey, `/mockup-generator/create-task/${parseInt(variantId as string)}`, 'POST', mockupBody
+      // Get catalog variant ID if this is a store sync variant
+      // Store sync variants have different IDs than catalog variants
+      // Try with the given ID first, then handle error
+      const { ok, status, data } = await pf<{ result?: { task_key?: string; status?: string }; error?: string; code?: number }>(
+        apiKey, `/mockup-generator/create-task/${variantIdNum}`, 'POST', mockupBody
       )
 
       if (!ok) return NextResponse.json({ error: 'Printful error ' + status + ': ' + JSON.stringify(data) }, { status: status || 500 })
