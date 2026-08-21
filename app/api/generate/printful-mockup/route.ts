@@ -71,19 +71,48 @@ export async function POST(req: NextRequest) {
 
       let publicUrl = imageUrl as string | undefined
 
-      // Upload base64 to fal if no public URL
-      if (!publicUrl && imageBase64 && falKey) {
-        const blob = await fetch(imageBase64 as string).then(r => r.blob())
-        const fd = new FormData()
-        fd.append('file', blob, 'design.jpg')
-        const upRes = await fetch('https://fal.run/fal-ai/upload', {
-          method: 'POST',
-          headers: { 'Authorization': `Key ${falKey}` },
-          body: fd,
-        })
-        if (upRes.ok) {
-          const upData = await upRes.json() as { url?: string }
-          publicUrl = upData.url
+        // Upload base64 to Cloudinary to get permanent public URL
+      if (!publicUrl && imageBase64) {
+        // Try Cloudinary first
+        const cloudName = process.env.CLOUDINARY_CLOUD_NAME
+        const cloudKey = process.env.CLOUDINARY_API_KEY
+        const cloudSecret = process.env.CLOUDINARY_API_SECRET
+
+        if (cloudName && cloudKey && cloudSecret) {
+          const crypto = await import('crypto')
+          const timestamp = Math.round(Date.now() / 1000)
+          const folder = 'envi-lee-pod'
+          const sigStr = `folder=${folder}&timestamp=${timestamp}${cloudSecret}`
+          const sig = crypto.createHash('sha1').update(sigStr).digest('hex')
+          const fd = new FormData()
+          fd.append('file', imageBase64 as string)
+          fd.append('api_key', cloudKey)
+          fd.append('timestamp', timestamp.toString())
+          fd.append('signature', sig)
+          fd.append('folder', folder)
+          const upRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+            method: 'POST', body: fd,
+          })
+          if (upRes.ok) {
+            const upData = await upRes.json() as { secure_url?: string }
+            publicUrl = upData.secure_url
+          }
+        }
+        
+        // Fallback to fal.ai if Cloudinary not configured
+        if (!publicUrl && falKey) {
+          const blob = await fetch(imageBase64 as string).then(r => r.blob())
+          const fd = new FormData()
+          fd.append('file', blob, 'design.jpg')
+          const upRes = await fetch('https://fal.run/fal-ai/upload', {
+            method: 'POST',
+            headers: { 'Authorization': `Key ${falKey}` },
+            body: fd,
+          })
+          if (upRes.ok) {
+            const upData = await upRes.json() as { url?: string }
+            publicUrl = upData.url
+          }
         }
       }
 
