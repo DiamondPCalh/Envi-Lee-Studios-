@@ -486,10 +486,12 @@ function ExactMockupGenerator() {
           body: JSON.stringify({ action: 'get_variants', productId: product.id }),
         })
         const data = await res.json()
-        const v = data.product?.variants || []
+        if (data.error) { setStatus('Error loading variants: ' + data.error); setLoading(false); return }
+        // Handle both sync_variants and catalog variants
+        const v = data.variants || data.product?.variants || data.product?.sync_variants || []
         setVariants(v)
-        if (v.length > 0) setSelectedVariant(v[0].id)
-        setStatus(v.length + ' variants loaded')
+        if (v.length > 0) setSelectedVariant(v[0].variant_id || v[0].id)
+        setStatus(v.length + ' variants loaded — select one then generate')
       }
     } catch (e) { setStatus('Error: ' + (e as Error).message) }
     setLoading(false)
@@ -513,31 +515,30 @@ function ExactMockupGenerator() {
 
     try {
       if (provider === 'printful') {
-        // For Printful we need a public URL — upload to fal first
-        let imageUrl = designUrl
-        if (designImage && !designUrl) {
-          setStatus('Uploading design to get URL...')
-          const blob = await fetch(designImage).then(r => r.blob())
-          const fd = new FormData()
-          fd.append('file', blob, 'design.jpg')
-          const falKey = 'handled server side'
-          const upRes = await fetch('/api/generate/printful-mockup', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'upload_design', imageBase64: designImage }),
-          })
-          const upData = await upRes.json()
-          imageUrl = upData.imageUrl || designImage
+        setStatus('Uploading design image...')
+        // Upload design to get public URL (Printful requires public URL)
+        const uploadRes = await fetch('/api/generate/printful-mockup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'upload_design', imageBase64: designImage }),
+        })
+        const uploadData = await uploadRes.json()
+        if (uploadData.error) {
+          setStatus('Upload error: ' + uploadData.error)
+          setGenerating(false)
+          return
         }
+        const publicUrl = uploadData.imageUrl || designUrl
 
-        setStatus('Sending to Printful...')
+        setStatus('Sending to Printful mockup generator...')
         const res = await fetch('/api/generate/printful-mockup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action: 'generate_mockup',
             variantId: selectedVariant,
-            imageUrl: imageUrl || designImage,
+            imageUrl: publicUrl,
+            imageBase64: designImage,
             placement,
           }),
         })
@@ -545,10 +546,10 @@ function ExactMockupGenerator() {
         if (data.taskKey) {
           setTaskKey(data.taskKey)
           setPolling(true)
-          setStatus('Processing — checking for result...')
+          setStatus('Printful is processing your mockup...')
           pollPrintfulMockup(data.taskKey)
         } else {
-          setStatus('Error: ' + (data.error || 'No task key returned'))
+          setStatus('Error: ' + (data.error || JSON.stringify(data)))
         }
       } else {
         // Printify
@@ -642,8 +643,11 @@ function ExactMockupGenerator() {
                 </div>
               )}
             </div>
-            <F label="Or paste design URL">
-              <input className="finp" placeholder="https://..." value={designUrl} onChange={e => setDesignUrl(e.target.value)} />
+            <F label="Or paste design URL (recommended for Printful)">
+              <input className="finp" placeholder="https://your-image-url.com/design.jpg" value={designUrl} onChange={e => setDesignUrl(e.target.value)} />
+              <div style={{ fontSize: '10px', color: 'var(--mu3)', marginTop: '4px', lineHeight: '1.6' }}>
+                Tip: Upload your design to Google Drive, Dropbox, or ImgBB → get a direct link → paste here. This is the most reliable method for Printful.
+              </div>
             </F>
           </div>
 
@@ -671,7 +675,9 @@ function ExactMockupGenerator() {
               <div className="ftitle">Step 3 — Select Variant</div>
               <select className="fsel" value={selectedVariant || ''} onChange={e => setSelectedVariant(Number(e.target.value))}>
                 {variants.map((v: Record<string, unknown>) => (
-                  <option key={v.id as number} value={v.id as number}>{v.name as string || v.color as string + ' / ' + v.size as string}</option>
+                  <option key={(v.variant_id || v.id) as number} value={(v.variant_id || v.id) as number}>
+                    {(v.name || v.product?.name || ((v.color || '') + ' / ' + (v.size || ''))) as string}
+                  </option>
                 ))}
               </select>
             </div>
