@@ -51,18 +51,34 @@ export async function POST(req: NextRequest) {
     // ── UPLOAD DESIGN (get public URL via fal) ────────────────
     if (action === 'upload_design') {
       if (!imageBase64) return NextResponse.json({ error: 'imageBase64 required' }, { status: 400 })
-      if (!falKey) return NextResponse.json({ error: 'FAL_API_KEY required' }, { status: 500 })
-      const blob = await fetch(imageBase64).then(r => r.blob())
+
+      const cloudName = process.env.CLOUDINARY_CLOUD_NAME
+      const cloudKey = process.env.CLOUDINARY_API_KEY
+      const cloudSecret = process.env.CLOUDINARY_API_SECRET
+
+      if (!cloudName || !cloudKey || !cloudSecret) {
+        return NextResponse.json({ error: 'CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET not configured in Vercel' }, { status: 500 })
+      }
+
+      const crypto = await import('crypto')
+      const timestamp = Math.round(Date.now() / 1000)
+      const folder = 'envi-lee-pod'
+      const sigStr = `folder=${folder}&timestamp=${timestamp}${cloudSecret}`
+      const sig = crypto.createHash('sha1').update(sigStr).digest('hex')
       const fd = new FormData()
-      fd.append('file', blob, 'design.jpg')
-      const upRes = await fetch('https://fal.run/fal-ai/upload', {
-        method: 'POST',
-        headers: { 'Authorization': `Key ${falKey}` },
-        body: fd,
+      fd.append('file', imageBase64 as string)
+      fd.append('api_key', cloudKey)
+      fd.append('timestamp', timestamp.toString())
+      fd.append('signature', sig)
+      fd.append('folder', folder)
+      const upRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+        method: 'POST', body: fd,
       })
-      if (!upRes.ok) return NextResponse.json({ error: 'Upload failed: ' + await upRes.text() }, { status: 500 })
-      const upData = await upRes.json() as { url?: string }
-      return NextResponse.json({ success: true, imageUrl: upData.url })
+      const upData = await upRes.json() as { secure_url?: string; error?: { message?: string } }
+      if (!upRes.ok || !upData.secure_url) {
+        return NextResponse.json({ error: 'Cloudinary upload failed: ' + (upData.error?.message || JSON.stringify(upData)) }, { status: 500 })
+      }
+      return NextResponse.json({ success: true, imageUrl: upData.secure_url })
     }
 
     // ── GENERATE MOCKUP ───────────────────────────────────────
