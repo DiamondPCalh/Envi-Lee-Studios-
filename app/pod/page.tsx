@@ -412,87 +412,57 @@ function BodyShotStudio({ modelImage, product, designImage, scene, style }: {
 
 
 // ── EXACT MOCKUP GENERATOR ────────────────────────────────────
+// Popular Printful catalog products with IDs
+const PF_POPULAR = [
+  { id: 189, name: 'All-Over Print Leggings', icon: '🩱', category: 'Bottoms' },
+  { id: 200, name: 'All-Over Print Crop Top', icon: '👚', category: 'Tops' },
+  { id: 303, name: 'All-Over Print Crop Tee', icon: '👕', category: 'Tops' },
+  { id: 198, name: 'All-Over Print Bodycon Dress', icon: '👗', category: 'Dresses' },
+  { id: 589, name: 'All-Over Print Midi Dress', icon: '👗', category: 'Dresses' },
+  { id: 83, name: 'All-Over Print Pillow', icon: '🛋️', category: 'Home' },
+  { id: 279, name: 'All-Over Print Backpack', icon: '🎒', category: 'Bags' },
+  { id: 465, name: 'All-Over Print Duffle Bag', icon: '👜', category: 'Bags' },
+  { id: 350, name: 'All-Over Print Fanny Pack', icon: '👝', category: 'Bags' },
+  { id: 507, name: 'All-Over Print Biker Shorts', icon: '🩳', category: 'Bottoms' },
+  { id: 737, name: 'All-Over Print Flare Leggings', icon: '🩱', category: 'Bottoms' },
+  { id: 558, name: 'All-Over Print Leggings w/ Pockets', icon: '🩱', category: 'Bottoms' },
+  { id: 477, name: 'All-Over Print Sports Bra', icon: '👙', category: 'Tops' },
+  { id: 924, name: 'Custom Area Rug', icon: '🪞', category: 'Home' },
+  { id: 630, name: 'All-Over Print Bandana', icon: '🧣', category: 'Accessories' },
+]
+
 function ExactMockupGenerator() {
-  const [provider, setProvider] = useState<'printful' | 'printify'>('printful')
   const [designImage, setDesignImage] = useState<string | null>(null)
   const [designUrl, setDesignUrl] = useState('')
-  const [products, setProducts] = useState<Record<string, unknown>[]>([])
-  const [selectedProduct, setSelectedProduct] = useState<Record<string, unknown> | null>(null)
+  const [selectedProduct, setSelectedProduct] = useState<{id: number; name: string; icon: string} | null>(null)
   const [variants, setVariants] = useState<Record<string, unknown>[]>([])
   const [selectedVariant, setSelectedVariant] = useState<number | null>(null)
   const [placement, setPlacement] = useState('front')
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
-  const [mockupImages, setMockupImages] = useState<string[]>([])
-  const [taskKey, setTaskKey] = useState('')
   const [polling, setPolling] = useState(false)
+  const [mockupImages, setMockupImages] = useState<string[]>([])
   const [status, setStatus] = useState('')
+  const [category, setCategory] = useState('All')
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const placements = ['front', 'back', 'left', 'right', 'sleeve', 'embroidery']
+  const placements = ['front', 'back', 'left', 'right', 'sleeve_left', 'sleeve_right']
+  const categories = ['All', 'Tops', 'Bottoms', 'Dresses', 'Bags', 'Home', 'Accessories']
+  const filtered = category === 'All' ? PF_POPULAR : PF_POPULAR.filter(p => p.category === category)
 
-  const [shopId, setShopId] = useState('')
-  const [shops, setShops] = useState<Record<string, unknown>[]>([])
-
-  async function loadProducts() {
-    setLoading(true)
-    setStatus('Loading...')
-    try {
-      if (provider === 'printful') {
-        const res = await fetch('/api/generate/printful-mockup?action=products')
-        const data = await res.json()
-        if (data.error) { setStatus('Error: ' + data.error); setLoading(false); return }
-        setProducts(data.products?.slice(0, 50) || [])
-        setStatus((data.products?.length || 0) + ' Printful products loaded')
-      } else {
-        // First get shops
-        const shopsRes = await fetch('/api/generate/printify-mockup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'get_shops' }),
-        })
-        const shopsData = await shopsRes.json()
-        if (shopsData.error) { setStatus('Error: ' + shopsData.error); setLoading(false); return }
-        const shopList = shopsData.shops || []
-        setShops(shopList)
-        if (shopList.length === 0) { setStatus('No Printify shops found'); setLoading(false); return }
-
-        // Load products from first shop
-        const firstShop = shopList[0]
-        setShopId(firstShop.id.toString())
-        const res = await fetch('/api/generate/printify-mockup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'get_products', shopId: firstShop.id }),
-        })
-        const data = await res.json()
-        if (data.error) { setStatus('Error: ' + data.error); setLoading(false); return }
-        setProducts(data.products?.slice(0, 50) || [])
-        setStatus((data.products?.length || 0) + ' products loaded from ' + firstShop.title)
-      }
-    } catch (e) { setStatus('Error: ' + (e as Error).message) }
-    setLoading(false)
-  }
-
-  async function loadVariants(product: Record<string, unknown>) {
+  async function loadVariants(product: {id: number; name: string; icon: string}) {
     setSelectedProduct(product)
+    setVariants([])
+    setSelectedVariant(null)
     setLoading(true)
-    setStatus('Loading variants...')
+    setStatus('Loading ' + product.name + ' variants...')
     try {
-      if (provider === 'printful') {
-        const res = await fetch('/api/generate/printful-mockup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'get_variants', productId: product.id }),
-        })
-        const data = await res.json()
-        if (data.error) { setStatus('Error loading variants: ' + data.error); setLoading(false); return }
-        // Handle both sync_variants and catalog variants
-        const v = data.variants || data.product?.variants || data.product?.sync_variants || []
-        setVariants(v)
-        if (v.length > 0) setSelectedVariant(v[0].variant_id || v[0].id)
-        setStatus(v.length + ' variants loaded — select one then generate')
-      }
+      const res = await fetch(`/api/generate/printful-catalog?action=variants&productId=${product.id}`)
+      const data = await res.json()
+      const v = data.variants || []
+      setVariants(v)
+      if (v.length > 0) setSelectedVariant((v[0] as Record<string, unknown>).id as number)
+      setStatus(v.length + ' variants loaded — select size/color')
     } catch (e) { setStatus('Error: ' + (e as Error).message) }
     setLoading(false)
   }
@@ -506,81 +476,47 @@ function ExactMockupGenerator() {
   }
 
   async function generateMockup() {
-    if (!selectedVariant) { setStatus('Please select a product variant'); return }
-    if (!designImage && !designUrl) { setStatus('Please upload your design image'); return }
-
+    if (!selectedVariant) { setStatus('Please select a product and variant'); return }
+    if (!designImage && !designUrl) { setStatus('Please upload your design'); return }
     setGenerating(true)
     setMockupImages([])
-    setStatus('Generating exact mockup...')
 
     try {
-      if (provider === 'printful') {
-        setStatus('Uploading design image...')
-        // Upload design to get public URL (Printful requires public URL)
-        const uploadRes = await fetch('/api/generate/printful-mockup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'upload_design', imageBase64: designImage }),
-        })
-        const uploadData = await uploadRes.json()
-        if (uploadData.error) {
-          setStatus('Upload error: ' + uploadData.error)
-          setGenerating(false)
-          return
-        }
-        const publicUrl = uploadData.imageUrl || designUrl
+      setStatus('Uploading design to Cloudinary...')
+      const uploadRes = await fetch('/api/generate/printful-mockup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'upload_design', imageBase64: designImage }),
+      })
+      const uploadData = await uploadRes.json()
+      if (uploadData.error) { setStatus('Upload error: ' + uploadData.error); setGenerating(false); return }
 
-        setStatus('Sending to Printful mockup generator...')
-        const res = await fetch('/api/generate/printful-mockup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'generate_mockup',
-            variantId: selectedVariant,
-            imageUrl: publicUrl,
-            imageBase64: designImage,
-            placement,
-          }),
-        })
-        const data = await res.json()
-        if (data.taskKey) {
-          setTaskKey(data.taskKey)
-          setPolling(true)
-          setStatus('Printful is processing your mockup...')
-          pollPrintfulMockup(data.taskKey)
-        } else {
-          setStatus('Error: ' + (data.error || JSON.stringify(data)))
-        }
+      const publicUrl = uploadData.imageUrl || designUrl
+      setStatus('Sending to Printful mockup generator...')
+
+      const res = await fetch('/api/generate/printful-mockup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'generate_mockup',
+          variantId: selectedVariant,
+          imageUrl: publicUrl,
+          placement,
+        }),
+      })
+      const data = await res.json()
+      if (data.taskKey) {
+        setPolling(true)
+        setStatus('Printful is generating your mockup...')
+        pollMockup(data.taskKey)
       } else {
-        // Printify
-        setStatus('Generating Printify mockup...')
-        const res = await fetch('/api/generate/printify-mockup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'generate_mockup',
-            blueprintId: selectedProduct?.id,
-            printProviderId: '1',
-            variantIds: [selectedVariant],
-            imageBase64: designImage,
-            placementId: placement,
-          }),
-        })
-        const data = await res.json()
-        if (data.mockups?.length > 0) {
-          setMockupImages(data.mockups.map((m: Record<string, unknown>) => m.src || m.url || m))
-          setStatus('Mockup ready!')
-        } else {
-          setStatus('Error: ' + (data.error || 'No mockups returned'))
-        }
+        setStatus('Error: ' + (data.error || JSON.stringify(data)))
       }
-    } catch (e) {
-      setStatus('Error: ' + (e as Error).message)
-    }
+    } catch (e) { setStatus('Error: ' + (e as Error).message) }
     setGenerating(false)
   }
 
-  async function pollPrintfulMockup(key: string) {
+  async function pollMockup(taskKey: string) {
     let attempts = 0
     while (attempts < 20) {
       await new Promise(r => setTimeout(r, 3000))
@@ -588,16 +524,16 @@ function ExactMockupGenerator() {
         const res = await fetch('/api/generate/printful-mockup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'get_result', taskKey: key }),
+          body: JSON.stringify({ action: 'get_result', taskKey }),
         })
         const data = await res.json()
         if (data.status === 'completed' && data.mockups?.length > 0) {
           setMockupImages(data.mockups)
           setPolling(false)
-          setStatus('Exact mockup ready!')
+          setStatus('Your exact mockup is ready!')
           return
         }
-        setStatus('Processing... ' + (data.status || 'waiting'))
+        setStatus('Processing... (' + (attempts + 1) + '/20)')
       } catch (e) { console.error(e) }
       attempts++
     }
@@ -612,98 +548,86 @@ function ExactMockupGenerator() {
         <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '32px', fontWeight: 400, color: 'var(--w)', marginBottom: '4px' }}>
           Exact <span style={{ color: 'var(--red)' }}>Mockup Generator</span>
         </div>
-        <div style={{ fontSize: '13px', color: 'var(--mu3)' }}>Your EXACT design placed on the product — pixel perfect. Powered by Printful and Printify.</div>
+        <div style={{ fontSize: '13px', color: 'var(--mu3)' }}>Your EXACT pattern placed on real Printful products — pixel perfect every time.</div>
       </div>
 
-      {/* Provider selector */}
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '24px' }}>
-        {[['printful', 'Printful'], ['printify', 'Printify']].map(([id, label]) => (
-          <button key={id} onClick={() => { setProvider(id as 'printful' | 'printify'); setProducts([]); setVariants([]); setSelectedProduct(null); setMockupImages([]) }}
-            style={{ padding: '10px 24px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', border: `1px solid ${provider === id ? 'rgba(255,80,80,0.5)' : 'rgba(255,80,80,0.1)'}`, background: provider === id ? 'rgba(255,80,80,0.1)' : 'transparent', color: provider === id ? 'var(--red)' : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif" }}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '20px' }}>
-        {/* Left config */}
+      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '20px' }}>
+        {/* Left */}
         <div>
-          {/* Step 1 — Upload Design */}
+          {/* Upload design */}
           <div className="card hi" style={{ marginBottom: '14px' }}>
-            <div className="ftitle">Step 1 — Upload Your Design</div>
+            <div className="ftitle">Step 1 — Upload Your Pattern</div>
             <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleDesignUpload} />
-            <div onClick={() => fileRef.current?.click()} style={{ border: '1.5px dashed rgba(255,80,80,0.3)', borderRadius: '8px', padding: '16px', textAlign: 'center', cursor: 'pointer', background: 'var(--bg3)', marginBottom: '10px' }}>
-              {designImage ? (
-                <img src={designImage} alt="design" style={{ width: '100%', borderRadius: '6px', maxHeight: '150px', objectFit: 'contain' }} />
-              ) : (
-                <div>
-                  <div style={{ fontSize: '24px', marginBottom: '6px', opacity: 0.4 }}>🎨</div>
-                  <div style={{ fontSize: '12px', color: 'var(--mu3)' }}>Click to upload your design</div>
-                  <div style={{ fontSize: '10px', color: 'var(--mu2)', marginTop: '4px' }}>PNG, JPG — high resolution recommended</div>
-                </div>
-              )}
+            <div onClick={() => fileRef.current?.click()} style={{ border: '1.5px dashed rgba(255,80,80,0.3)', borderRadius: '8px', padding: '12px', textAlign: 'center', cursor: 'pointer', background: 'var(--bg3)', marginBottom: '8px' }}>
+              {designImage
+                ? <img src={designImage} alt="design" style={{ width: '100%', borderRadius: '6px', maxHeight: '140px', objectFit: 'contain' }} />
+                : <div><div style={{ fontSize: '24px', marginBottom: '4px', opacity: 0.4 }}>🎨</div><div style={{ fontSize: '11px', color: 'var(--mu3)' }}>Click to upload pattern/design</div></div>
+              }
             </div>
-            <F label="Or paste design URL (recommended for Printful)">
-              <input className="finp" placeholder="https://your-image-url.com/design.jpg" value={designUrl} onChange={e => setDesignUrl(e.target.value)} />
-              <div style={{ fontSize: '10px', color: 'var(--mu3)', marginTop: '4px', lineHeight: '1.6' }}>
-                Tip: Upload your design to Google Drive, Dropbox, or ImgBB → get a direct link → paste here. This is the most reliable method for Printful.
-              </div>
+            <F label="Or paste a direct image URL">
+              <input className="finp" placeholder="https://..." value={designUrl} onChange={e => setDesignUrl(e.target.value)} style={{ fontSize: '11px' }} />
             </F>
           </div>
 
-          {/* Step 2 — Select Product */}
+          {/* Product selection */}
           <div className="card hi" style={{ marginBottom: '14px' }}>
             <div className="ftitle">Step 2 — Select Product</div>
-            <button onClick={loadProducts} disabled={loading} className="pod-btn" style={{ width: '100%', fontSize: '12px', marginBottom: '10px' }}>
-              {loading ? 'Loading...' : 'Load My ' + (provider === 'printful' ? 'Printful' : 'Printify') + ' Products'}
-            </button>
-            {products.length > 0 && (
-              <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column' as const, gap: '4px' }}>
-                {products.map((p: Record<string, unknown>) => (
-                  <div key={p.id as string} onClick={() => loadVariants(p)}
-                    style={{ padding: '8px 10px', borderRadius: '6px', cursor: 'pointer', border: `0.5px solid ${selectedProduct?.id === p.id ? 'rgba(255,80,80,0.4)' : 'rgba(255,80,80,0.1)'}`, background: selectedProduct?.id === p.id ? 'rgba(255,80,80,0.08)' : 'var(--bg3)', fontSize: '12px', color: selectedProduct?.id === p.id ? 'var(--red)' : 'var(--w2)' }}>
-                    {(p.title || p.model || p.name) as string}
-                  </div>
-                ))}
-              </div>
-            )}
+            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' as const, marginBottom: '10px' }}>
+              {categories.map(c => (
+                <button key={c} onClick={() => setCategory(c)}
+                  style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '10px', cursor: 'pointer', border: `0.5px solid ${category === c ? 'rgba(255,80,80,0.5)' : 'rgba(255,80,80,0.15)'}`, background: category === c ? 'rgba(255,80,80,0.1)' : 'transparent', color: category === c ? 'var(--red)' : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif" }}>
+                  {c}
+                </button>
+              ))}
+            </div>
+            <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'flex', flexDirection: 'column' as const, gap: '4px' }}>
+              {filtered.map(p => (
+                <div key={p.id} onClick={() => loadVariants(p)}
+                  style={{ padding: '8px 10px', borderRadius: '6px', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center', border: `0.5px solid ${selectedProduct?.id === p.id ? 'rgba(255,80,80,0.4)' : 'rgba(255,80,80,0.1)'}`, background: selectedProduct?.id === p.id ? 'rgba(255,80,80,0.08)' : 'var(--bg3)' }}>
+                  <span style={{ fontSize: '16px' }}>{p.icon}</span>
+                  <div style={{ fontSize: '11px', color: selectedProduct?.id === p.id ? 'var(--red)' : 'var(--w2)' }}>{p.name}</div>
+                </div>
+              ))}
+            </div>
+            {loading && <div style={{ fontSize: '11px', color: 'var(--mu3)', marginTop: '8px', textAlign: 'center' }}>Loading variants...</div>}
           </div>
 
-          {/* Step 3 — Select Variant */}
+          {/* Variant selection */}
           {variants.length > 0 && (
             <div className="card hi" style={{ marginBottom: '14px' }}>
-              <div className="ftitle">Step 3 — Select Variant</div>
+              <div className="ftitle">Step 3 — Size / Color</div>
               <select className="fsel" value={selectedVariant || ''} onChange={e => setSelectedVariant(Number(e.target.value))}>
                 {variants.map((v: Record<string, unknown>) => (
-                  <option key={(v.variant_id || v.id) as number} value={(v.variant_id || v.id) as number}>
-                    {String(v.name || (v.product as Record<string,unknown>)?.name || ((v.color || '') + ' / ' + (v.size || '')))}
+                  <option key={v.id as number} value={v.id as number}>
+                    {String(v.name || ((v.color_code ? v.color_code : '') + ' ' + (v.size || '')))}
                   </option>
                 ))}
               </select>
             </div>
           )}
 
-          {/* Step 4 — Placement */}
+          {/* Placement */}
           <div className="card hi" style={{ marginBottom: '14px' }}>
-            <div className="ftitle">Step 4 — Design Placement</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '6px' }}>
+            <div className="ftitle">Step 4 — Placement</div>
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' as const }}>
               {placements.map(p => (
                 <button key={p} onClick={() => setPlacement(p)}
-                  style={{ padding: '5px 12px', borderRadius: '20px', fontSize: '11px', cursor: 'pointer', border: `0.5px solid ${placement === p ? 'rgba(255,80,80,0.5)' : 'rgba(255,80,80,0.15)'}`, background: placement === p ? 'rgba(255,80,80,0.1)' : 'transparent', color: placement === p ? 'var(--red)' : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif", textTransform: 'capitalize' as const }}>
-                  {p}
+                  style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '10px', cursor: 'pointer', border: `0.5px solid ${placement === p ? 'rgba(255,80,80,0.5)' : 'rgba(255,80,80,0.15)'}`, background: placement === p ? 'rgba(255,80,80,0.1)' : 'transparent', color: placement === p ? 'var(--red)' : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif", textTransform: 'capitalize' as const }}>
+                  {p.replace('_', ' ')}
                 </button>
               ))}
             </div>
           </div>
 
-          <button onClick={generateMockup} disabled={generating || polling || !selectedVariant || (!designImage && !designUrl)} className="pod-btn" style={{ width: '100%', fontSize: '14px', padding: '14px' }}>
-            {generating ? 'Generating...' : polling ? 'Processing...' : '🎯 Generate Exact Mockup'}
+          <button onClick={generateMockup} disabled={generating || polling || !selectedVariant || (!designImage && !designUrl)}
+            className="pod-btn" style={{ width: '100%', fontSize: '13px', padding: '13px' }}>
+            {generating ? 'Uploading...' : polling ? 'Generating...' : '🎯 Generate Exact Mockup'}
           </button>
           {(generating || polling) && <div className="lbar" style={{ marginTop: '8px' }}><div className="lbar-fill" /></div>}
-          {status && <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--mu3)', textAlign: 'center', fontFamily: "'DM Mono',monospace" }}>{status}</div>}
+          {status && <div style={{ marginTop: '8px', fontSize: '11px', color: status.startsWith('Error') ? '#ff6b6b' : 'var(--mu3)', textAlign: 'center', fontFamily: "'DM Mono',monospace", lineHeight: '1.5' }}>{status}</div>}
         </div>
 
-        {/* Right — Mockup output */}
+        {/* Right — output */}
         <div>
           {mockupImages.length === 0 ? (
             <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -711,16 +635,15 @@ function ExactMockupGenerator() {
                 <div style={{ fontSize: '64px', marginBottom: '16px', opacity: 0.2 }}>🎯</div>
                 <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '22px', color: 'var(--w)', marginBottom: '8px' }}>Your exact mockup appears here</div>
                 <div style={{ fontSize: '12px', color: 'var(--mu3)', lineHeight: '1.7' }}>
-                  Upload your design → Select product → Generate<br/>
-                  Your EXACT design will be placed on the product<br/>
-                  Same colors, same graphic, same text — pixel perfect
+                  Upload pattern → Select product → Select size → Generate<br/>
+                  Your EXACT design placed by Printful — pixel perfect
                 </div>
               </div>
             </div>
           ) : (
             <div>
-              <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(255,80,80,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '12px' }}>
-                {mockupImages.length} Mockup{mockupImages.length > 1 ? 's' : ''} Generated — Exact Design Placement
+              <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(255,80,80,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '14px' }}>
+                {mockupImages.length} Mockup{mockupImages.length > 1 ? 's' : ''} — {selectedProduct?.name}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
                 {mockupImages.map((url, i) => (
@@ -733,10 +656,10 @@ function ExactMockupGenerator() {
                   </div>
                 ))}
               </div>
-              <div style={{ marginTop: '16px', padding: '12px 16px', background: 'rgba(255,80,80,0.05)', border: '0.5px solid rgba(255,80,80,0.15)', borderRadius: '10px', fontSize: '12px', color: 'var(--mu3)', lineHeight: '1.7' }}>
-                ✦ These are your exact designs placed by {provider === 'printful' ? 'Printful' : 'Printify'}<br/>
-                ✦ Download and use for your store listings, social media, and ads<br/>
-                ✦ Go to <strong style={{ color: 'var(--red)' }}>AI Mockup Generator</strong> to place on a lifestyle model photo
+              <div style={{ marginTop: '14px', padding: '12px 16px', background: 'rgba(255,80,80,0.05)', border: '0.5px solid rgba(255,80,80,0.15)', borderRadius: '10px', fontSize: '11px', color: 'var(--mu3)', lineHeight: '1.7' }}>
+                ✦ Exact design placement by Printful<br/>
+                ✦ Download and use for listings, social media, and ads<br/>
+                ✦ Go to <strong style={{ color: 'var(--red)' }}>AI Mockup Generator</strong> to put this on a lifestyle model
               </div>
             </div>
           )}
@@ -745,6 +668,8 @@ function ExactMockupGenerator() {
     </div>
   )
 }
+
+
 function MockupGenerator() {
   const [selectedProduct, setSelectedProduct] = useState('tshirt')
   const [designImage, setDesignImage] = useState<string | null>(null)
