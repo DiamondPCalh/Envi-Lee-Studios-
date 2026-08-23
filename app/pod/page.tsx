@@ -4,468 +4,316 @@ import { UserButton, useUser } from '@clerk/nextjs'
 import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 
-// ── TYPES ─────────────────────────────────────────────────────
-type PodTool = 'dashboard' | 'mockup' | 'exactmockup' | 'design' | 'listing' | 'collection' | 'export' | 'saved' | 'store'
+type PodTool = 'dashboard' | 'design' | 'mystore' | 'products' | 'marketplace' | 'listings' | 'bot'
 
-interface SavedMockup {
-  id: number
-  name: string
-  product: string
-  imageUrl: string
-  savedAt: string
-}
-
-// ── HELPERS ───────────────────────────────────────────────────
-async function callAPI(endpoint: string, body: Record<string, string>): Promise<string> {
-  const res = await fetch(`/api/${endpoint}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error ?? 'Generation failed')
-  return data.result
-}
-
-// ── STYLES ────────────────────────────────────────────────────
+// ── STYLES ─────────────────────────────────────────────────────
 const css = `
   :root {
-    --bg: #000;
-    --bg2: #050505;
-    --bg3: #0a0a0a;
-    --s1: #111;
-    --s2: #1a1a1a;
-    --w: #f8f0ff;
-    --w2: #e0d0f0;
-    --mu: #444;
-    --mu2: #666;
-    --mu3: #888;
-    --r: 8px;
-    --r2: 12px;
-    --r3: 16px;
-
-    /* Multicolor accents */
-    --red: #ff6b6b;
-    --yellow: #ffd93d;
-    --green: #6bcb77;
-    --blue: #4d96ff;
-    --pink: #ff6fd8;
-    --orange: #ff9a3c;
-
-    /* POD gradient */
-    --pod: linear-gradient(135deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff);
-    --pod-border: rgba(255,107,107,0.3);
-    --pod-glow: rgba(255,107,107,0.1);
+    --bg:#000;--bg2:#05000a;--bg3:#0a0005;--s1:#110008;--s2:#1a000f;
+    --w:#fff8ff;--w2:#f0d0e0;--mu:#442233;--mu2:#663344;--mu3:#885566;
+    --red:#ff2255;--red2:#ff5577;--red3:#ff88aa;
+    --pb:rgba(255,34,85,0.4);--rb:rgba(255,34,85,0.15);
+    --pg:rgba(255,34,85,0.06);
+    --pod:linear-gradient(135deg,#ff2255,#cc0033,#ff5577);
+    --pod2:linear-gradient(135deg,#ff2255,#ff5577,#ffaa00);
+    --gold:#d4a843;--purple:#7b3fa0;
   }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:var(--bg);color:var(--w);font-family:'DM Sans',sans-serif;min-height:100vh;}
+  select,input,textarea{color-scheme:dark;}
+  ::-webkit-scrollbar{width:3px;}
+  ::-webkit-scrollbar-thumb{background:#330011;border-radius:2px;}
 
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { background: var(--bg); color: var(--w); font-family: 'DM Sans', sans-serif; min-height: 100vh; }
-  select, input, textarea { color-scheme: dark; }
-  ::-webkit-scrollbar { width: 3px; }
-  ::-webkit-scrollbar-track { background: var(--bg); }
-  ::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
+  @keyframes lbar{0%{background-position:200% 0}100%{background-position:-200% 0}}
+  @keyframes pgIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+  @keyframes botPop{from{opacity:0;transform:translateY(10px) scale(0.95)}to{opacity:1;transform:translateY(0) scale(1)}}
 
-  @keyframes lbar { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-  @keyframes aip { 0%, 100% { opacity: 1; } 50% { opacity: .2; } }
-  @keyframes pgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-  @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+  .pg-in{animation:pgIn .4s ease;}
+  .lbar{height:2px;background:var(--s2);overflow:hidden;border-radius:1px;}
+  .lbar-fill{height:100%;background:var(--pod);background-size:200% 100%;animation:lbar 2s linear infinite;}
 
-  .pg-in { animation: pgIn .3s ease; }
-  .lbar-fill { height: 100%; background: var(--pod); background-size: 200% 100%; animation: lbar 1.8s linear infinite; border-radius: 1px; }
-  .ai-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--red); display: inline-block; animation: aip 1.8s ease infinite; margin-right: 6px; }
+  /* ── CARDS ── */
+  .card{background:var(--s1);border:0.5px solid rgba(255,34,85,0.15);border-radius:12px;padding:16px;}
+  .card.hi{border-color:rgba(255,34,85,0.3);}
+  .card.gold{border-color:rgba(212,168,67,0.3);background:rgba(212,168,67,0.04);}
 
-  .drag-zone { border: 1.5px dashed rgba(255,107,107,0.3); border-radius: 12px; padding: 28px; text-align: center; cursor: pointer; transition: all .2s; background: rgba(255,107,107,0.03); position: relative; }
-  .drag-zone:hover, .drag-zone.dragging { border-color: var(--red); background: rgba(255,107,107,0.07); box-shadow: 0 0 20px rgba(255,107,107,0.1); }
-  .drag-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  /* ── FORM ── */
+  .ftitle{font-family:'DM Mono',monospace;font-size:10px;font-weight:500;color:var(--red2);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid rgba(255,34,85,0.1);}
+  .flabel{font-size:9px;font-weight:600;color:var(--mu3);text-transform:uppercase;letter-spacing:.7px;font-family:'DM Mono',monospace;display:block;margin-bottom:5px;}
+  .finp{background:var(--bg3);border:0.5px solid rgba(255,34,85,0.2);border-radius:7px;padding:9px 12px;font-size:12px;color:var(--w);font-family:'DM Sans',sans-serif;width:100%;outline:none;}
+  .finp:focus{border-color:rgba(255,34,85,0.5);}
+  .fsel{background:var(--bg3);border:0.5px solid rgba(255,34,85,0.2);border-radius:7px;padding:8px 10px;font-size:12px;color:var(--w);font-family:'DM Sans',sans-serif;width:100%;outline:none;}
+  .fta{background:var(--bg3);border:0.5px solid rgba(255,34,85,0.2);border-radius:7px;padding:9px 12px;font-size:12px;color:var(--w);font-family:'DM Sans',sans-serif;width:100%;outline:none;resize:vertical;min-height:80px;line-height:1.6;}
 
-  .pod-btn { padding: 11px 18px; border-radius: 9px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; background: var(--pod); color: #000; font-family: 'DM Sans', sans-serif; transition: all .2s; box-shadow: 0 0 20px rgba(255,107,107,0.25); }
-  .pod-btn:hover { transform: translateY(-1px); box-shadow: 0 0 35px rgba(255,107,107,0.4); }
-  .pod-btn:disabled { opacity: 0.5; cursor: default; transform: none; }
-  .ghost-btn { padding: 9px 14px; border-radius: 8px; font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid rgba(255,107,107,0.3); background: transparent; color: var(--red); font-family: 'DM Sans', sans-serif; transition: all .2s; }
-  .ghost-btn:hover { background: rgba(255,107,107,0.08); }
-  .del-btn { padding: 5px 10px; border-radius: 6px; border: 0.5px solid rgba(255,45,120,0.3); background: transparent; color: #ff6b9d; font-size: 11px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all .2s; }
-  .del-btn:hover { background: rgba(255,45,120,0.1); }
+  /* ── BUTTONS ── */
+  .pod-btn{padding:11px 20px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;border:none;background:var(--pod);color:#fff;font-family:'DM Sans',sans-serif;transition:all .2s;box-shadow:0 0 20px rgba(255,34,85,0.2);}
+  .pod-btn:hover{transform:translateY(-2px);box-shadow:0 0 40px rgba(255,34,85,0.3);}
+  .pod-btn:disabled{opacity:0.5;cursor:default;transform:none;}
+  .ghost-pod{padding:7px 14px;border-radius:8px;font-size:11px;cursor:pointer;border:0.5px solid var(--pb);background:transparent;color:var(--red2);font-family:'DM Sans',sans-serif;transition:all .2s;}
+  .ghost-pod:hover{background:var(--pg);}
 
-  .card { background: var(--s1); border: 0.5px solid #1e1e1e; border-radius: var(--r3); padding: 20px; }
-  .card.hi { border-color: #2a2a2a; }
-  .card.accent { border-color: rgba(255,107,107,0.2); }
+  /* ── TAGS ── */
+  .tag-r{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:10px;font-family:'DM Mono',monospace;background:var(--pg);color:var(--red2);border:0.5px solid var(--pb);}
 
-  .ftitle { font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 500; color: var(--red); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 0.5px solid #1e1e1e; }
-  .flabel { font-size: 9px; font-weight: 600; color: var(--mu3); text-transform: uppercase; letter-spacing: .7px; font-family: 'DM Mono', monospace; display: block; margin-bottom: 5px; }
-  .finp { background: var(--bg3); border: 0.5px solid #222; border-radius: 7px; padding: 9px 12px; font-size: 12px; color: var(--w); font-family: 'DM Sans', sans-serif; width: 100%; outline: none; transition: border .2s; }
-  .finp:focus { border-color: rgba(255,107,107,0.4); }
-  .fsel { background: var(--bg3); border: 0.5px solid #222; border-radius: 7px; padding: 8px 10px; font-size: 12px; color: var(--w); font-family: 'DM Sans', sans-serif; width: 100%; outline: none; }
-  .fta { background: var(--bg3); border: 0.5px solid #222; border-radius: 7px; padding: 9px 12px; font-size: 12px; color: var(--w); font-family: 'DM Sans', sans-serif; width: 100%; outline: none; resize: vertical; min-height: 80px; line-height: 1.6; }
+  /* ── TOP NAV ── */
+  .top-nav{position:sticky;top:0;z-index:100;background:rgba(0,0,0,0.95);border-bottom:0.5px solid rgba(255,34,85,0.15);backdrop-filter:blur(12px);}
+  .nav-tabs{display:flex;gap:2px;padding:0 20px;overflow-x:auto;scrollbar-width:none;}
+  .nav-tabs::-webkit-scrollbar{display:none;}
+  .nav-tab{padding:12px 16px;font-size:12px;cursor:pointer;border:none;background:transparent;color:var(--mu3);font-family:'DM Sans',sans-serif;white-space:nowrap;transition:all .2s;border-bottom:2px solid transparent;font-weight:500;}
+  .nav-tab:hover{color:var(--red2);}
+  .nav-tab.active{color:var(--red);border-bottom-color:var(--red);font-weight:700;}
 
-  .ai-out { background: #0a0a0a; border: 0.5px solid #222; border-radius: var(--r2); padding: 14px; margin-top: 12px; }
-  .ai-out-text { font-size: 12px; color: var(--w2); line-height: 1.85; white-space: pre-wrap; }
+  /* ── FOOTER ── */
+  .pod-footer{background:var(--bg2);border-top:0.5px solid rgba(255,34,85,0.1);padding:16px 24px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;justify-content:space-between;}
+  .footer-link{font-size:11px;color:var(--mu3);text-decoration:none;font-family:'DM Mono',monospace;transition:color .15s;}
+  .footer-link:hover{color:var(--red2);}
 
-  .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
-  .product-card { background: var(--bg3); border: 1.5px solid #1e1e1e; border-radius: var(--r2); padding: 12px; cursor: pointer; transition: all .2s; text-align: center; }
-  .product-card:hover { border-color: rgba(255,107,107,0.4); background: rgba(255,107,107,0.05); }
-  .product-card.selected { border-color: var(--red); background: rgba(255,107,107,0.08); box-shadow: 0 0 12px rgba(255,107,107,0.15); }
+  /* ── BOT ── */
+  .bot-fab{position:fixed;bottom:24px;right:24px;width:52px;height:52px;border-radius:50%;background:var(--pod);border:none;cursor:pointer;font-size:22px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(255,34,85,0.4);z-index:200;transition:all .2s;}
+  .bot-fab:hover{transform:scale(1.1);}
+  .bot-panel{position:fixed;bottom:86px;right:24px;width:360px;background:var(--s1);border:0.5px solid rgba(255,34,85,0.3);border-radius:16px;z-index:200;animation:botPop .2s ease;box-shadow:0 8px 40px rgba(255,34,85,0.15);}
+  @media(max-width:500px){.bot-panel{width:calc(100vw - 32px);right:16px;}}
+
+  /* ── PRODUCT CARD ── */
+  .product-card{background:var(--s1);border:0.5px solid rgba(255,34,85,0.15);border-radius:12px;overflow:hidden;transition:all .25s;cursor:pointer;}
+  .product-card:hover{border-color:rgba(255,34,85,0.4);transform:translateY(-3px);box-shadow:0 8px 30px rgba(255,34,85,0.1);}
+
+  /* ── STORE CARD ── */
+  .store-card{background:var(--s1);border:0.5px solid rgba(255,34,85,0.15);border-radius:14px;overflow:hidden;transition:all .25s;}
+  .store-card:hover{border-color:rgba(255,34,85,0.35);box-shadow:0 8px 30px rgba(255,34,85,0.08);}
 `
 
-// ── PRODUCT TYPES ─────────────────────────────────────────────
-const PRODUCTS = [
-  { id: 'tshirt', name: 'T-Shirt', emoji: '👕', desc: 'Classic tee' },
-  { id: 'hoodie', name: 'Hoodie', emoji: '🧥', desc: 'Pullover hoodie' },
-  { id: 'sweatshirt', name: 'Sweatshirt', emoji: '👔', desc: 'Crewneck' },
-  { id: 'leggings', name: 'Leggings', emoji: '🩱', desc: 'Full length' },
-  { id: 'swimsuit', name: 'Swimsuit', emoji: '👙', desc: 'One piece/bikini' },
-  { id: 'pajamas', name: 'Pajamas', emoji: '🛌', desc: 'PJ set' },
-  { id: 'hat', name: 'Hat', emoji: '🧢', desc: 'Cap/beanie' },
-  { id: 'bag', name: 'Bag', emoji: '👜', desc: 'Tote/crossbody' },
-  { id: 'phonecase', name: 'Phone Case', emoji: '📱', desc: 'All models' },
-  { id: 'mug', name: 'Mug', emoji: '☕', desc: '11oz/15oz' },
-  { id: 'laptop', name: 'Laptop Sleeve', emoji: '💻', desc: '13-15 inch' },
-  { id: 'custom', name: 'Custom', emoji: '✦', desc: 'Describe it' },
-]
-
-const PLATFORMS = ['Etsy', 'Shopify', 'TikTok Shop', 'Amazon', 'WooCommerce/WordPress', 'Instagram Shop', 'Pinterest']
-
-// ── FIELD COMPONENT ───────────────────────────────────────────
 function F({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '5px', marginBottom: '12px' }}>
+    <div style={{ marginBottom: '12px' }}>
       <label className="flabel">{label}</label>
       {children}
     </div>
   )
 }
 
-// ── OUTPUT COMPONENT ──────────────────────────────────────────
-function Output({ text, loading }: { text: string; loading: boolean }) {
-  const [copied, setCopied] = useState(false)
-  const [saved, setSaved] = useState(false)
-
-  function copy() {
-    if (!text) return
-    if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
-    } else {
-      const ta = document.createElement('textarea')
-      ta.value = text; ta.style.cssText = 'position:fixed;left:-9999px'; document.body.appendChild(ta)
-      ta.focus(); ta.select(); document.execCommand('copy'); document.body.removeChild(ta)
-      setCopied(true); setTimeout(() => setCopied(false), 2000)
+// ── ACCESS GATE ────────────────────────────────────────────────
+function AccessGate({ children }: { children: React.ReactNode }) {
+  const { user } = useUser()
+  const [status, setStatus] = useState<'loading' | 'granted' | 'denied'>('loading')
+  useEffect(() => {
+    async function check() {
+      if (!user) { setStatus('denied'); return }
+      try {
+        const adminId = process.env.NEXT_PUBLIC_ADMIN_USER_ID
+        if (user.id === adminId) { setStatus('granted'); return }
+        const email = user.emailAddresses?.[0]?.emailAddress ?? ''
+        const res = await fetch(`/api/access/realism?userId=${user.id}&email=${encodeURIComponent(email)}`)
+        const data = await res.json()
+        setStatus(data.hasAccess ? 'granted' : 'denied')
+      } catch { setStatus('denied') }
     }
-  }
+    check()
+  }, [user])
 
-  function save() {
-    if (!text) return
-    const existing = JSON.parse(localStorage.getItem('podSavedWork') || '[]')
-    existing.unshift({ id: Date.now(), content: text, savedAt: new Date().toISOString() })
-    localStorage.setItem('podSavedWork', JSON.stringify(existing.slice(0, 100)))
-    setSaved(true); setTimeout(() => setSaved(false), 2000)
-  }
-
-  if (!text && !loading) return null
-  return (
-    <div className="ai-out">
-      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '9px', color: 'var(--red)', textTransform: 'uppercase' as const, letterSpacing: '.8px', marginBottom: '9px', display: 'flex', alignItems: 'center' }}>
-        <span className="ai-dot" />AI Output
+  if (status === 'loading') return (
+    <div style={{ minHeight: '100vh', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ textAlign: 'center' }}>
+        <div className="lbar" style={{ width: '120px', margin: '0 auto 12px' }}><div className="lbar-fill" /></div>
+        <div style={{ fontSize: '12px', color: 'rgba(255,34,85,0.4)', fontFamily: "'DM Mono',monospace" }}>Verifying access...</div>
       </div>
-      {loading && <div style={{ height: '2px', background: '#1a1a1a', overflow: 'hidden', margin: '8px 0', borderRadius: '1px' }}><div className="lbar-fill" /></div>}
-      {text && <>
-        <div className="ai-out-text">{text}</div>
-        <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-          <button onClick={copy} className="ghost-btn" style={{ fontSize: '11px', padding: '6px 12px' }}>{copied ? '✓ Copied!' : 'Copy ↗'}</button>
-          <button onClick={save} className="ghost-btn" style={{ fontSize: '11px', padding: '6px 12px', borderColor: 'rgba(107,203,119,0.3)', color: 'var(--green)' }}>{saved ? '✓ Saved!' : '⊹ Save'}</button>
-        </div>
-      </>}
     </div>
   )
-}
 
-// ── DRAG DROP ZONE ────────────────────────────────────────────
-function DragDrop({ onImage, currentImage, onClear, label = 'Drag & drop your design here', sub = 'PNG, JPG, SVG — transparent background works best', height = 150 }: {
-  onImage: (url: string) => void
-  currentImage?: string | null
-  onClear?: () => void
-  label?: string
-  sub?: string
-  height?: number
-}) {
-  const [dragging, setDragging] = useState(false)
-  const ref = useRef<HTMLInputElement>(null)
-
-  function handleFile(file: File) {
-    const reader = new FileReader()
-    reader.onload = e => onImage(e.target?.result as string)
-    reader.readAsDataURL(file)
-  }
-
-  return (
-    <div
-      className={`drag-zone${dragging ? ' dragging' : ''}`}
-      style={{ minHeight: `${height}px`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: currentImage ? '0' : '28px' }}
-      onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f) }}
-      onDragOver={e => { e.preventDefault(); setDragging(true) }}
-      onDragLeave={() => setDragging(false)}
-      onClick={() => !currentImage && ref.current?.click()}>
-      <input ref={ref} type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
-      {currentImage ? (
-        <div style={{ width: '100%', position: 'relative' }}>
-          <img src={currentImage} alt="uploaded" style={{ width: '100%', maxHeight: '200px', objectFit: 'contain', display: 'block', borderRadius: '8px' }} />
-          <div style={{ position: 'absolute', top: '8px', right: '8px', display: 'flex', gap: '6px' }}>
-            <button onClick={e => { e.stopPropagation(); ref.current?.click() }} style={{ padding: '4px 10px', borderRadius: '5px', border: 'none', background: 'rgba(0,0,0,0.7)', color: 'var(--red)', fontSize: '10px', cursor: 'pointer' }}>Replace</button>
-            {onClear && <button onClick={e => { e.stopPropagation(); onClear() }} className="del-btn" style={{ padding: '4px 10px' }}>Clear</button>}
+  if (status === 'denied') return (
+    <div style={{ minHeight: '100vh', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <div style={{ maxWidth: '520px', width: '100%' }}>
+        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(255,34,85,0.4)', letterSpacing: '3px', textTransform: 'uppercase', marginBottom: '6px' }}>Envi Lee Creator Studios</div>
+          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '32px', color: '#fff', marginBottom: '6px' }}>POD Studios™</div>
+          <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>Choose your access level to unlock this app</div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
+          <div style={{ background: '#0d0005', border: '1px solid rgba(255,34,85,0.3)', borderRadius: '16px', padding: '24px', position: 'relative' as const, overflow: 'hidden' }}>
+            <div style={{ position: 'absolute' as const, top: 0, left: 0, right: 0, height: '3px', background: 'var(--pod)' }} />
+            <div style={{ fontSize: '10px', color: 'rgba(255,34,85,0.5)', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '8px', fontFamily: "'DM Mono',monospace" }}>Member</div>
+            <div style={{ fontSize: '36px', fontWeight: 900, color: 'var(--red)', marginBottom: '4px', fontFamily: "'Syne',sans-serif" }}>$47<span style={{ fontSize: '13px', fontWeight: 400, color: 'rgba(255,34,85,0.5)' }}>/mo</span></div>
+            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '16px' }}>Full access to all 12 apps</div>
+            <a href="/api/stripe/checkout?plan=member" style={{ display: 'block', padding: '11px', borderRadius: '9px', background: 'var(--pod)', color: '#fff', fontSize: '12px', fontWeight: 700, textDecoration: 'none', textAlign: 'center' as const }}>Get Access →</a>
+          </div>
+          <div style={{ background: '#0d0005', border: '1px solid rgba(212,168,67,0.4)', borderRadius: '16px', padding: '24px', position: 'relative' as const, overflow: 'hidden' }}>
+            <div style={{ position: 'absolute' as const, top: 0, left: 0, right: 0, height: '3px', background: 'linear-gradient(135deg,#D4A843,#F5E0A0)' }} />
+            <div style={{ position: 'absolute' as const, top: '14px', right: '14px', background: 'linear-gradient(135deg,#D4A843,#F5E0A0)', color: '#000', fontSize: '9px', fontWeight: 800, padding: '3px 9px', borderRadius: '20px', fontFamily: "'DM Mono',monospace" }}>BEST VALUE</div>
+            <div style={{ fontSize: '10px', color: 'rgba(212,168,67,0.6)', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '8px', fontFamily: "'DM Mono',monospace" }}>VIP</div>
+            <div style={{ fontSize: '36px', fontWeight: 900, color: '#D4A843', marginBottom: '4px', fontFamily: "'Syne',sans-serif" }}>$65<span style={{ fontSize: '13px', fontWeight: 400, color: 'rgba(212,168,67,0.5)' }}>/mo</span></div>
+            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginBottom: '16px' }}>Everything + VIP perks</div>
+            <a href="/api/stripe/checkout?plan=vip" style={{ display: 'block', padding: '11px', borderRadius: '9px', background: 'linear-gradient(135deg,#D4A843,#F5E0A0)', color: '#000', fontSize: '12px', fontWeight: 700, textDecoration: 'none', textAlign: 'center' as const }}>Get VIP →</a>
           </div>
         </div>
-      ) : (
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '32px', marginBottom: '8px' }}>◈</div>
-          <div style={{ fontSize: '13px', fontWeight: 500, color: dragging ? 'var(--red)' : 'var(--w2)', marginBottom: '4px' }}>{dragging ? 'Drop it!' : label}</div>
-          <div style={{ fontSize: '11px', color: 'var(--mu3)' }}>{sub}</div>
-          <div style={{ fontSize: '10px', color: 'var(--mu)', marginTop: '6px', fontFamily: "'DM Mono',monospace" }}>drag & drop · click to browse</div>
+        <div style={{ background: 'rgba(255,34,85,0.05)', border: '0.5px solid rgba(255,34,85,0.15)', borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
+          <div style={{ fontSize: '12px', color: 'rgba(255,34,85,0.7)', marginBottom: '8px', fontWeight: 600 }}>Already enrolled in an academy?</div>
+          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>Sign in with the same email you enrolled with.</div>
+        </div>
+      </div>
+    </div>
+  )
+  return <>{children}</>
+}
+
+// ── POD BOT ────────────────────────────────────────────────────
+function PodBot({ inline = false }: { inline?: boolean }) {
+  const [msgs, setMsgs] = useState<{ role: string; text: string }[]>([
+    { role: 'bot', text: 'Hey! I\'m your POD business assistant. Ask me anything about mockups, listings, pricing, Printful, Printify, Etsy, TikTok Shop, or growing your POD business!' }
+  ])
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs])
+
+  async function send() {
+    if (!input.trim()) return
+    const userMsg = input.trim()
+    setInput('')
+    setMsgs(prev => [...prev, { role: 'user', text: userMsg }])
+    setLoading(true)
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 500,
+          messages: [{ role: 'user', content: `You are Envi Lee's POD (Print on Demand) business assistant inside Envi Lee Creator Studios. Help with: mockup creation, product listings, Etsy/Shopify/Amazon/TikTok Shop strategy, pricing strategy, design tips, Printful and Printify specifics, marketing POD products, and growing a POD business. Be specific, practical, and encouraging. Question: ${userMsg}` }],
+        }),
+      })
+      const data = await res.json()
+      setMsgs(prev => [...prev, { role: 'bot', text: data.content?.[0]?.text || 'Let me help you with that!' }])
+    } catch { setMsgs(prev => [...prev, { role: 'bot', text: 'Having trouble connecting — try again!' }]) }
+    setLoading(false)
+  }
+
+  const containerStyle = inline
+    ? { display: 'flex', flexDirection: 'column' as const, height: '600px' }
+    : { display: 'flex', flexDirection: 'column' as const, height: '440px' }
+
+  return (
+    <div style={containerStyle}>
+      {inline && (
+        <div style={{ padding: '20px 20px 0', marginBottom: '16px' }}>
+          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '28px', fontWeight: 400, color: 'var(--w)', marginBottom: '4px' }}>
+            POD <span style={{ color: 'var(--red)' }}>Business Bot™</span>
+          </div>
+          <div style={{ fontSize: '13px', color: 'var(--mu3)' }}>Ask anything about POD business, mockups, listings, pricing, and growing your store.</div>
         </div>
       )}
+      <div style={{ flex: 1, overflowY: 'auto', padding: inline ? '0 20px' : '16px', display: 'flex', flexDirection: 'column' as const, gap: '10px' }}>
+        {msgs.map((m, i) => (
+          <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+            <div style={{ maxWidth: '80%', padding: '10px 14px', borderRadius: m.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', background: m.role === 'user' ? 'var(--pod)' : 'var(--s2)', fontSize: '12px', lineHeight: '1.6', color: m.role === 'user' ? '#fff' : 'var(--w2)' }}>
+              {m.text}
+            </div>
+          </div>
+        ))}
+        {loading && (
+          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            <div style={{ padding: '10px 14px', borderRadius: '14px 14px 14px 4px', background: 'var(--s2)' }}>
+              <div className="lbar" style={{ width: '60px' }}><div className="lbar-fill" /></div>
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+      <div style={{ padding: inline ? '12px 20px 20px' : '12px 16px', borderTop: '0.5px solid rgba(255,34,85,0.1)', display: 'flex', gap: '8px' }}>
+        <input className="finp" placeholder="Ask about POD business..." value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} style={{ flex: 1 }} />
+        <button className="pod-btn" onClick={send} disabled={loading || !input.trim()} style={{ padding: '9px 16px', fontSize: '12px' }}>Send</button>
+      </div>
     </div>
   )
 }
 
-// ── DASHBOARD ─────────────────────────────────────────────────
-function Dashboard({ setActiveTool }: { setActiveTool: (t: PodTool) => void }) {
+// ── DASHBOARD ──────────────────────────────────────────────────
+function Dashboard({ setActive }: { setActive: (t: PodTool) => void }) {
   const { user } = useUser()
-  const [recentMockups] = useState<SavedMockup[]>([])
-
-  const quickActions = [
-    { label: 'Create Mockup', icon: '◈', tool: 'mockup' as PodTool, color: 'var(--red)', desc: 'Apply your design to any product' },
-    { label: 'Exact Mockup', icon: '🎯', tool: 'exactmockup' as PodTool, color: 'var(--red)', desc: 'Pixel perfect mockup via Printful/Printify' },
-    { label: 'Design Studio', icon: '✦', tool: 'design' as PodTool, color: 'var(--yellow)', desc: 'Create and edit designs' },
-    { label: 'Write Listing', icon: '⊹', tool: 'listing' as PodTool, color: 'var(--green)', desc: 'AI product descriptions' },
-    { label: 'Collection Builder', icon: '◷', tool: 'collection' as PodTool, color: 'var(--blue)', desc: 'Plan your product collection' },
-    { label: 'Export & Publish', icon: '⊳', tool: 'export' as PodTool, color: 'var(--pink)', desc: 'Format for every platform' },
-    { label: 'Virtual Store', icon: '◎', tool: 'store' as PodTool, color: 'var(--orange)', desc: 'Shop Envi Lee styles' },
+  const tools = [
+    { id: 'design', icon: '🎨', label: 'Design Studio', desc: 'AI mockups + exact Printful/Printify mockups', color: '#ff2255' },
+    { id: 'mystore', icon: '🏪', label: 'My Store', desc: 'Create or connect your POD store', color: '#ff5577' },
+    { id: 'products', icon: '📦', label: 'My Products', desc: 'Manage your product listings', color: '#ff7733' },
+    { id: 'marketplace', icon: '🛒', label: 'Marketplace', desc: 'Browse all student stores', color: '#cc0044' },
+    { id: 'listings', icon: '✍️', label: 'Listing Writer', desc: 'AI product titles, descriptions, SEO', color: '#ff2255' },
+    { id: 'bot', icon: '🤖', label: 'POD Bot', desc: 'Your POD business assistant', color: '#aa0033' },
   ]
 
   return (
-    <div className="pg-in">
-      {/* Welcome */}
-      <div style={{ marginBottom: '32px' }}>
-        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(255,107,107,0.5)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>POD Studios Dashboard</div>
-        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '36px', fontWeight: 400, color: 'var(--w)', letterSpacing: '-0.5px', marginBottom: '6px' }}>
-          Welcome back, <span style={{ background: 'var(--pod)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{user?.firstName || 'Creator'}</span>
+    <div className="pg-in" style={{ padding: '28px' }}>
+      <div style={{ marginBottom: '28px' }}>
+        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(255,34,85,0.4)', letterSpacing: '3px', textTransform: 'uppercase', marginBottom: '4px' }}>Welcome back</div>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '36px', fontWeight: 400, color: '#fff', marginBottom: '4px' }}>
+          POD <span style={{ background: 'var(--pod)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Studios™</span>
         </div>
-        <div style={{ fontSize: '13px', color: 'var(--mu2)' }}>What are we creating today?</div>
+        <div style={{ fontSize: '13px', color: 'var(--mu3)' }}>Your complete print-on-demand business studio — design, store, sell.</div>
       </div>
 
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '36px' }}>
-        {[
-          { label: 'Mockups Created', value: '0', color: 'var(--red)' },
-          { label: 'Downloads', value: '0', color: 'var(--yellow)' },
-          { label: 'Templates Saved', value: '0', color: 'var(--green)' },
-          { label: 'Products', value: '12', color: 'var(--blue)' },
-        ].map(s => (
-          <div key={s.label} className="card" style={{ textAlign: 'center', padding: '16px' }}>
-            <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '28px', fontWeight: 800, color: s.color, marginBottom: '4px' }}>{s.value}</div>
-            <div style={{ fontSize: '10px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace", textTransform: 'uppercase', letterSpacing: '.7px' }}>{s.label}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '14px', marginBottom: '32px' }}>
+        {tools.map(t => (
+          <div key={t.id} onClick={() => setActive(t.id as PodTool)}
+            className="card" style={{ cursor: 'pointer', transition: 'all .25s', padding: '20px' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = `${t.color}50`; (e.currentTarget as HTMLElement).style.transform = 'translateY(-3px)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,34,85,0.15)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(0)' }}>
+            <div style={{ fontSize: '32px', marginBottom: '10px' }}>{t.icon}</div>
+            <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '15px', fontWeight: 700, color: '#fff', marginBottom: '4px' }}>{t.label}</div>
+            <div style={{ fontSize: '12px', color: 'var(--mu3)' }}>{t.desc}</div>
+            <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: t.color }}>Open → </div>
           </div>
         ))}
       </div>
 
-      {/* Quick Actions */}
-      <div style={{ marginBottom: '14px' }}>
-        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(255,107,107,0.5)', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Quick Start</div>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px', marginBottom: '40px' }}>
-        {quickActions.map(a => (
-          <div key={a.tool} onClick={() => setActiveTool(a.tool)} className="card accent"
-            style={{ cursor: 'pointer', transition: 'all .2s', borderColor: `${a.color}22` }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = `${a.color}55`; (e.currentTarget as HTMLElement).style.background = `${a.color}08` }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = `${a.color}22`; (e.currentTarget as HTMLElement).style.background = 'var(--s1)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-              <div style={{ fontSize: '20px', color: a.color }}>{a.icon}</div>
-              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '14px', fontWeight: 700, color: 'var(--w)' }}>{a.label}</div>
-            </div>
-            <div style={{ fontSize: '11px', color: 'var(--mu3)', lineHeight: '1.5' }}>{a.desc}</div>
-            <div style={{ marginTop: '12px', fontSize: '11px', color: a.color, fontFamily: "'DM Mono',monospace" }}>Open →</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Recent Mockups */}
-      <div className="card">
-        <div className="ftitle">Recent Mockups</div>
-        {recentMockups.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '30px 20px' }}>
-            <div style={{ fontSize: '36px', marginBottom: '10px', opacity: 0.3 }}>◈</div>
-            <div style={{ fontSize: '13px', color: 'var(--mu3)', marginBottom: '8px' }}>No mockups yet</div>
-            <div style={{ fontSize: '11px', color: 'var(--mu)', marginBottom: '16px' }}>Create your first product mockup to get started</div>
-            <button className="pod-btn" onClick={() => setActiveTool('mockup')} style={{ fontSize: '12px', padding: '9px 18px' }}>
-              Create Your First Mockup ↗
-            </button>
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px' }}>
-            {recentMockups.map(m => (
-              <div key={m.id} className="card" style={{ padding: '12px' }}>
-                <img src={m.imageUrl} alt={m.name} style={{ width: '100%', borderRadius: '8px', marginBottom: '8px', aspectRatio: '1', objectFit: 'cover' }} />
-                <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--w)', marginBottom: '2px' }}>{m.name}</div>
-                <div style={{ fontSize: '10px', color: 'var(--mu3)', marginBottom: '8px' }}>{m.product}</div>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <button className="ghost-btn" style={{ flex: 1, fontSize: '10px', padding: '5px' }}>⬇</button>
-                  <button className="del-btn" style={{ flex: 1, fontSize: '10px', padding: '5px' }}>✕</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+      <div className="card gold" style={{ padding: '20px' }}>
+        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(212,168,67,0.6)', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '10px' }}>Quick Links</div>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' as const }}>
+          {[['Printful', 'https://printful.com'], ['Printify', 'https://printify.com'], ['Etsy', 'https://etsy.com'], ['TikTok Shop', 'https://shop.tiktok.com'], ['Canva', 'https://canva.com'], ['Placeit', 'https://placeit.net']].map(([label, url]) => (
+            <a key={label} href={url} target="_blank" rel="noreferrer" style={{ padding: '6px 14px', borderRadius: '20px', fontSize: '11px', background: 'rgba(212,168,67,0.08)', border: '0.5px solid rgba(212,168,67,0.2)', color: 'var(--gold)', textDecoration: 'none', transition: 'all .15s' }}>
+              {label} ↗
+            </a>
+          ))}
+        </div>
       </div>
     </div>
   )
 }
 
-// ── MOCKUP GENERATOR ──────────────────────────────────────────
-
-// ── BODY SHOT STUDIO ─────────────────────────────────────────
-const POSES = [
-  { label: 'Front — Standing', desc: 'Full body front facing, confidence pose, arms relaxed' },
-  { label: 'Side — Walking', desc: 'Side profile walking shot, natural movement, editorial' },
-  { label: 'Close — Detail', desc: 'Upper body close-up showing design detail, looking at camera' },
-  { label: 'Back — Over Shoulder', desc: 'Back shot turning over shoulder, mysterious, fashion editorial' },
-]
-
-function BodyShotStudio({ modelImage, product, designImage, scene, style }: {
-  modelImage: string; product: string; designImage: string | null; scene: string; style: string
-}) {
-  const [shots, setShots] = useState<(string | null)[]>([null, null, null, null])
-  const [generating, setGenerating] = useState<number | null>(null)
-  const [generatingAll, setGeneratingAll] = useState(false)
-
-  async function generateShot(poseIdx: number) {
-    setGenerating(poseIdx)
-    try {
-      const pose = POSES[poseIdx]
-      const prompt = style + " full body shot, " + pose.desc + ", wearing " + product + (designImage ? " with custom design" : "") + ", " + scene + ", ultra realistic, Sony A7R IV, RAW photo, editorial fashion, slight film grain"
-      const res = await fetch('/api/generate/image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, style: 'fashion', size: 'portrait', facePhoto: modelImage }),
-      })
-      const data = await res.json()
-      if (data.imageUrl) {
-        setShots(prev => { const next = [...prev]; next[poseIdx] = data.imageUrl; return next })
-      }
-    } catch (e) { console.error(e) }
-    setGenerating(null)
-  }
-
-  async function generateAll() {
-    setGeneratingAll(true)
-    for (let i = 0; i < POSES.length; i++) {
-      await generateShot(i)
-      await new Promise(r => setTimeout(r, 1500))
-    }
-    setGeneratingAll(false)
-  }
-
-  return (
-    <div>
-      <button className="pod-btn" onClick={generateAll} disabled={generatingAll || generating !== null} style={{ width: '100%', fontSize: '12px', marginBottom: '12px' }}>
-        {generatingAll ? 'Generating all 4 poses...' : '⊳ Generate All 4 Poses'}
-      </button>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-        {POSES.map((pose, i) => (
-          <div key={i} style={{ background: 'var(--bg3)', borderRadius: '8px', overflow: 'hidden', border: '0.5px solid rgba(255,80,80,0.15)' }}>
-            <div style={{ height: '160px', position: 'relative' as const, background: '#0a0008' }}>
-              {shots[i] ? (
-                <img src={shots[i]!} alt={pose.label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : (
-                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' as const }}>
-                  {generating === i ? (
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ width: '40px', height: '2px', background: '#1a0010', borderRadius: '1px', overflow: 'hidden', margin: '0 auto 8px' }}>
-                        <div style={{ height: '100%', background: 'var(--pod)', backgroundSize: '200% 100%', animation: 'lbar 2s linear infinite' }} />
-                      </div>
-                      <div style={{ fontSize: '9px', color: 'rgba(255,80,80,0.5)', fontFamily: "'DM Mono',monospace" }}>Generating...</div>
-                    </div>
-                  ) : (
-                    <div style={{ textAlign: 'center', opacity: 0.3 }}>
-                      <div style={{ fontSize: '20px', marginBottom: '4px' }}>👤</div>
-                      <div style={{ fontSize: '9px', color: 'var(--mu3)' }}>{pose.label}</div>
-                    </div>
-                  )}
-                </div>
-              )}
-              {shots[i] && (
-                <a href={shots[i]!} download style={{ position: 'absolute', top: '4px', right: '4px', padding: '2px 7px', borderRadius: '4px', background: 'rgba(0,0,0,0.85)', color: 'var(--red)', fontSize: '9px', textDecoration: 'none' }}>⬇</a>
-              )}
-            </div>
-            <div style={{ padding: '8px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: '10px', color: 'var(--w2)', fontWeight: 600 }}>{pose.label}</div>
-              {!shots[i] && (
-                <button onClick={() => generateShot(i)} disabled={generating !== null || generatingAll} style={{ fontSize: '9px', padding: '3px 8px', borderRadius: '4px', background: 'transparent', border: '0.5px solid rgba(255,80,80,0.3)', color: 'var(--red)', cursor: 'pointer' }}>Generate</button>
-              )}
-              {shots[i] && (
-                <button onClick={() => generateShot(i)} disabled={generating !== null || generatingAll} style={{ fontSize: '9px', padding: '3px 8px', borderRadius: '4px', background: 'transparent', border: '0.5px solid rgba(255,80,80,0.3)', color: 'var(--red)', cursor: 'pointer' }}>↺</button>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-
-// ── EXACT MOCKUP GENERATOR ────────────────────────────────────
-// Popular Printful catalog products with IDs
-const PF_POPULAR = [
-  { id: 189, name: 'All-Over Print Leggings', icon: '🩱', category: 'Bottoms' },
-  { id: 200, name: 'All-Over Print Crop Top', icon: '👚', category: 'Tops' },
-  { id: 303, name: 'All-Over Print Crop Tee', icon: '👕', category: 'Tops' },
-  { id: 198, name: 'All-Over Print Bodycon Dress', icon: '👗', category: 'Dresses' },
-  { id: 589, name: 'All-Over Print Midi Dress', icon: '👗', category: 'Dresses' },
-  { id: 83, name: 'All-Over Print Pillow', icon: '🛋️', category: 'Home' },
-  { id: 279, name: 'All-Over Print Backpack', icon: '🎒', category: 'Bags' },
-  { id: 465, name: 'All-Over Print Duffle Bag', icon: '👜', category: 'Bags' },
-  { id: 350, name: 'All-Over Print Fanny Pack', icon: '👝', category: 'Bags' },
-  { id: 507, name: 'All-Over Print Biker Shorts', icon: '🩳', category: 'Bottoms' },
-  { id: 737, name: 'All-Over Print Flare Leggings', icon: '🩱', category: 'Bottoms' },
-  { id: 558, name: 'All-Over Print Leggings w/ Pockets', icon: '🩱', category: 'Bottoms' },
-  { id: 477, name: 'All-Over Print Sports Bra', icon: '👙', category: 'Tops' },
-  { id: 924, name: 'Custom Area Rug', icon: '🪞', category: 'Home' },
-  { id: 630, name: 'All-Over Print Bandana', icon: '🧣', category: 'Accessories' },
-]
-
-function ExactMockupGenerator() {
+// ── DESIGN STUDIO ──────────────────────────────────────────────
+function DesignStudio() {
+  const [mode, setMode] = useState<'ai' | 'exact'>('exact')
   const [designImage, setDesignImage] = useState<string | null>(null)
-  const [designUrl, setDesignUrl] = useState('')
   const [selectedProduct, setSelectedProduct] = useState<{id: number; name: string; icon: string} | null>(null)
   const [variants, setVariants] = useState<Record<string, unknown>[]>([])
   const [selectedVariant, setSelectedVariant] = useState<number | null>(null)
   const [placement, setPlacement] = useState('front')
-  const [loading, setLoading] = useState(false)
-  const [generating, setGenerating] = useState(false)
-  const [polling, setPolling] = useState(false)
   const [mockupImages, setMockupImages] = useState<string[]>([])
   const [status, setStatus] = useState('')
+  const [generating, setGenerating] = useState(false)
+  const [polling, setPolling] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [category, setCategory] = useState('All')
+  const [prompt, setPrompt] = useState('')
+  const [style, setStyle] = useState('fashion')
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [imageLoading, setImageLoading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const placements = ['front', 'back', 'left', 'right', 'sleeve_left', 'sleeve_right']
-  const categories = ['All', 'Tops', 'Bottoms', 'Dresses', 'Bags', 'Home', 'Accessories']
+  const PF_POPULAR = [
+    { id: 189, name: 'All-Over Print Leggings', icon: '🩱', category: 'Bottoms' },
+    { id: 200, name: 'All-Over Print Crop Top', icon: '👚', category: 'Tops' },
+    { id: 303, name: 'All-Over Print Crop Tee', icon: '👕', category: 'Tops' },
+    { id: 198, name: 'All-Over Print Bodycon Dress', icon: '👗', category: 'Dresses' },
+    { id: 589, name: 'All-Over Print Midi Dress', icon: '👗', category: 'Dresses' },
+    { id: 83, name: 'All-Over Print Pillow', icon: '🛋️', category: 'Home' },
+    { id: 279, name: 'All-Over Print Backpack', icon: '🎒', category: 'Bags' },
+    { id: 465, name: 'All-Over Print Duffle Bag', icon: '👜', category: 'Bags' },
+    { id: 507, name: 'All-Over Print Biker Shorts', icon: '🩳', category: 'Bottoms' },
+    { id: 477, name: 'All-Over Print Sports Bra', icon: '👙', category: 'Tops' },
+    { id: 924, name: 'Custom Area Rug', icon: '🪞', category: 'Home' },
+  ]
+  const categories = ['All', 'Tops', 'Bottoms', 'Dresses', 'Bags', 'Home']
   const filtered = category === 'All' ? PF_POPULAR : PF_POPULAR.filter(p => p.category === category)
-
-  async function loadVariants(product: {id: number; name: string; icon: string}) {
-    setSelectedProduct(product)
-    setVariants([])
-    setSelectedVariant(null)
-    setLoading(true)
-    setStatus('Loading ' + product.name + ' variants...')
-    try {
-      const res = await fetch(`/api/generate/printful-catalog?action=variants&productId=${product.id}`)
-      const data = await res.json()
-      const v = data.variants || []
-      setVariants(v)
-      if (v.length > 0) setSelectedVariant((v[0] as Record<string, unknown>).id as number)
-      setStatus(v.length + ' variants loaded — select size/color')
-    } catch (e) { setStatus('Error: ' + (e as Error).message) }
-    setLoading(false)
-  }
 
   function handleDesignUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
@@ -475,432 +323,335 @@ function ExactMockupGenerator() {
     reader.readAsDataURL(f)
   }
 
-  async function generateMockup() {
-    if (!selectedVariant) { setStatus('Please select a product and variant'); return }
-    if (!designImage && !designUrl) { setStatus('Please upload your design'); return }
-    setGenerating(true)
-    setMockupImages([])
-
+  async function loadVariants(product: { id: number; name: string; icon: string }) {
+    setSelectedProduct(product); setVariants([]); setSelectedVariant(null)
+    setLoading(true); setStatus('Loading variants...')
     try {
-      setStatus('Uploading design to Cloudinary...')
+      const res = await fetch(`/api/generate/printful-catalog?action=variants&productId=${product.id}`)
+      const data = await res.json()
+      const v = data.variants || []
+      setVariants(v)
+      if (v.length > 0) setSelectedVariant((v[0] as Record<string, unknown>).id as number)
+      setStatus(v.length + ' variants loaded')
+    } catch (e) { setStatus('Error: ' + (e as Error).message) }
+    setLoading(false)
+  }
+
+  async function generateExactMockup() {
+    if (!selectedVariant || !selectedProduct) { setStatus('Select a product and variant'); return }
+    if (!designImage) { setStatus('Upload your design first'); return }
+    setGenerating(true); setMockupImages([])
+    try {
+      setStatus('Uploading design...')
       const uploadRes = await fetch('/api/generate/printful-mockup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'upload_design', imageBase64: designImage }),
       })
       const uploadData = await uploadRes.json()
       if (uploadData.error) { setStatus('Upload error: ' + uploadData.error); setGenerating(false); return }
-
-      const publicUrl = uploadData.imageUrl || designUrl
-      setStatus('Sending to Printful mockup generator...')
-
+      setStatus('Generating mockup with Printful...')
       const res = await fetch('/api/generate/printful-mockup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'generate_mockup',
-          variantId: selectedVariant,
-          imageUrl: publicUrl,
-          placement,
-        }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'generate_mockup', productId: selectedProduct.id, variantId: selectedVariant, imageUrl: uploadData.imageUrl, placement }),
       })
       const data = await res.json()
       if (data.taskKey) {
-        setPolling(true)
-        setStatus('Printful is generating your mockup...')
-        pollMockup(data.taskKey)
-      } else {
-        setStatus('Error: ' + (data.error || JSON.stringify(data)))
-      }
+        setPolling(true); setStatus('Printful processing...')
+        for (let i = 0; i < 20; i++) {
+          await new Promise(r => setTimeout(r, 3000))
+          const poll = await fetch('/api/generate/printful-mockup', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'get_result', taskKey: data.taskKey }),
+          })
+          const pd = await poll.json()
+          if (pd.status === 'completed' && pd.mockups?.length > 0) {
+            setMockupImages(pd.mockups); setPolling(false); setStatus('Mockup ready!'); break
+          }
+          setStatus('Processing... ' + (i + 1) + '/20')
+        }
+      } else { setStatus('Error: ' + (data.error || 'No task key')) }
     } catch (e) { setStatus('Error: ' + (e as Error).message) }
     setGenerating(false)
   }
 
-  async function pollMockup(taskKey: string) {
-    let attempts = 0
-    while (attempts < 20) {
-      await new Promise(r => setTimeout(r, 3000))
-      try {
-        const res = await fetch('/api/generate/printful-mockup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'get_result', taskKey }),
-        })
-        const data = await res.json()
-        if (data.status === 'completed' && data.mockups?.length > 0) {
-          setMockupImages(data.mockups)
-          setPolling(false)
-          setStatus('Your exact mockup is ready!')
-          return
-        }
-        setStatus('Processing... (' + (attempts + 1) + '/20)')
-      } catch (e) { console.error(e) }
-      attempts++
-    }
-    setPolling(false)
-    setStatus('Timed out — try again')
-  }
-
-  return (
-    <div className="pg-in">
-      <div style={{ marginBottom: '24px' }}>
-        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(255,80,80,0.5)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Exact Design Placement</div>
-        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '32px', fontWeight: 400, color: 'var(--w)', marginBottom: '4px' }}>
-          Exact <span style={{ color: 'var(--red)' }}>Mockup Generator</span>
-        </div>
-        <div style={{ fontSize: '13px', color: 'var(--mu3)' }}>Your EXACT pattern placed on real Printful products — pixel perfect every time.</div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '20px' }}>
-        {/* Left */}
-        <div>
-          {/* Upload design */}
-          <div className="card hi" style={{ marginBottom: '14px' }}>
-            <div className="ftitle">Step 1 — Upload Your Pattern</div>
-            <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleDesignUpload} />
-            <div onClick={() => fileRef.current?.click()} style={{ border: '1.5px dashed rgba(255,80,80,0.3)', borderRadius: '8px', padding: '12px', textAlign: 'center', cursor: 'pointer', background: 'var(--bg3)', marginBottom: '8px' }}>
-              {designImage
-                ? <img src={designImage} alt="design" style={{ width: '100%', borderRadius: '6px', maxHeight: '140px', objectFit: 'contain' }} />
-                : <div><div style={{ fontSize: '24px', marginBottom: '4px', opacity: 0.4 }}>🎨</div><div style={{ fontSize: '11px', color: 'var(--mu3)' }}>Click to upload pattern/design</div></div>
-              }
-            </div>
-            <F label="Or paste a direct image URL">
-              <input className="finp" placeholder="https://..." value={designUrl} onChange={e => setDesignUrl(e.target.value)} style={{ fontSize: '11px' }} />
-            </F>
-          </div>
-
-          {/* Product selection */}
-          <div className="card hi" style={{ marginBottom: '14px' }}>
-            <div className="ftitle">Step 2 — Select Product</div>
-            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' as const, marginBottom: '10px' }}>
-              {categories.map(c => (
-                <button key={c} onClick={() => setCategory(c)}
-                  style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '10px', cursor: 'pointer', border: `0.5px solid ${category === c ? 'rgba(255,80,80,0.5)' : 'rgba(255,80,80,0.15)'}`, background: category === c ? 'rgba(255,80,80,0.1)' : 'transparent', color: category === c ? 'var(--red)' : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif" }}>
-                  {c}
-                </button>
-              ))}
-            </div>
-            <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'flex', flexDirection: 'column' as const, gap: '4px' }}>
-              {filtered.map(p => (
-                <div key={p.id} onClick={() => loadVariants(p)}
-                  style={{ padding: '8px 10px', borderRadius: '6px', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center', border: `0.5px solid ${selectedProduct?.id === p.id ? 'rgba(255,80,80,0.4)' : 'rgba(255,80,80,0.1)'}`, background: selectedProduct?.id === p.id ? 'rgba(255,80,80,0.08)' : 'var(--bg3)' }}>
-                  <span style={{ fontSize: '16px' }}>{p.icon}</span>
-                  <div style={{ fontSize: '11px', color: selectedProduct?.id === p.id ? 'var(--red)' : 'var(--w2)' }}>{p.name}</div>
-                </div>
-              ))}
-            </div>
-            {loading && <div style={{ fontSize: '11px', color: 'var(--mu3)', marginTop: '8px', textAlign: 'center' }}>Loading variants...</div>}
-          </div>
-
-          {/* Variant selection */}
-          {variants.length > 0 && (
-            <div className="card hi" style={{ marginBottom: '14px' }}>
-              <div className="ftitle">Step 3 — Size / Color</div>
-              <select className="fsel" value={selectedVariant || ''} onChange={e => setSelectedVariant(Number(e.target.value))}>
-                {variants.map((v: Record<string, unknown>) => (
-                  <option key={v.id as number} value={v.id as number}>
-                    {String(v.name || ((v.color_code ? v.color_code : '') + ' ' + (v.size || '')))}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Placement */}
-          <div className="card hi" style={{ marginBottom: '14px' }}>
-            <div className="ftitle">Step 4 — Placement</div>
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' as const }}>
-              {placements.map(p => (
-                <button key={p} onClick={() => setPlacement(p)}
-                  style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '10px', cursor: 'pointer', border: `0.5px solid ${placement === p ? 'rgba(255,80,80,0.5)' : 'rgba(255,80,80,0.15)'}`, background: placement === p ? 'rgba(255,80,80,0.1)' : 'transparent', color: placement === p ? 'var(--red)' : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif", textTransform: 'capitalize' as const }}>
-                  {p.replace('_', ' ')}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <button onClick={generateMockup} disabled={generating || polling || !selectedVariant || (!designImage && !designUrl)}
-            className="pod-btn" style={{ width: '100%', fontSize: '13px', padding: '13px' }}>
-            {generating ? 'Uploading...' : polling ? 'Generating...' : '🎯 Generate Exact Mockup'}
-          </button>
-          {(generating || polling) && <div className="lbar" style={{ marginTop: '8px' }}><div className="lbar-fill" /></div>}
-          {status && <div style={{ marginTop: '8px', fontSize: '11px', color: status.startsWith('Error') ? '#ff6b6b' : 'var(--mu3)', textAlign: 'center', fontFamily: "'DM Mono',monospace", lineHeight: '1.5' }}>{status}</div>}
-        </div>
-
-        {/* Right — output */}
-        <div>
-          {mockupImages.length === 0 ? (
-            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div className="card" style={{ textAlign: 'center', padding: '60px 40px', opacity: 0.5, width: '100%' }}>
-                <div style={{ fontSize: '64px', marginBottom: '16px', opacity: 0.2 }}>🎯</div>
-                <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '22px', color: 'var(--w)', marginBottom: '8px' }}>Your exact mockup appears here</div>
-                <div style={{ fontSize: '12px', color: 'var(--mu3)', lineHeight: '1.7' }}>
-                  Upload pattern → Select product → Select size → Generate<br/>
-                  Your EXACT design placed by Printful — pixel perfect
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div>
-              <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(255,80,80,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '14px' }}>
-                {mockupImages.length} Mockup{mockupImages.length > 1 ? 's' : ''} — {selectedProduct?.name}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
-                {mockupImages.map((url, i) => (
-                  <div key={i} style={{ background: 'var(--s1)', border: '0.5px solid rgba(255,80,80,0.2)', borderRadius: '12px', overflow: 'hidden' }}>
-                    <img src={url} alt={'Mockup ' + (i+1)} style={{ width: '100%', display: 'block' }} />
-                    <div style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ fontSize: '11px', color: 'var(--mu3)' }}>Mockup {i + 1}</div>
-                      <a href={url} download={'mockup_' + (i+1) + '.jpg'} style={{ padding: '4px 12px', borderRadius: '6px', background: 'var(--red)', color: '#fff', fontSize: '11px', fontWeight: 700, textDecoration: 'none' }}>⬇ Save</a>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ marginTop: '14px', padding: '12px 16px', background: 'rgba(255,80,80,0.05)', border: '0.5px solid rgba(255,80,80,0.15)', borderRadius: '10px', fontSize: '11px', color: 'var(--mu3)', lineHeight: '1.7' }}>
-                ✦ Exact design placement by Printful<br/>
-                ✦ Download and use for listings, social media, and ads<br/>
-                ✦ Go to <strong style={{ color: 'var(--red)' }}>AI Mockup Generator</strong> to put this on a lifestyle model
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-
-function MockupGenerator() {
-  const [selectedProduct, setSelectedProduct] = useState('tshirt')
-  const [designImage, setDesignImage] = useState<string | null>(null)
-  const [modelImage, setModelImage] = useState<string | null>(null)
-  const [customProduct, setCustomProduct] = useState('')
-  const [scene, setScene] = useState('Black woman — natural hair, confident, luxury lifestyle')
-  const [style, setStyle] = useState('Editorial fashion photography')
-  const [output, setOutput] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [imageUrl, setImageUrl] = useState<string | null>(null)
-  const [imageLoading, setImageLoading] = useState(false)
-  const [saved, setSaved] = useState(false)
-
-  const product = PRODUCTS.find(p => p.id === selectedProduct)
-
-  async function generatePrompts() {
-    setLoading(true); setOutput('')
+  async function generateAIMockup() {
+    if (!prompt.trim()) { setStatus('Enter a prompt first'); return }
+    setImageLoading(true); setImageUrl(null)
     try {
-      const res = await fetch('/api/generate/mockup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          product: selectedProduct === 'custom' ? customProduct : (product?.name ?? 'T-Shirt'),
-          design: designImage ? 'Custom uploaded design' : 'text prompt design',
-          setting: scene,
-          style,
-          designImageBase64: designImage || null,
-          modelImageBase64: modelImage || null,
-        }),
-      })
-      const data = await res.json()
-      if (data.prompt) setOutput(data.prompt)
-      else if (data.error) setOutput('Error: ' + data.error)
-      else setOutput('No prompt returned')
-    } catch (e) { setOutput('Error: ' + (e as Error).message) }
-    finally { setLoading(false) }
-  }
-
-  async function generateImage() {
-    setImageLoading(true)
-    try {
-      // If design image uploaded — use image-to-image mockup route directly
-      if (designImage) {
-        const res = await fetch('/api/generate/mockup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            product: selectedProduct === 'custom' ? customProduct : (product?.name ?? 'T-Shirt'),
-            design: 'Custom uploaded design',
-            setting: scene,
-            style,
-            designImageBase64: designImage,
-            modelImageBase64: modelImage ?? null,
-          }),
-        })
-        const data = await res.json()
-        if (data.imageUrl) { setImageUrl(data.imageUrl); return }
-        // If image-to-image returned a prompt, use it
-        if (data.prompt) {
-          const imgRes = await fetch('/api/generate/image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: data.prompt, style: 'fashion', size: 'square', facePhoto: modelImage ?? null, referenceImage: designImage }),
-          })
-          const imgData = await imgRes.json()
-          setImageUrl(imgData.imageUrl ?? null)
-          return
-        }
-      }
-      // No design image — use generated prompt
-      if (!output) { alert('Generate prompts first or upload a design image!'); setImageLoading(false); return }
       const res = await fetch('/api/generate/image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: output.slice(0, 500), style: 'fashion', size: 'square', facePhoto: modelImage ?? null }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, style, size: 'portrait' }),
       })
       const data = await res.json()
-      setImageUrl(data.imageUrl ?? null)
-    } catch (e) { console.error(e) }
-    finally { setImageLoading(false) }
-  }
-
-  function saveMockup() {
-    if (!imageUrl) return
-    const existing = JSON.parse(localStorage.getItem('podMockups') || '[]')
-    existing.unshift({ id: Date.now(), name: `${product?.name} Mockup`, product: product?.name, imageUrl, savedAt: new Date().toISOString() })
-    localStorage.setItem('podMockups', JSON.stringify(existing.slice(0, 50)))
-    setSaved(true); setTimeout(() => setSaved(false), 2000)
+      if (data.imageUrl) setImageUrl(data.imageUrl)
+      else setStatus('Error: ' + (data.error || 'No image returned'))
+    } catch (e) { setStatus('Error: ' + (e as Error).message) }
+    setImageLoading(false)
   }
 
   return (
-    <div className="pg-in">
-      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>
-        Mockup <span style={{ background: 'var(--pod)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Generator</span>
-      </div>
-      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '24px', lineHeight: '1.6' }}>
-        Apply your design to any product — AI generates lifestyle mockup prompts and photorealistic images.
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-        {/* LEFT */}
-        <div>
-          <div className="card hi" style={{ marginBottom: '14px' }}>
-            <div className="ftitle">Step 1 — Choose Product</div>
-            <div className="product-grid">
-              {PRODUCTS.map(p => (
-                <div key={p.id} className={`product-card${selectedProduct === p.id ? ' selected' : ''}`} onClick={() => setSelectedProduct(p.id)}>
-                  <div style={{ fontSize: '24px', marginBottom: '4px' }}>{p.emoji}</div>
-                  <div style={{ fontSize: '11px', fontWeight: 500, color: selectedProduct === p.id ? 'var(--red)' : 'var(--w2)', fontFamily: "'DM Mono',monospace" }}>{p.name}</div>
-                </div>
-              ))}
-            </div>
-            {selectedProduct === 'custom' && (
-              <div style={{ marginTop: '10px' }}>
-                <F label="Describe your product">
-                  <input className="finp" placeholder="e.g. Canvas tote bag, 16x14 inches, natural cotton" value={customProduct} onChange={e => setCustomProduct(e.target.value)} />
-                </F>
-              </div>
-            )}
-          </div>
-
-          <div className="card hi" style={{ marginBottom: '14px' }}>
-            <div className="ftitle">Step 2 — Upload Your Design</div>
-            <DragDrop
-              label="Drag & drop your design"
-              sub="PNG with transparent background works best · JPG, SVG also accepted"
-              currentImage={designImage}
-              onImage={setDesignImage}
-              onClear={() => setDesignImage(null)}
-              height={140}
-            />
-          </div>
-
-          <div className="card hi" style={{ marginBottom: '14px' }}>
-            <div className="ftitle">Step 3 — AI Model (Optional)</div>
-            <DragDrop
-              label="Upload your AI model/twin photo"
-              sub="Locks their face into every generated image"
-              currentImage={modelImage}
-              onImage={setModelImage}
-              onClear={() => setModelImage(null)}
-              height={120}
-            />
-            <div style={{ marginTop: '10px' }}>
-              <F label="Model Scene">
-                <select className="fsel" value={scene} onChange={e => setScene(e.target.value)}>
-                  {[
-                    'Black woman — natural hair, confident, luxury lifestyle',
-                    'Black woman — beachside, swimwear shoot, golden hour',
-                    'Black woman — urban street style, NYC vibes',
-                    'Black woman — studio shoot, clean background',
-                    'Flat lay — marble surface, minimal props',
-                    'Lifestyle — outdoor, natural light, editorial',
-                  ].map(s => <option key={s}>{s}</option>)}
-                </select>
-              </F>
-              <F label="Visual Style">
-                <select className="fsel" value={style} onChange={e => setStyle(e.target.value)}>
-                  {['Editorial fashion photography', 'Luxury lifestyle campaign', 'Streetwear urban aesthetic', 'Minimal studio flat lay', 'Cinematic film still'].map(s => <option key={s}>{s}</option>)}
-                </select>
-              </F>
-            </div>
-          </div>
-
-          <button className="pod-btn" onClick={generatePrompts} disabled={loading} style={{ width: '100%' }}>
-            {loading ? 'Generating prompts…' : `✦ Generate ${product?.name ?? 'Product'} Mockup Prompts`}
-          </button>
-          <Output text={output} loading={loading} />
-
-          {output && (
-            <button className="pod-btn" onClick={generateImage} disabled={imageLoading} style={{ width: '100%', marginTop: '10px', opacity: imageLoading ? 0.7 : 1 }}>
-              {imageLoading ? 'Generating image…' : '◈ Generate Mockup Image'}
-            </button>
-          )}
+    <div className="pg-in" style={{ padding: '28px' }}>
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '28px', fontWeight: 400, color: '#fff', marginBottom: '4px' }}>
+          Design <span style={{ color: 'var(--red)' }}>Studio</span>
         </div>
+        <div style={{ fontSize: '13px', color: 'var(--mu3)', marginBottom: '16px' }}>Generate AI mockups or place your exact design on real Printful products.</div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button onClick={() => setMode('exact')} style={{ padding: '8px 20px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', border: `1px solid ${mode === 'exact' ? 'rgba(255,34,85,0.5)' : 'rgba(255,34,85,0.15)'}`, background: mode === 'exact' ? 'rgba(255,34,85,0.1)' : 'transparent', color: mode === 'exact' ? 'var(--red)' : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif" }}>
+            🎯 Exact Mockup (Printful)
+          </button>
+          <button onClick={() => setMode('ai')} style={{ padding: '8px 20px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', border: `1px solid ${mode === 'ai' ? 'rgba(255,34,85,0.5)' : 'rgba(255,34,85,0.15)'}`, background: mode === 'ai' ? 'rgba(255,34,85,0.1)' : 'transparent', color: mode === 'ai' ? 'var(--red)' : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif" }}>
+            🤖 AI Lifestyle Mockup
+          </button>
+        </div>
+      </div>
 
-        {/* RIGHT — Image result */}
-        <div>
-          <div className="card accent" style={{ marginBottom: '14px' }}>
-            <div className="ftitle">Mockup Preview</div>
-            <div style={{ background: 'var(--bg3)', borderRadius: '10px', minHeight: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: '12px', border: '0.5px solid #222' }}>
-              {imageLoading ? (
-                <div style={{ textAlign: 'center', padding: '30px' }}>
-                  <div style={{ fontSize: '32px', marginBottom: '10px', opacity: 0.5 }}>◈</div>
-                  <div style={{ fontSize: '13px', color: 'var(--red)', marginBottom: '8px' }}>Generating your mockup…</div>
-                  <div style={{ height: '2px', background: '#1a1a1a', overflow: 'hidden', borderRadius: '1px', width: '120px', margin: '0 auto 8px' }}><div className="lbar-fill" /></div>
-                  <div style={{ fontSize: '11px', color: 'var(--mu3)' }}>Usually 5–15 seconds</div>
-                </div>
-              ) : imageUrl ? (
-                <img src={imageUrl} alt="mockup" style={{ width: '100%', display: 'block', borderRadius: '10px' }} />
-              ) : (
-                <div style={{ textAlign: 'center', padding: '30px' }}>
-                  <div style={{ fontSize: '40px', marginBottom: '10px', opacity: 0.2 }}>{product?.emoji}</div>
-                  <div style={{ fontSize: '13px', color: 'var(--mu3)' }}>Your mockup appears here</div>
-                  <div style={{ fontSize: '11px', color: 'var(--mu)', marginTop: '4px' }}>Generate prompts then click Generate Image</div>
-                </div>
-              )}
+      {mode === 'exact' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '20px' }}>
+          <div>
+            <div className="card hi" style={{ marginBottom: '12px' }}>
+              <div className="ftitle">1 — Upload Design</div>
+              <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleDesignUpload} />
+              <div onClick={() => fileRef.current?.click()} style={{ border: '1.5px dashed rgba(255,34,85,0.25)', borderRadius: '8px', padding: '16px', textAlign: 'center', cursor: 'pointer', background: 'var(--bg3)', minHeight: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {designImage ? <img src={designImage} alt="design" style={{ maxHeight: '120px', maxWidth: '100%', borderRadius: '6px', objectFit: 'contain' }} /> : <div><div style={{ fontSize: '24px', opacity: 0.3 }}>🎨</div><div style={{ fontSize: '11px', color: 'var(--mu3)', marginTop: '6px' }}>Click to upload pattern</div></div>}
+              </div>
+              {designImage && <button onClick={() => setDesignImage(null)} style={{ fontSize: '10px', color: '#ff6b6b', background: 'none', border: 'none', cursor: 'pointer', marginTop: '6px' }}>✕ Remove</button>}
             </div>
-            {imageUrl && (
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <a href={imageUrl} download target="_blank" rel="noreferrer" style={{ flex: 1, padding: '9px', borderRadius: '7px', border: 'none', background: 'var(--pod)', color: '#000', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", textAlign: 'center', textDecoration: 'none', display: 'block' }}>⬇ Download</a>
-                <button onClick={saveMockup} style={{ flex: 1, padding: '9px', borderRadius: '7px', border: `0.5px solid ${saved ? 'var(--green)' : '#333'}`, background: saved ? 'rgba(107,203,119,0.1)' : 'var(--s2)', color: saved ? 'var(--green)' : 'var(--mu3)', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>{saved ? '✓ Saved!' : '⊹ Save Template'}</button>
-                <button onClick={() => setImageUrl(null)} className="del-btn">✕</button>
+
+            <div className="card hi" style={{ marginBottom: '12px' }}>
+              <div className="ftitle">2 — Select Product</div>
+              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' as const, marginBottom: '8px' }}>
+                {categories.map(c => <button key={c} onClick={() => setCategory(c)} style={{ padding: '3px 8px', borderRadius: '20px', fontSize: '10px', cursor: 'pointer', border: `0.5px solid ${category === c ? 'rgba(255,34,85,0.5)' : 'rgba(255,34,85,0.15)'}`, background: category === c ? 'rgba(255,34,85,0.1)' : 'transparent', color: category === c ? 'var(--red)' : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif" }}>{c}</button>)}
+              </div>
+              <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column' as const, gap: '3px' }}>
+                {filtered.map(p => <div key={p.id} onClick={() => loadVariants(p)} style={{ padding: '7px 9px', borderRadius: '6px', cursor: 'pointer', display: 'flex', gap: '7px', alignItems: 'center', border: `0.5px solid ${selectedProduct?.id === p.id ? 'rgba(255,34,85,0.4)' : 'rgba(255,34,85,0.08)'}`, background: selectedProduct?.id === p.id ? 'rgba(255,34,85,0.08)' : 'var(--bg3)' }}><span>{p.icon}</span><div style={{ fontSize: '11px', color: selectedProduct?.id === p.id ? 'var(--red)' : 'var(--w2)' }}>{p.name}</div></div>)}
+              </div>
+              {loading && <div style={{ fontSize: '10px', color: 'var(--mu3)', marginTop: '6px', textAlign: 'center' }}>Loading...</div>}
+            </div>
+
+            {variants.length > 0 && (
+              <div className="card hi" style={{ marginBottom: '12px' }}>
+                <div className="ftitle">3 — Size / Color</div>
+                <select className="fsel" value={selectedVariant || ''} onChange={e => setSelectedVariant(Number(e.target.value))}>
+                  {variants.map((v: Record<string, unknown>) => <option key={v.id as number} value={v.id as number}>{String(v.name || v.size || v.id)}</option>)}
+                </select>
               </div>
             )}
+
+            <div className="card hi" style={{ marginBottom: '12px' }}>
+              <div className="ftitle">4 — Placement</div>
+              <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' as const }}>
+                {['front', 'back', 'left', 'right'].map(p => <button key={p} onClick={() => setPlacement(p)} style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '10px', cursor: 'pointer', border: `0.5px solid ${placement === p ? 'rgba(255,34,85,0.5)' : 'rgba(255,34,85,0.15)'}`, background: placement === p ? 'rgba(255,34,85,0.1)' : 'transparent', color: placement === p ? 'var(--red)' : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif", textTransform: 'capitalize' as const }}>{p}</button>)}
+              </div>
+            </div>
+
+            <button onClick={generateExactMockup} disabled={generating || polling || !selectedVariant || !designImage} className="pod-btn" style={{ width: '100%' }}>
+              {generating ? 'Uploading...' : polling ? 'Printful generating...' : '🎯 Generate Exact Mockup'}
+            </button>
+            {(generating || polling) && <div className="lbar" style={{ marginTop: '8px' }}><div className="lbar-fill" /></div>}
+            {status && <div style={{ marginTop: '8px', fontSize: '11px', color: status.startsWith('Error') ? '#ff6b6b' : 'var(--mu3)', textAlign: 'center', fontFamily: "'DM Mono',monospace" }}>{status}</div>}
           </div>
 
-          {/* Body Shot Studio */}
-          <div className="card">
-            <div className="ftitle">Body Shot Studio</div>
-            <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '12px', lineHeight: '1.6' }}>
-              Generate 4 full-body lifestyle shots of your AI model wearing the selected product — different poses, angles, and scenes.
-            </div>
-            {!modelImage ? (
-              <div style={{ padding: '14px', background: 'rgba(255,80,80,0.05)', border: '0.5px solid rgba(255,80,80,0.2)', borderRadius: '8px', fontSize: '12px', color: 'rgba(255,120,120,0.8)', textAlign: 'center', lineHeight: '1.6' }}>
-                Upload your AI model photo in Step 3 above to unlock Body Shot Studio
+          <div>
+            {mockupImages.length === 0 ? (
+              <div className="card" style={{ height: '100%', minHeight: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+                <div style={{ opacity: 0.4 }}>
+                  <div style={{ fontSize: '64px', marginBottom: '16px' }}>🎯</div>
+                  <div style={{ fontSize: '16px', color: 'var(--w)', marginBottom: '8px' }}>Your exact mockup appears here</div>
+                  <div style={{ fontSize: '12px', color: 'var(--mu3)' }}>Upload pattern → Select product → Generate</div>
+                </div>
               </div>
             ) : (
               <div>
-                <BodyShotStudio
-                  modelImage={modelImage}
-                  product={selectedProduct === 'custom' ? customProduct : (product?.name ?? 'T-Shirt')}
-                  designImage={designImage}
-                  scene={scene}
-                  style={style}
-                />
+                <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(255,34,85,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '12px' }}>
+                  {mockupImages.length} Mockup{mockupImages.length > 1 ? 's' : ''} — {selectedProduct?.name}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
+                  {mockupImages.map((url, i) => (
+                    <div key={i} className="product-card">
+                      <img src={url} alt={'Mockup ' + (i + 1)} style={{ width: '100%', display: 'block' }} />
+                      <div style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--mu3)' }}>Mockup {i + 1}</div>
+                        <a href={url} download={'mockup_' + (i + 1) + '.jpg'} style={{ padding: '4px 12px', borderRadius: '6px', background: 'var(--pod)', color: '#fff', fontSize: '11px', fontWeight: 700, textDecoration: 'none' }}>⬇ Save</a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
-            <div style={{ fontSize: '10px', color: 'var(--mu)', marginTop: '8px', fontFamily: "'DM Mono',monospace", textAlign: 'center' }}>
-              Same face locked across all 4 shots
+          </div>
+        </div>
+      )}
+
+      {mode === 'ai' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '20px' }}>
+          <div>
+            <div className="card hi" style={{ marginBottom: '12px' }}>
+              <div className="ftitle">AI Lifestyle Mockup</div>
+              <F label="Describe the scene">
+                <textarea className="fta" style={{ minHeight: '100px' }} placeholder="e.g. Black woman wearing black Halloween pajama set with skeleton graphic, sitting on white bed, warm autumn candles in background..." value={prompt} onChange={e => setPrompt(e.target.value)} />
+              </F>
+              <F label="Photography Style">
+                <select className="fsel" value={style} onChange={e => setStyle(e.target.value)}>
+                  {['fashion', 'lifestyle', 'cinematic', 'luxury', 'streetwear'].map(s => <option key={s}>{s}</option>)}
+                </select>
+              </F>
+              <button className="pod-btn" onClick={generateAIMockup} disabled={imageLoading || !prompt.trim()} style={{ width: '100%' }}>
+                {imageLoading ? 'Generating...' : '🤖 Generate AI Mockup'}
+              </button>
+              {imageLoading && <div className="lbar" style={{ marginTop: '8px' }}><div className="lbar-fill" /></div>}
             </div>
+          </div>
+          <div>
+            {imageUrl ? (
+              <div>
+                <img src={imageUrl} alt="AI mockup" style={{ width: '100%', borderRadius: '12px', marginBottom: '12px' }} />
+                <a href={imageUrl} download="mockup.jpg" className="pod-btn" style={{ textDecoration: 'none', display: 'inline-block', fontSize: '12px' }}>⬇ Download</a>
+              </div>
+            ) : (
+              <div className="card" style={{ height: '100%', minHeight: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+                <div style={{ opacity: 0.4 }}>
+                  <div style={{ fontSize: '64px', marginBottom: '16px' }}>🤖</div>
+                  <div style={{ fontSize: '14px', color: 'var(--w)' }}>AI lifestyle mockup appears here</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── MY STORE ───────────────────────────────────────────────────
+function MyStore() {
+  const { user } = useUser()
+  const [step, setStep] = useState<'setup' | 'connected'>('setup')
+  const [provider, setProvider] = useState<'printful' | 'printify'>('printful')
+  const [apiKey, setApiKey] = useState('')
+  const [storeName, setStoreName] = useState('')
+  const [storeSlug, setStoreSlug] = useState('')
+  const [isPublic, setIsPublic] = useState(false)
+  const [connecting, setConnecting] = useState(false)
+  const [status, setStatus] = useState('')
+
+  async function connectStore() {
+    if (!apiKey.trim() || !storeName.trim()) { setStatus('Store name and API key required'); return }
+    setConnecting(true)
+    setStatus('Connecting to ' + (provider === 'printful' ? 'Printful' : 'Printify') + '...')
+    try {
+      const slug = storeSlug || storeName.toLowerCase().replace(/[^a-z0-9]/g, '-')
+      // Save to Redis
+      const res = await fetch('/api/store/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user?.id, provider, apiKey, storeName, storeSlug: slug, isPublic }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setStep('connected')
+        setStatus('Store connected!')
+      } else {
+        setStatus('Error: ' + (data.error || 'Connection failed'))
+      }
+    } catch (e) { setStatus('Error: ' + (e as Error).message) }
+    setConnecting(false)
+  }
+
+  if (step === 'connected') return (
+    <div className="pg-in" style={{ padding: '28px' }}>
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '28px', fontWeight: 400, color: '#fff', marginBottom: '4px' }}>
+          My <span style={{ color: 'var(--red)' }}>Store</span>
+        </div>
+      </div>
+      <div className="card hi" style={{ marginBottom: '16px', padding: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--pod)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>🏪</div>
+          <div>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: '#fff' }}>{storeName}</div>
+            <div style={{ fontSize: '12px', color: 'var(--mu3)' }}>Connected via {provider} · {isPublic ? '🌍 Public' : '🔒 Private'}</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' as const }}>
+          <div style={{ padding: '12px 16px', background: 'var(--bg3)', borderRadius: '8px', flex: 1 }}>
+            <div style={{ fontSize: '10px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace", marginBottom: '4px' }}>YOUR STORE URL</div>
+            <div style={{ fontSize: '12px', color: 'var(--red2)' }}>envileecreatorstudios.com/shop/{storeSlug || 'your-store'}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="pg-in" style={{ padding: '28px' }}>
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '28px', fontWeight: 400, color: '#fff', marginBottom: '4px' }}>
+          My <span style={{ color: 'var(--red)' }}>Store</span>
+        </div>
+        <div style={{ fontSize: '13px', color: 'var(--mu3)' }}>Connect your existing Printful or Printify store, or create a new one.</div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', maxWidth: '800px' }}>
+        <div>
+          <div className="card hi" style={{ marginBottom: '14px' }}>
+            <div className="ftitle">Connect Your Store</div>
+            <F label="Store Provider">
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {(['printful', 'printify'] as const).map(p => (
+                  <button key={p} onClick={() => setProvider(p)} style={{ flex: 1, padding: '10px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', border: `1px solid ${provider === p ? 'rgba(255,34,85,0.5)' : 'rgba(255,34,85,0.15)'}`, background: provider === p ? 'rgba(255,34,85,0.1)' : 'transparent', color: provider === p ? 'var(--red)' : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif', textTransform: 'capitalize' }}>
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </F>
+            <F label="Store Name">
+              <input className="finp" placeholder="e.g. Baddie Boutique" value={storeName} onChange={e => { setStoreName(e.target.value); setStoreSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '-')) }} />
+            </F>
+            <F label="Store URL (auto-generated)">
+              <div style={{ padding: '9px 12px', background: 'var(--bg3)', borderRadius: '7px', fontSize: '12px', color: 'var(--mu3)' }}>
+                /shop/{storeSlug || 'your-store-name'}
+              </div>
+            </F>
+            <F label={provider === 'printful' ? 'Printful API Key' : 'Printify API Key'}>
+              <input className="finp" type="password" placeholder="Paste your API key..." value={apiKey} onChange={e => setApiKey(e.target.value)} />
+              <div style={{ fontSize: '10px', color: 'var(--mu3)', marginTop: '4px' }}>
+                {provider === 'printful' ? 'Get from printful.com → Settings → Stores → API' : 'Get from printify.com → My Account → Connections → API'}
+              </div>
+            </F>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px', padding: '12px', background: 'var(--bg3)', borderRadius: '8px' }}>
+              <div onClick={() => setIsPublic(!isPublic)} style={{ width: '36px', height: '20px', borderRadius: '10px', background: isPublic ? 'var(--red)' : 'var(--s2)', cursor: 'pointer', position: 'relative' as const, transition: 'all .2s', border: '0.5px solid rgba(255,34,85,0.3)', flexShrink: 0 }}>
+                <div style={{ position: 'absolute' as const, top: '2px', left: isPublic ? '18px' : '2px', width: '14px', height: '14px', borderRadius: '50%', background: '#fff', transition: 'all .2s' }} />
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', color: 'var(--w)', fontWeight: 600 }}>Make store public</div>
+                <div style={{ fontSize: '10px', color: 'var(--mu3)' }}>Public stores appear in the Marketplace</div>
+              </div>
+            </div>
+            <button className="pod-btn" onClick={connectStore} disabled={connecting || !apiKey.trim() || !storeName.trim()} style={{ width: '100%' }}>
+              {connecting ? 'Connecting...' : '🏪 Connect My Store'}
+            </button>
+            {status && <div style={{ marginTop: '8px', fontSize: '11px', color: status.startsWith('Error') ? '#ff6b6b' : 'var(--mu3)', textAlign: 'center', fontFamily: "'DM Mono',monospace" }}>{status}</div>}
+          </div>
+        </div>
+
+        <div className="card" style={{ padding: '24px' }}>
+          <div className="ftitle">How It Works</div>
+          {[
+            ['1', 'Connect your Printful or Printify account using your API key'],
+            ['2', 'Your products sync automatically from your store'],
+            ['3', 'Get your own public storefront at envileecreatorstudios.com/shop/yourname'],
+            ['4', 'Customers can browse and buy directly from your store'],
+            ['5', 'Orders are fulfilled automatically by Printful/Printify'],
+            ['6', 'Payments go directly to your connected Stripe account'],
+          ].map(([num, text]) => (
+            <div key={num} style={{ display: 'flex', gap: '12px', marginBottom: '12px', alignItems: 'flex-start' }}>
+              <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'var(--pod)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800, color: '#fff', flexShrink: 0 }}>{num}</div>
+              <div style={{ fontSize: '12px', color: 'var(--mu3)', lineHeight: '1.6', paddingTop: '3px' }}>{text}</div>
+            </div>
+          ))}
+          <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(255,34,85,0.05)', borderRadius: '8px', border: '0.5px solid rgba(255,34,85,0.15)', fontSize: '11px', color: 'var(--red2)', lineHeight: '1.7' }}>
+            🔒 Your API key is encrypted and stored securely. Students are enrolled for free — no commission taken.
           </div>
         </div>
       </div>
@@ -908,636 +659,283 @@ function MockupGenerator() {
   )
 }
 
-// ── PRODUCT LISTING WRITER ────────────────────────────────────
+// ── MARKETPLACE ────────────────────────────────────────────────
+function Marketplace() {
+  const [stores, setStores] = useState<Record<string, unknown>[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch('/api/store/marketplace')
+        const data = await res.json()
+        setStores(data.stores || [])
+      } catch (e) { console.error(e) }
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  const filtered = stores.filter(s => {
+    const name = String(s.storeName || '').toLowerCase()
+    return name.includes(search.toLowerCase())
+  })
+
+  return (
+    <div className="pg-in" style={{ padding: '28px' }}>
+      <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap' as const, gap: '16px' }}>
+        <div>
+          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '28px', fontWeight: 400, color: '#fff', marginBottom: '4px' }}>
+            POD <span style={{ color: 'var(--red)' }}>Marketplace</span>
+          </div>
+          <div style={{ fontSize: '13px', color: 'var(--mu3)' }}>Browse stores from Envi Lee Creator Studios students.</div>
+        </div>
+        <input className="finp" placeholder="Search stores..." value={search} onChange={e => setSearch(e.target.value)} style={{ width: '240px' }} />
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '60px' }}>
+          <div className="lbar" style={{ width: '120px', margin: '0 auto' }}><div className="lbar-fill" /></div>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="card" style={{ textAlign: 'center', padding: '60px', opacity: 0.5 }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>🛒</div>
+          <div style={{ fontSize: '16px', color: 'var(--w)', marginBottom: '8px' }}>No stores yet</div>
+          <div style={{ fontSize: '13px', color: 'var(--mu3)' }}>Be the first to open your store in My Store tab</div>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+          {filtered.map((store, i) => (
+            <div key={i} className="store-card">
+              <div style={{ height: '120px', background: `linear-gradient(135deg, rgba(255,34,85,0.2), rgba(0,0,0,0.8))`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px' }}>
+                🏪
+              </div>
+              <div style={{ padding: '16px' }}>
+                <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff', marginBottom: '4px' }}>{String(store.storeName)}</div>
+                <div style={{ fontSize: '11px', color: 'var(--mu3)', marginBottom: '12px' }}>via {String(store.provider)}</div>
+                <a href={`/shop/${String(store.storeSlug)}`} style={{ display: 'block', padding: '9px', borderRadius: '8px', background: 'var(--pod)', color: '#fff', fontSize: '12px', fontWeight: 700, textDecoration: 'none', textAlign: 'center' as const }}>
+                  Visit Store →
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── LISTING WRITER ─────────────────────────────────────────────
 function ListingWriter() {
   const [productName, setProductName] = useState('')
   const [details, setDetails] = useState('')
   const [platform, setPlatform] = useState('Etsy')
-  const [audience, setAudience] = useState('Women aged 22–40 who love fashion and luxury aesthetics')
+  const [audience, setAudience] = useState('')
   const [output, setOutput] = useState('')
   const [loading, setLoading] = useState(false)
 
-  async function run() {
+  async function generate() {
+    if (!productName.trim()) return
     setLoading(true); setOutput('')
-    try { setOutput(await callAPI('generate/listing', { productName, details, platform, targetAudience: audience })) }
-    catch (e) { setOutput(`Error: ${(e as Error).message}`) }
-    finally { setLoading(false) }
-  }
-
-  return (
-    <div className="pg-in">
-      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>
-        Product <span style={{ background: 'var(--pod)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Listing Writer</span>
-      </div>
-      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '24px', lineHeight: '1.6' }}>
-        AI writes your full title, description, bullet points, SEO tags, and social caption in one click.
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-        <div className="card hi">
-          <div className="ftitle">Product Details</div>
-          <F label="Product name"><input className="finp" placeholder="e.g. Luxe Floral Crop Tee" value={productName} onChange={e => setProductName(e.target.value)} /></F>
-          <F label="Description"><textarea className="fta" placeholder="Material, colors, style, what makes it special..." value={details} onChange={e => setDetails(e.target.value)} /></F>
-          <F label="Platform">
-            <select className="fsel" value={platform} onChange={e => setPlatform(e.target.value)}>
-              {PLATFORMS.map(p => <option key={p}>{p}</option>)}
-            </select>
-          </F>
-          <F label="Target audience"><input className="finp" value={audience} onChange={e => setAudience(e.target.value)} /></F>
-          <button className="pod-btn" onClick={run} disabled={loading} style={{ width: '100%' }}>
-            {loading ? 'Writing…' : 'Write Full Listing ↗'}
-          </button>
-          <Output text={output} loading={loading} />
-        </div>
-        <div className="card">
-          <div className="ftitle">What Gets Written</div>
-          {[
-            ['Title', 'SEO-optimized platform-specific title'],
-            ['Description', 'Lifestyle-led copy that converts'],
-            ['Key Features', '5 benefit-first bullet points'],
-            ['SEO Tags', '13 search tags or keywords'],
-            ['Social Caption', 'Hook + product + CTA with hashtags'],
-          ].map(([l, d]) => (
-            <div key={l} style={{ marginBottom: '12px' }}>
-              <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--red)', marginBottom: '2px' }}>{l}</div>
-              <div style={{ fontSize: '11px', color: 'var(--mu3)', lineHeight: '1.5' }}>{d}</div>
-            </div>
-          ))}
-          <div style={{ marginTop: '20px' }}>
-            <div className="ftitle">Supported Platforms</div>
-            {PLATFORMS.map(p => (
-              <div key={p} style={{ padding: '7px 10px', background: 'var(--bg3)', borderRadius: 'var(--r)', fontSize: '12px', color: 'var(--mu3)', marginBottom: '6px', fontFamily: "'DM Mono',monospace" }}>◈ {p}</div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── DESCRIPTION WRITER ────────────────────────────────────────
-function DescriptionWriter() {
-  const [product, setProduct] = useState('')
-  const [niche, setNiche] = useState('luxury fashion')
-  const [tone, setTone] = useState('elevated, aspirational, confident')
-  const [audience, setAudience] = useState('Black women aged 22–40 who love fashion and lifestyle')
-  const [output, setOutput] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  async function run() {
-    setLoading(true); setOutput('')
-    try { setOutput(await callAPI('generate/description', { product, niche, tone, audience })) }
-    catch (e) { setOutput(`Error: ${(e as Error).message}`) }
-    finally { setLoading(false) }
-  }
-
-  return (
-    <div className="pg-in">
-      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>
-        Description <span style={{ background: 'var(--pod)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Writer</span>
-      </div>
-      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '24px', lineHeight: '1.6' }}>
-        Three description variants plus a power tagline in one click.
-      </div>
-      <div className="card hi">
-        <div className="ftitle">Your Product</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          <div>
-            <F label="Product"><input className="finp" placeholder="e.g. Luxe Floral Crop Tee" value={product} onChange={e => setProduct(e.target.value)} /></F>
-            <F label="Niche"><input className="finp" value={niche} onChange={e => setNiche(e.target.value)} /></F>
-          </div>
-          <div>
-            <F label="Brand tone"><input className="finp" value={tone} onChange={e => setTone(e.target.value)} /></F>
-            <F label="Target audience"><input className="finp" value={audience} onChange={e => setAudience(e.target.value)} /></F>
-          </div>
-        </div>
-        <button className="pod-btn" onClick={run} disabled={loading} style={{ width: '100%' }}>
-          {loading ? 'Writing…' : 'Write 3 Descriptions + Tagline ↗'}
-        </button>
-        <Output text={output} loading={loading} />
-      </div>
-    </div>
-  )
-}
-
-// ── COLLECTION BUILDER ────────────────────────────────────────
-function CollectionBuilder() {
-  const [name, setName] = useState('')
-  const [theme, setTheme] = useState('luxury fashion')
-  const [audience, setAudience] = useState('Black women aged 22–40')
-  const [season, setSeason] = useState('All season')
-  const [pieces, setPieces] = useState('6')
-  const [priceRange, setPriceRange] = useState('$30–$100')
-  const [output, setOutput] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  async function run() {
-    setLoading(true); setOutput('')
-    try { setOutput(await callAPI('generate/tools', { tool: 'collection', name, theme, audience, season, pieces, priceRange })) }
-    catch (e) { setOutput(`Error: ${(e as Error).message}`) }
-    finally { setLoading(false) }
-  }
-
-  return (
-    <div className="pg-in">
-      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>
-        Collection <span style={{ background: 'var(--pod)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Builder</span>
-      </div>
-      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '24px', lineHeight: '1.6' }}>
-        Plan a complete POD collection — name ideas, pieces, color palette, pricing, and launch strategy.
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-        <div className="card hi">
-          <div className="ftitle">Collection Details</div>
-          <F label="Collection name"><input className="finp" placeholder="e.g. Baddie Summer, Luxe Noir" value={name} onChange={e => setName(e.target.value)} /></F>
-          <F label="Theme"><input className="finp" value={theme} onChange={e => setTheme(e.target.value)} /></F>
-          <F label="Target audience"><input className="finp" value={audience} onChange={e => setAudience(e.target.value)} /></F>
-          <F label="Season">
-            <select className="fsel" value={season} onChange={e => setSeason(e.target.value)}>
-              {['All season', 'Summer', 'Winter', 'Spring', 'Fall', 'Holiday', "Valentine's Day", 'Birthday', 'Graduation'].map(s => <option key={s}>{s}</option>)}
-            </select>
-          </F>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-            <F label="Pieces">
-              <select className="fsel" value={pieces} onChange={e => setPieces(e.target.value)}>
-                {['4', '6', '8', '10', '12'].map(p => <option key={p}>{p}</option>)}
-              </select>
-            </F>
-            <F label="Price range">
-              <select className="fsel" value={priceRange} onChange={e => setPriceRange(e.target.value)}>
-                {['$20–$50', '$30–$80', '$40–$100', '$50–$150', '$75–$200'].map(p => <option key={p}>{p}</option>)}
-              </select>
-            </F>
-          </div>
-          <button className="pod-btn" onClick={run} disabled={loading} style={{ width: '100%' }}>
-            {loading ? 'Building…' : 'Build Collection Plan ↗'}
-          </button>
-          <Output text={output} loading={loading} />
-        </div>
-        <div className="card">
-          <div className="ftitle">Quick-starts</div>
-          {[
-            { label: 'Baddie Summer', name: 'Baddie Summer', theme: 'luxury beach and summer lifestyle', season: 'Summer', pieces: '6', priceRange: '$30–$80' },
-            { label: 'Luxe Noir', name: 'Luxe Noir', theme: 'all black luxury streetwear', season: 'All season', pieces: '8', priceRange: '$50–$150' },
-            { label: 'Holiday Glam', name: 'Holiday Glam', theme: 'festive luxury holiday fashion', season: 'Holiday', pieces: '6', priceRange: '$40–$100' },
-            { label: 'The Come Up', name: 'The Come Up', theme: 'boss babe entrepreneur aesthetic', season: 'All season', pieces: '6', priceRange: '$35–$90' },
-          ].map(q => (
-            <button key={q.label} onClick={() => { setName(q.name); setTheme(q.theme); setSeason(q.season); setPieces(q.pieces); setPriceRange(q.priceRange) }}
-              style={{ display: 'block', width: '100%', marginBottom: '8px', padding: '9px 12px', background: 'var(--bg3)', border: '0.5px solid #222', borderRadius: '7px', fontSize: '12px', color: 'var(--mu3)', cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans',sans-serif" }}>
-              {q.label} ↗
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── EXPORT TOOL ───────────────────────────────────────────────
-function ExportTool() {
-  return (
-    <div className="pg-in">
-      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>
-        Export <span style={{ background: 'var(--pod)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>& Publish</span>
-      </div>
-      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '24px', lineHeight: '1.6' }}>
-        Auto-format your mockups for every platform — download print-ready and web-ready files.
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-        <div className="card hi">
-          <div className="ftitle">Platform Dimensions</div>
-          {[
-            { platform: 'Etsy', sizes: '2000×2000px, 800×800px (thumbnail)', format: 'JPG, PNG', note: 'Square format preferred' },
-            { platform: 'Shopify', sizes: '2048×2048px (product), 1280×720px (banner)', format: 'JPG, PNG, WebP', note: 'Multiple angles recommended' },
-            { platform: 'Amazon', sizes: '1000×1000px minimum, 2000×2000px ideal', format: 'JPG, PNG', note: 'Pure white background' },
-            { platform: 'TikTok Shop', sizes: '800×800px', format: 'JPG, PNG', note: 'Square, bright and clean' },
-            { platform: 'WooCommerce', sizes: '800×800px (product), 1920×600px (banner)', format: 'JPG, WebP', note: 'Match your theme' },
-            { platform: 'Instagram Shop', sizes: '1080×1080px', format: 'JPG, PNG', note: 'Square preferred' },
-            { platform: 'Pinterest', sizes: '1000×1500px (pin), 1200×628px (board)', format: 'JPG, PNG', note: 'Vertical performs best' },
-          ].map(p => (
-            <div key={p.platform} style={{ marginBottom: '14px', padding: '12px', background: 'var(--bg3)', borderRadius: '8px', border: '0.5px solid #1e1e1e' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--red)' }}>{p.platform}</div>
-                <div style={{ fontSize: '10px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace" }}>{p.format}</div>
-              </div>
-              <div style={{ fontSize: '11px', color: 'var(--w2)', marginBottom: '2px' }}>{p.sizes}</div>
-              <div style={{ fontSize: '10px', color: 'var(--mu3)', fontStyle: 'italic' }}>{p.note}</div>
-            </div>
-          ))}
-        </div>
-        <div>
-          <div className="card" style={{ marginBottom: '14px' }}>
-            <div className="ftitle">Export Sizes</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-              {[
-                { label: 'Square', size: '2000×2000px', use: 'Etsy, Shopify, Amazon', color: 'var(--red)' },
-                { label: 'Portrait', size: '1000×1500px', use: 'Pinterest, Fashion', color: 'var(--yellow)' },
-                { label: 'Landscape', size: '1280×720px', use: 'Banners, YouTube', color: 'var(--green)' },
-                { label: 'TikTok', size: '1080×1920px', use: 'TikTok, Stories', color: 'var(--blue)' },
-                { label: 'Print Ready', size: '4500×5400px 300dpi', use: 'DTG, Print-on-demand', color: 'var(--pink)' },
-                { label: 'Web Optimized', size: '800×800px 72dpi', use: 'Website, Social', color: 'var(--orange)' },
-              ].map(s => (
-                <div key={s.label} style={{ padding: '12px', background: 'var(--bg3)', borderRadius: '8px', border: `0.5px solid ${s.color}22`, cursor: 'pointer', transition: 'all .2s' }}
-                  onMouseEnter={e => (e.currentTarget.style.borderColor = `${s.color}55`)}
-                  onMouseLeave={e => (e.currentTarget.style.borderColor = `${s.color}22`)}>
-                  <div style={{ fontSize: '12px', fontWeight: 600, color: s.color, marginBottom: '3px' }}>{s.label}</div>
-                  <div style={{ fontSize: '10px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace", marginBottom: '2px' }}>{s.size}</div>
-                  <div style={{ fontSize: '10px', color: 'var(--mu)' }}>{s.use}</div>
-                </div>
-              ))}
-            </div>
-            <button className="pod-btn" style={{ width: '100%', marginTop: '12px', fontSize: '12px' }}
-              onClick={() => alert('Upload a mockup in the Mockup Generator to download formatted versions')}>
-              ⬇ Download All Sizes
-            </button>
-          </div>
-          <div className="card">
-            <div className="ftitle">Direct Social Upload</div>
-            {[
-              { name: 'Instagram', icon: '📸', status: 'Connect' },
-              { name: 'TikTok', icon: '🎵', status: 'Connect' },
-              { name: 'Facebook', icon: '👥', status: 'Connect' },
-              { name: 'Pinterest', icon: '📌', status: 'Connect' },
-            ].map(s => (
-              <div key={s.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 12px', background: 'var(--bg3)', borderRadius: '7px', marginBottom: '7px', border: '0.5px solid #1e1e1e' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '16px' }}>{s.icon}</span>
-                  <span style={{ fontSize: '12px', color: 'var(--w2)' }}>{s.name}</span>
-                </div>
-                <button className="ghost-btn" style={{ fontSize: '10px', padding: '4px 10px' }}>{s.status} →</button>
-              </div>
-            ))}
-            <div style={{ fontSize: '10px', color: 'var(--mu)', marginTop: '8px', fontFamily: "'DM Mono',monospace", lineHeight: '1.6' }}>
-              Connect your social accounts to upload directly from the app
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── VIRTUAL STORE ─────────────────────────────────────────────
-function VirtualStore() {
-  return (
-    <div className="pg-in">
-      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>
-        Envi Lee <span style={{ background: 'var(--pod)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Virtual Store</span>
-      </div>
-      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '24px', lineHeight: '1.6' }}>
-        Shop clothing, accessories, and props for your AI model. Add pieces to your model's wardrobe.
-      </div>
-      <div style={{ background: 'rgba(255,107,107,0.06)', border: '0.5px solid rgba(255,107,107,0.2)', borderRadius: '10px', padding: '20px', textAlign: 'center', marginBottom: '24px' }}>
-        <div style={{ fontSize: '32px', marginBottom: '10px' }}>🛍</div>
-        <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '18px', fontWeight: 700, color: 'var(--red)', marginBottom: '8px' }}>Store Coming Soon</div>
-        <div style={{ fontSize: '12px', color: 'var(--mu3)', lineHeight: '1.7', maxWidth: '400px', margin: '0 auto' }}>
-          Envi Lee is curating a virtual wardrobe for your AI models. Check back soon for exclusive clothing collections, accessories, and lifestyle props you can add to your mockups.
-        </div>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '12px' }}>
-        {['Clothing Collection', 'Accessories', 'Lifestyle Props', 'Backgrounds', 'Houses & Rooms', 'Vehicles'].map(cat => (
-          <div key={cat} className="card" style={{ textAlign: 'center', padding: '20px', opacity: 0.4, cursor: 'not-allowed' }}>
-            <div style={{ fontSize: '28px', marginBottom: '8px' }}>🔒</div>
-            <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--w2)' }}>{cat}</div>
-            <div style={{ fontSize: '10px', color: 'var(--mu3)', marginTop: '4px', fontFamily: "'DM Mono',monospace" }}>Coming Soon</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ── SAVED WORK ────────────────────────────────────────────────
-function SavedWork() {
-  const [items, setItems] = useState<Array<{ id: number; content: string; savedAt: string }>>([])
-  const [mockups, setMockups] = useState<SavedMockup[]>([])
-
-  useEffect(() => {
-    setItems(JSON.parse(localStorage.getItem('podSavedWork') || '[]'))
-    setMockups(JSON.parse(localStorage.getItem('podMockups') || '[]'))
-  }, [])
-
-  function deleteItem(id: number) {
-    const updated = items.filter(i => i.id !== id)
-    setItems(updated)
-    localStorage.setItem('podSavedWork', JSON.stringify(updated))
-  }
-
-  function deleteMockup(id: number) {
-    const updated = mockups.filter(m => m.id !== id)
-    setMockups(updated)
-    localStorage.setItem('podMockups', JSON.stringify(updated))
-  }
-
-  return (
-    <div className="pg-in">
-      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>
-        Saved <span style={{ background: 'var(--pod)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Work</span>
-      </div>
-      <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '24px', lineHeight: '1.6' }}>
-        All your saved mockups, templates, and AI-generated content.
-      </div>
-
-      {/* Saved Mockups */}
-      {mockups.length > 0 && (
-        <div style={{ marginBottom: '24px' }}>
-          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(255,107,107,0.5)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '12px' }}>Saved Mockups</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px' }}>
-            {mockups.map(m => (
-              <div key={m.id} className="card" style={{ padding: '12px' }}>
-                <img src={m.imageUrl} alt={m.name} style={{ width: '100%', borderRadius: '8px', marginBottom: '8px', aspectRatio: '1', objectFit: 'cover' }} />
-                <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--w)', marginBottom: '2px' }}>{m.name}</div>
-                <div style={{ fontSize: '10px', color: 'var(--mu3)', marginBottom: '8px' }}>{new Date(m.savedAt).toLocaleDateString()}</div>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <a href={m.imageUrl} download style={{ flex: 1, padding: '6px', borderRadius: '6px', border: 'none', background: 'rgba(255,107,107,0.15)', color: 'var(--red)', fontSize: '10px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", textAlign: 'center', textDecoration: 'none', display: 'block' }}>⬇</a>
-                  <button onClick={() => deleteMockup(m.id)} className="del-btn" style={{ flex: 1, fontSize: '10px', padding: '6px' }}>✕</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Saved Text */}
-      {items.length > 0 ? (
-        <div>
-          <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(255,107,107,0.5)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '12px' }}>Saved Content</div>
-          <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '10px' }}>
-            {items.map(item => (
-              <div key={item.id} className="card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '10px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace" }}>{new Date(item.savedAt).toLocaleDateString()}</span>
-                  <button onClick={() => deleteItem(item.id)} className="del-btn">Delete</button>
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--w2)', lineHeight: '1.7', maxHeight: '100px', overflow: 'hidden' }}>{item.content}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : mockups.length === 0 && (
-        <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-          <div style={{ fontSize: '36px', marginBottom: '12px', opacity: 0.3 }}>◌</div>
-          <div style={{ fontSize: '13px', color: 'var(--mu3)' }}>No saved work yet</div>
-          <div style={{ fontSize: '11px', color: 'var(--mu)', marginTop: '4px' }}>Use any tool and click Save to see your work here</div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── POD BOT ───────────────────────────────────────────────────
-function PodBot({ onClose }: { onClose: () => void }) {
-  const [messages, setMessages] = useState([{ role: 'bot', text: "Hey! I'm your POD Assistant. Ask me anything about print-on-demand, mockups, pricing, platforms, or growing your POD business!" }])
-  const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  async function send() {
-    if (!input.trim()) return
-    const msg = input.trim(); setInput('')
-    setMessages(m => [...m, { role: 'user', text: msg }])
-    setLoading(true)
     try {
-      const res = await callAPI('generate/cineflow', { tool: 'bot', message: `You are a POD (print-on-demand) business assistant for Envi Lee POD Studios. Help with: mockup creation, product listings, Etsy/Shopify/Amazon/TikTok Shop strategy, pricing, design tips, marketing, and growing a POD business. Be specific and helpful. Question: ${msg}` })
-      setMessages(m => [...m, { role: 'bot', text: res }])
-    } catch { setMessages(m => [...m, { role: 'bot', text: 'Connection error. Try again.' }]) }
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6', max_tokens: 800,
+          messages: [{ role: 'user', content: `Write a complete ${platform} product listing for: ${productName}. Details: ${details}. Target audience: ${audience || 'women 25-45 who love unique personalized gifts'}. Include: title (optimized for ${platform} SEO), description (compelling, benefit-focused), tags/keywords (13 if Etsy), and a short social media caption. Format clearly with sections.` }],
+        }),
+      })
+      const data = await res.json()
+      setOutput(data.content?.[0]?.text || '')
+    } catch (e) { setOutput('Error: ' + (e as Error).message) }
     setLoading(false)
   }
 
   return (
-    <div style={{ position: 'fixed', bottom: '80px', right: '24px', width: '340px', background: '#0d0a14', border: '0.5px solid rgba(255,107,107,0.3)', borderRadius: '16px', boxShadow: '0 0 40px rgba(255,107,107,0.1)', zIndex: 200, overflow: 'hidden' }}>
-      <div style={{ padding: '14px 16px', background: 'rgba(255,107,107,0.08)', borderBottom: '0.5px solid rgba(255,107,107,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '11px', color: 'var(--red)', letterSpacing: '.8px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span className="ai-dot" />POD Assistant
+    <div className="pg-in" style={{ padding: '28px' }}>
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '28px', fontWeight: 400, color: '#fff', marginBottom: '4px' }}>
+          Listing <span style={{ color: 'var(--red)' }}>Writer</span>
         </div>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--mu3)', cursor: 'pointer', fontSize: '16px' }}>✕</button>
+        <div style={{ fontSize: '13px', color: 'var(--mu3)' }}>AI-powered product titles, descriptions, tags, and social captions for any platform.</div>
       </div>
-      <div style={{ height: '280px', overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column' as const, gap: '8px' }}>
-        {messages.map((m, i) => (
-          <div key={i} style={{ maxWidth: '88%', padding: '9px 12px', borderRadius: m.role === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px', background: m.role === 'user' ? 'rgba(255,107,107,0.12)' : 'var(--s1)', border: `0.5px solid ${m.role === 'user' ? 'rgba(255,107,107,0.25)' : '#1e1e1e'}`, fontSize: '12px', color: 'var(--w2)', lineHeight: '1.6', alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start' }}>{m.text}</div>
-        ))}
-        {loading && <div style={{ fontSize: '12px', color: 'var(--red)', alignSelf: 'flex-start' as const, padding: '8px 12px', background: 'var(--s1)', borderRadius: '12px', border: '0.5px solid #1e1e1e' }}>thinking…</div>}
-      </div>
-      <div style={{ padding: '12px', borderTop: '0.5px solid #1e1e1e', display: 'flex', gap: '8px' }}>
-        <input style={{ flex: 1, background: 'var(--bg3)', border: '0.5px solid #222', borderRadius: '7px', padding: '8px 10px', fontSize: '12px', color: 'var(--w)', fontFamily: "'DM Sans',sans-serif", outline: 'none' }} placeholder="Ask anything…" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} />
-        <button onClick={send} style={{ padding: '8px 14px', borderRadius: '7px', border: 'none', background: 'var(--red)', color: '#000', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>↑</button>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '20px' }}>
+        <div>
+          <div className="card hi">
+            <div className="ftitle">Product Details</div>
+            <F label="Product Name">
+              <input className="finp" placeholder="e.g. Halloween Skeleton Pajama Set" value={productName} onChange={e => setProductName(e.target.value)} />
+            </F>
+            <F label="Key Details / Features">
+              <textarea className="fta" placeholder="Material, colors, sizes, design details, what makes it special..." value={details} onChange={e => setDetails(e.target.value)} />
+            </F>
+            <F label="Platform">
+              <select className="fsel" value={platform} onChange={e => setPlatform(e.target.value)}>
+                {['Etsy', 'Shopify', 'TikTok Shop', 'Amazon', 'Instagram', 'Pinterest'].map(p => <option key={p}>{p}</option>)}
+              </select>
+            </F>
+            <F label="Target Audience (optional)">
+              <input className="finp" placeholder="e.g. Halloween lovers, cozy fashion fans" value={audience} onChange={e => setAudience(e.target.value)} />
+            </F>
+            <button className="pod-btn" onClick={generate} disabled={loading || !productName.trim()} style={{ width: '100%' }}>
+              {loading ? '✍️ Writing...' : '✍️ Write Listing'}
+            </button>
+            {loading && <div className="lbar" style={{ marginTop: '8px' }}><div className="lbar-fill" /></div>}
+          </div>
+        </div>
+
+        <div>
+          {output ? (
+            <div className="card hi" style={{ height: '100%' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                <div className="ftitle" style={{ marginBottom: 0 }}>Your Listing</div>
+                <button onClick={() => navigator.clipboard?.writeText(output)} className="ghost-pod" style={{ fontSize: '11px' }}>Copy All</button>
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--w2)', lineHeight: '1.8', whiteSpace: 'pre-wrap' as const }}>{output}</div>
+            </div>
+          ) : (
+            <div className="card" style={{ height: '100%', minHeight: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', opacity: 0.5 }}>
+              <div>
+                <div style={{ fontSize: '48px', marginBottom: '12px' }}>✍️</div>
+                <div style={{ fontSize: '14px', color: 'var(--w)' }}>Your listing appears here</div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
 }
 
-// ── SIDEBAR NAV ───────────────────────────────────────────────
-const NAV_ITEMS: { tool: PodTool; label: string; icon: string }[] = [
-  { tool: 'dashboard', label: 'Dashboard', icon: '◉' },
-  { tool: 'mockup', label: 'Mockup Generator', icon: '◈' },
-  { tool: 'exactmockup', label: '🎯 Exact Mockup (Printful/Printify)', icon: '🎯' },
-  { tool: 'design', label: 'Design Studio', icon: '✦' },
-  { tool: 'listing', label: 'Listing Writer', icon: '⊹' },
-  { tool: 'collection', label: 'Collection Builder', icon: '◷' },
-  { tool: 'export', label: 'Export & Publish', icon: '⊳' },
-  { tool: 'saved', label: 'Saved Work', icon: '◌' },
-]
-
-// ── MAIN PAGE ─────────────────────────────────────────────────
-
-// ── UNIVERSAL ACCESS GATE ─────────────────────────────────────
-function UniversalAccessGate({ children, appName }: { children: React.ReactNode; appName: string }) {
-  const { user } = useUser()
-  const [status, setStatus] = useState<'loading' | 'granted' | 'denied'>('loading')
-  useEffect(() => {
-    async function check() {
-      if (!user) { setStatus('denied'); return }
-      try {
-        const email = user.emailAddresses?.[0]?.emailAddress ?? ''
-        const adminId = process.env.NEXT_PUBLIC_ADMIN_USER_ID
-        if (user.id === adminId) { setStatus('granted'); return }
-        const res = await fetch(`/api/access/realism?userId=${user.id}&email=${encodeURIComponent(email)}`)
-        const data = await res.json()
-        setStatus(data.hasAccess === true ? 'granted' : 'denied')
-      } catch { setStatus('denied') }
-    }
-    check()
-  }, [user])
-
-  if (status === 'loading') return (
-    <div style={{ minHeight:'100vh', background:'#000', display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <div style={{ textAlign:'center' }}>
-        <div style={{ width:'120px', height:'2px', background:'#0a0010', borderRadius:'1px', overflow:'hidden', margin:'0 auto 16px' }}>
-          <div style={{ height:'100%', background:'linear-gradient(135deg,#6B21A8,#A855F7,#06B6D4)', backgroundSize:'200% 100%', animation:'lbar 2s linear infinite' }} />
+// ── MY PRODUCTS ────────────────────────────────────────────────
+function MyProducts() {
+  return (
+    <div className="pg-in" style={{ padding: '28px' }}>
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '28px', fontWeight: 400, color: '#fff', marginBottom: '4px' }}>
+          My <span style={{ color: 'var(--red)' }}>Products</span>
         </div>
-        <div style={{ fontSize:'12px', color:'rgba(168,85,247,0.4)', fontFamily:"'DM Mono',monospace" }}>Verifying access...</div>
+        <div style={{ fontSize: '13px', color: 'var(--mu3)' }}>Manage your product listings and designs.</div>
+      </div>
+      <div className="card" style={{ textAlign: 'center', padding: '60px', opacity: 0.5 }}>
+        <div style={{ fontSize: '48px', marginBottom: '16px' }}>📦</div>
+        <div style={{ fontSize: '16px', color: 'var(--w)', marginBottom: '8px' }}>Connect your store first</div>
+        <div style={{ fontSize: '13px', color: 'var(--mu3)' }}>Go to My Store tab to connect Printful or Printify — your products will sync here automatically.</div>
       </div>
     </div>
   )
-
-  if (status === 'denied') return (
-    <div style={{ minHeight:'100vh', background:'#000', display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}>
-      <div style={{ maxWidth:'520px', width:'100%' }}>
-        <div style={{ textAlign:'center', marginBottom:'28px' }}>
-          <div style={{ fontFamily:"'DM Mono',monospace", fontSize:'10px', color:'rgba(168,85,247,0.4)', letterSpacing:'3px', textTransform:'uppercase', marginBottom:'6px' }}>Envi Lee Creator Studios™</div>
-          <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'32px', fontWeight:400, color:'#fff', marginBottom:'6px' }}>{appName}</div>
-          <div style={{ fontSize:'13px', color:'rgba(255,255,255,0.4)' }}>Choose your access level to unlock this app</div>
-        </div>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'14px', marginBottom:'16px' }}>
-          <div style={{ background:'#0d0020', border:'1px solid rgba(168,85,247,0.3)', borderRadius:'16px', padding:'24px', position:'relative' as const, overflow:'hidden' }}>
-            <div style={{ position:'absolute' as const, top:0, left:0, right:0, height:'3px', background:'linear-gradient(135deg,#6B21A8,#A855F7)' }} />
-            <div style={{ fontFamily:"'DM Mono',monospace", fontSize:'10px', color:'rgba(168,85,247,0.5)', textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:'8px' }}>Member</div>
-            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:'36px', fontWeight:900, color:'#A855F7', marginBottom:'4px' }}>$47<span style={{ fontSize:'13px', fontWeight:400, color:'rgba(168,85,247,0.5)' }}>/mo</span></div>
-            <div style={{ fontSize:'12px', color:'rgba(255,255,255,0.5)', lineHeight:'1.7', marginBottom:'16px' }}>Full access to all 12 apps in the Envi Lee Creator Empire</div>
-            {["All 12 creator apps","AI image generation","Prompt Bank","Legal Vault","Content Vault","Realism Studio"].map(f => (
-              <div key={f} style={{ display:'flex', gap:'7px', fontSize:'11px', color:'rgba(255,255,255,0.6)', marginBottom:'5px' }}>
-                <span style={{ color:'#A855F7' }}>✦</span>{f}
-              </div>
-            ))}
-            <a href="/api/stripe/checkout?plan=member" style={{ display:'block', marginTop:'16px', padding:'11px', borderRadius:'9px', background:'linear-gradient(135deg,#6B21A8,#A855F7)', color:'#fff', fontSize:'12px', fontWeight:700, textDecoration:'none', textAlign:'center' as const }}>Get Member Access →</a>
-          </div>
-          <div style={{ background:'#0d0020', border:'1px solid rgba(212,168,67,0.4)', borderRadius:'16px', padding:'24px', position:'relative' as const, overflow:'hidden' }}>
-            <div style={{ position:'absolute' as const, top:0, left:0, right:0, height:'3px', background:'linear-gradient(135deg,#D4A843,#F5E0A0)' }} />
-            <div style={{ position:'absolute' as const, top:'14px', right:'14px', background:'linear-gradient(135deg,#D4A843,#F5E0A0)', color:'#000', fontSize:'9px', fontWeight:800, padding:'3px 9px', borderRadius:'20px', fontFamily:"'DM Mono',monospace" }}>BEST VALUE</div>
-            <div style={{ fontFamily:"'DM Mono',monospace", fontSize:'10px', color:'rgba(212,168,67,0.6)', textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:'8px' }}>VIP</div>
-            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:'36px', fontWeight:900, color:'#D4A843', marginBottom:'4px' }}>$65<span style={{ fontSize:'13px', fontWeight:400, color:'rgba(212,168,67,0.5)' }}>/mo</span></div>
-            <div style={{ fontSize:'12px', color:'rgba(255,255,255,0.5)', lineHeight:'1.7', marginBottom:'16px' }}>Everything in Member plus exclusive VIP perks</div>
-            {["Everything in Member","Early access to new apps","First to know whats coming","Discounts on virtual store","Discounts on physical products","Private VIP community"].map(f => (
-              <div key={f} style={{ display:'flex', gap:'7px', fontSize:'11px', color:'rgba(255,255,255,0.6)', marginBottom:'5px' }}>
-                <span style={{ color:'#D4A843' }}>✦</span>{f}
-              </div>
-            ))}
-            <a href="/api/stripe/checkout?plan=vip" style={{ display:'block', marginTop:'16px', padding:'11px', borderRadius:'9px', background:'linear-gradient(135deg,#D4A843,#F5E0A0)', color:'#000', fontSize:'12px', fontWeight:700, textDecoration:'none', textAlign:'center' as const }}>Get VIP Access →</a>
-          </div>
-        </div>
-        <div style={{ background:'rgba(6,182,212,0.05)', border:'0.5px solid rgba(6,182,212,0.2)', borderRadius:'12px', padding:'16px 20px', textAlign:'center', marginBottom:'16px' }}>
-          <div style={{ fontSize:'12px', color:'rgba(6,182,212,0.8)', marginBottom:'8px', fontWeight:600 }}>🎓 Already enrolled in Baddie Academy or Kings Academy?</div>
-          <div style={{ fontSize:'11px', color:'rgba(255,255,255,0.4)', marginBottom:'10px' }}>Make sure you sign in with the same email you used to enroll.</div>
-          <div style={{ display:'flex', gap:'8px', justifyContent:'center', flexWrap:'wrap' as const }}>
-            <a href="https://envileebaddieacademy.com" target="_blank" rel="noreferrer" style={{ padding:'7px 16px', borderRadius:'7px', background:'rgba(107,33,168,0.2)', border:'0.5px solid rgba(168,85,247,0.3)', color:'#A855F7', fontSize:'11px', fontWeight:600, textDecoration:'none' }}>Join Baddie Academy →</a>
-            <a href="https://envileekingsacademy.com" target="_blank" rel="noreferrer" style={{ padding:'7px 16px', borderRadius:'7px', background:'rgba(212,168,67,0.1)', border:'0.5px solid rgba(212,168,67,0.3)', color:'#D4A843', fontSize:'11px', fontWeight:600, textDecoration:'none' }}>Join Kings Academy →</a>
-          </div>
-        </div>
-        <div style={{ textAlign:'center', fontSize:'11px', color:'rgba(255,255,255,0.2)' }}>Envi Lee Creator Studios™ · All prices in USD · Cancel anytime</div>
-      </div>
-    </div>
-  )
-  return <>{children}</>
 }
 
+// ── MAIN PAGE ──────────────────────────────────────────────────
 export default function PodPage() {
   const { user } = useUser()
   const router = useRouter()
   const [active, setActive] = useState<PodTool>('dashboard')
-  const [hovered, setHovered] = useState<PodTool | null>(null)
   const [botOpen, setBotOpen] = useState(false)
+
+  const tabs: { id: PodTool; label: string; icon: string }[] = [
+    { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
+    { id: 'design', label: 'Design Studio', icon: '🎨' },
+    { id: 'mystore', label: 'My Store', icon: '🏪' },
+    { id: 'products', label: 'My Products', icon: '📦' },
+    { id: 'marketplace', label: 'Marketplace', icon: '🛒' },
+    { id: 'listings', label: 'Listing Writer', icon: '✍️' },
+    { id: 'bot', label: 'POD Bot', icon: '🤖' },
+  ]
+
+  const footerLinks = [
+    ['Printful', 'https://printful.com'],
+    ['Printify', 'https://printify.com'],
+    ['Etsy', 'https://etsy.com'],
+    ['TikTok Shop', 'https://shop.tiktok.com'],
+    ['Canva', 'https://canva.com'],
+    ['Placeit', 'https://placeit.net'],
+    ['Printful API', 'https://developers.printful.com'],
+  ]
 
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: css }} />
       <SignedOut><RedirectToSignIn /></SignedOut>
       <SignedIn>
-        <UniversalAccessGate appName="POD Studios™">
-        <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
+        <AccessGate>
+          <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' as const }}>
 
-          {/* SIDEBAR */}
-          <aside style={{ width: '230px', background: 'var(--bg2)', borderRight: '0.5px solid #1a1a1a', padding: '0', flexShrink: 0, height: '100vh', position: 'sticky', top: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-
-            {/* Header */}
-            <div style={{ padding: '16px 14px', borderBottom: '0.5px solid #1a1a1a' }}>
-              <button onClick={() => router.push('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px', padding: 0 }}>
-                <span style={{ fontSize: '10px', color: 'var(--mu)', fontFamily: "'DM Mono',monospace" }}>← Empire</span>
-              </button>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: 'var(--pod)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', flexShrink: 0 }}>◈</div>
-                <div>
-                  <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '13px', fontWeight: 800, color: 'var(--w)' }}>POD Studios™</div>
-                  <div style={{ fontSize: '9px', color: 'var(--mu)', fontFamily: "'DM Mono',monospace", textTransform: 'uppercase', letterSpacing: '.8px' }}>Envi Lee</div>
-                </div>
-              </div>
-            </div>
-
-            {/* User */}
-            {user && (
-              <div style={{ padding: '10px 14px', borderBottom: '0.5px solid #1a1a1a' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'rgba(255,107,107,0.06)', borderRadius: '8px', border: '0.5px solid rgba(255,107,107,0.15)' }}>
-                  <div>
-                    <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--w)' }}>{user.firstName || 'Creator'}</div>
-                    <div style={{ fontSize: '9px', color: 'rgba(255,107,107,0.5)', fontFamily: "'DM Mono',monospace" }}>POD Plan</div>
+            {/* TOP NAV */}
+            <div className="top-nav">
+              {/* Brand row */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <button onClick={() => router.push('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '10px', color: 'rgba(255,34,85,0.4)', fontFamily: "'DM Mono',monospace" }}>← Empire</button>
+                  <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '16px', fontWeight: 900, background: 'var(--pod)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                    POD Studios™
                   </div>
-                  <UserButton afterSignOutUrl="/sign-in" appearance={{ elements: { avatarBox: { width: '26px', height: '26px' } } }} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <button onClick={() => { setActive('bot'); setBotOpen(false) }} style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '11px', cursor: 'pointer', border: '0.5px solid rgba(255,34,85,0.3)', background: 'rgba(255,34,85,0.08)', color: 'var(--red2)', fontFamily: "'DM Sans',sans-serif" }}>
+                    🤖 POD Bot
+                  </button>
+                  <UserButton afterSignOutUrl="/sign-in" appearance={{ elements: { avatarBox: { width: '28px', height: '28px' } } }} />
                 </div>
               </div>
-            )}
 
-            {/* Nav */}
-            <div style={{ padding: '10px 10px', flex: 1 }}>
-              <div style={{ fontSize: '9px', fontWeight: 600, color: 'var(--mu)', textTransform: 'uppercase', letterSpacing: '1.2px', padding: '4px 6px 8px', fontFamily: "'DM Mono',monospace" }}>Tools</div>
-              {NAV_ITEMS.map(({ tool, label, icon }) => (
-                <button key={tool} onClick={() => setActive(tool)}
-                  onMouseEnter={() => setHovered(tool)}
-                  onMouseLeave={() => setHovered(null)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '7px', cursor: 'pointer', fontSize: '12px', border: `0.5px solid ${active === tool ? 'rgba(255,107,107,0.4)' : 'transparent'}`, background: active === tool ? 'rgba(255,107,107,0.08)' : hovered === tool ? '#111' : 'none', color: active === tool ? 'var(--red)' : hovered === tool ? 'var(--w)' : 'var(--mu2)', width: '100%', textAlign: 'left', fontFamily: "'DM Sans',sans-serif", transition: 'all .2s' }}>
-                  <span style={{ fontFamily: "'DM Mono',monospace", fontSize: '13px' }}>{icon}</span>
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {/* Bottom links */}
-            <div style={{ padding: '12px 14px', borderTop: '0.5px solid #1a1a1a' }}>
-              <div style={{ fontSize: '9px', color: 'var(--mu)', fontFamily: "'DM Mono',monospace", marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '.8px' }}>Quick Access</div>
-              {[
-                { label: 'Printify', url: 'https://printify.com' },
-                { label: 'Canva', url: 'https://canva.com' },
-                { label: 'Etsy Seller', url: 'https://sell.etsy.com' },
-              ].map(l => (
-                <a key={l.label} href={l.url} target="_blank" rel="noreferrer"
-                  style={{ display: 'block', padding: '6px 8px', fontSize: '11px', color: 'var(--mu3)', textDecoration: 'none', fontFamily: "'DM Mono',monospace", borderRadius: '5px', marginBottom: '2px', transition: 'color .15s' }}
-                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--red)')}
-                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--mu3)')}>
-                  {l.label} ↗
-                </a>
-              ))}
-            </div>
-          </aside>
-
-          {/* MAIN */}
-          <main style={{ flex: 1, overflowY: 'auto', padding: '28px', position: 'relative' }}>
-            {active === 'dashboard' && <Dashboard setActiveTool={setActive} />}
-            {active === 'mockup' && <MockupGenerator />}
-        {active === 'exactmockup' && <ExactMockupGenerator />}
-            {active === 'listing' && <ListingWriter />}
-            {active === 'design' && (
-              <div className="pg-in">
-                <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>Design <span style={{ background: 'var(--pod)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Studio</span></div>
-                <div style={{ fontSize: '12px', color: 'var(--mu2)', marginBottom: '24px' }}>Full design editor — coming in the next update. For now use Canva to create your designs.</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '14px' }}>
-                  {[
-                    { name: 'Canva', url: 'https://canva.com', desc: 'Free and paid design tool', icon: '🎨' },
-                    { name: 'Adobe Express', url: 'https://express.adobe.com', desc: 'Professional design suite', icon: '✨' },
-                    { name: 'Kittl', url: 'https://kittl.com', desc: 'POD-specific design tool', icon: '◈' },
-                    { name: 'Placeit', url: 'https://placeit.net', desc: 'Mockup and design generator', icon: '◉' },
-                  ].map(t => (
-                    <a key={t.name} href={t.url} target="_blank" rel="noreferrer" className="card" style={{ textDecoration: 'none', transition: 'all .2s', display: 'block' }}
-                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,107,107,0.3)'}
-                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = '#1e1e1e'}>
-                      <div style={{ fontSize: '28px', marginBottom: '8px' }}>{t.icon}</div>
-                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--red)', marginBottom: '4px' }}>{t.name}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--mu3)', marginBottom: '10px' }}>{t.desc}</div>
-                      <div style={{ fontSize: '10px', color: 'var(--red)', fontFamily: "'DM Mono',monospace" }}>Open ↗</div>
-                    </a>
-                  ))}
-                </div>
+              {/* Tab row */}
+              <div className="nav-tabs">
+                {tabs.map(t => (
+                  <button key={t.id} className={`nav-tab ${active === t.id ? 'active' : ''}`} onClick={() => setActive(t.id)}>
+                    {t.icon} {t.label}
+                  </button>
+                ))}
               </div>
-            )}
-            {active === 'collection' && <CollectionBuilder />}
-            {active === 'export' && <ExportTool />}
-            {active === 'saved' && <SavedWork />}
-          </main>
+            </div>
 
-          {/* BOT BUTTON */}
-          <button onClick={() => setBotOpen(!botOpen)}
-            style={{ position: 'fixed', bottom: '24px', right: '24px', width: '48px', height: '48px', borderRadius: '50%', background: 'var(--red)', border: 'none', color: '#000', fontSize: '20px', cursor: 'pointer', boxShadow: '0 0 20px rgba(255,107,107,0.4)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s' }}>
-            {botOpen ? '✕' : '◉'}
+            {/* MAIN CONTENT */}
+            <div style={{ flex: 1 }}>
+              {active === 'dashboard' && <Dashboard setActive={setActive} />}
+              {active === 'design' && <DesignStudio />}
+              {active === 'mystore' && <MyStore />}
+              {active === 'products' && <MyProducts />}
+              {active === 'marketplace' && <Marketplace />}
+              {active === 'listings' && <ListingWriter />}
+              {active === 'bot' && (
+                <div style={{ padding: '28px' }}>
+                  <PodBot inline />
+                </div>
+              )}
+            </div>
+
+            {/* FOOTER */}
+            <div className="pod-footer">
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                <span style={{ fontSize: '10px', color: 'rgba(255,34,85,0.3)', fontFamily: "'DM Mono',monospace" }}>QUICK LINKS:</span>
+              </div>
+              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' as const, flex: 1, justifyContent: 'center' }}>
+                {footerLinks.map(([label, url]) => (
+                  <a key={label} href={url} target="_blank" rel="noreferrer" className="footer-link">{label} ↗</a>
+                ))}
+              </div>
+              <div style={{ fontSize: '10px', color: 'rgba(255,34,85,0.2)', fontFamily: "'DM Mono',monospace" }}>Envi Lee Creator Studios™</div>
+            </div>
+
+          </div>
+
+          {/* FLOATING BOT */}
+          <button className="bot-fab" onClick={() => setBotOpen(!botOpen)}>
+            {botOpen ? '✕' : '🤖'}
           </button>
-          {botOpen && <PodBot onClose={() => setBotOpen(false)} />}
+          {botOpen && (
+            <div className="bot-panel">
+              <div style={{ padding: '14px 16px', borderBottom: '0.5px solid rgba(255,34,85,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--w)' }}>🤖 POD Bot</div>
+                <button onClick={() => setBotOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--mu3)', fontSize: '16px' }}>✕</button>
+              </div>
+              <PodBot />
+            </div>
+          )}
 
-        </div>
-        </UniversalAccessGate>
+        </AccessGate>
       </SignedIn>
     </>
   )
