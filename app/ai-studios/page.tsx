@@ -177,59 +177,224 @@ function DragDrop({ onImage, currentImage, onClear, label = 'Drag & drop image',
 // ── DASHBOARD ─────────────────────────────────────────────────
 function Dashboard({ setTool }: { setTool: (t: StudioTool) => void }) {
   const { user } = useUser()
+  const [selectedVideo, setSelectedVideo] = useState<Record<string, unknown> | null>(null)
 
-  const sections = [
-    { id: 'content', icon: '✦', label: 'Content Studio', desc: 'Hooks, captions, UGC ads, brand deals', color: '#00d4ff' },
-    { id: 'cineflow', icon: '⊳', label: 'CineFlow AI', desc: 'Video prompts, storyboard, scene builder', color: '#0099ff' },
-    { id: 'lipsync', icon: '◈', label: 'Lip Sync Studio', desc: 'Single, multi-character, OmniHuman', color: '#00aaff' },
-    { id: 'show', icon: '◷', label: 'Show Production', desc: 'Reality TV, sitcoms, talk shows, podcast', color: '#0066ff' },
-    { id: 'animation', icon: '◉', label: 'Animation Studio', desc: 'Cartoon, anime, character animation', color: '#5599ff' },
-    { id: 'image', icon: '⊹', label: 'Image Generator', desc: 'Storyboard studio with face locking', color: '#00ccff' },
-    { id: 'video', icon: '◌', label: 'Video Generator', desc: 'Kling AI, Higgsfield, Veo 3.1', color: '#0077ff' },
-    { id: 'network', icon: '★', label: 'The Network', desc: 'Submit work, student showcase', color: '#00eeff' },
+  const VIDEO_CATEGORIES = [
+    {
+      id: 'reality', label: 'Reality Shows', icon: '📺',
+      videos: [
+        { id: 'r1', title: 'CEO Baddie Day in My Life', creator: 'Nova Star', tools: ['Kling AI', 'ElevenLabs', 'Higgsfield'], prompts: ['Black woman CEO luxury penthouse morning, designer outfit, golden hour, Sony A7R IV', 'Slow dolly forward, Black woman looking out at city skyline'], workflow: 'Step 1: Generated character stills in Image Generator with face locked
+Step 2: Animated each scene using Kling AI
+Step 3: Added voiceover in ElevenLabs
+Step 4: Lip synced in OmniHuman
+Step 5: Edited in CapCut', thumbnail: '', duration: '2:34', category: 'Reality Shows' },
+        { id: 'r2', title: 'Luxury Morning Routine', creator: 'Luxe B', tools: ['Higgsfield DoP', 'Sync.so', 'VEED Fabric'], prompts: ['Black woman luxury bathroom, silk robe, warm morning light, bokeh background'], workflow: 'Step 1: Episode Builder for scene planning
+Step 2: Generated stills per scene
+Step 3: Animated with Higgsfield DoP
+Step 4: Lip synced with VEED Fabric 1.0', thumbnail: '', duration: '1:45', category: 'Reality Shows' },
+      ]
+    },
+    {
+      id: 'talkshow', label: 'Talk Shows', icon: '🎤',
+      videos: [
+        { id: 't1', title: 'The Baddie Couch EP 1', creator: 'Diamond Lee', tools: ['VEED Fabric 1.0', 'ElevenLabs', 'Runway Gen-4'], prompts: ['Two Black women on luxury talk show set, professional lighting, editorial look'], workflow: 'Step 1: Built characters in Character Builder
+Step 2: Generated talk show set with Image Generator
+Step 3: Used 4-character lip sync for dialogue
+Step 4: Animated with Runway Gen-4', thumbnail: '', duration: '5:12', category: 'Talk Shows' },
+      ]
+    },
+    {
+      id: 'episodes', label: 'Episodes', icon: '🎬',
+      videos: [
+        { id: 'e1', title: 'The Arrival — Episode 01', creator: 'Nova Star', tools: ['Episode Builder', 'Kling AI', 'OmniHuman'], prompts: ['Cinematic arrival scene, Black woman in luxury hotel lobby, slow motion, film grain'], workflow: 'Step 1: Wrote episode in Episode Builder
+Step 2: Generated scene stills
+Step 3: Animated with Kling AI
+Step 4: Episode Editor for final cut', thumbnail: '', duration: '3:20', category: 'Episodes' },
+      ]
+    },
+    {
+      id: 'tutorials', label: 'Tutorials', icon: '📚',
+      videos: [
+        { id: 'tu1', title: 'How I Generated My AI Twin', creator: 'Creator101', tools: ['Realism Studio', 'Image Generator', 'Flux Kontext'], prompts: ['Ultra realistic Black woman, natural skin texture, no AI look, Sony A7R IV'], workflow: 'Step 1: Used Realism Studio for base character
+Step 2: Locked face with Flux Kontext
+Step 3: Generated multiple outfits and scenes', thumbnail: '', duration: '4:01', category: 'Tutorials' },
+      ]
+    },
+    {
+      id: 'bts', label: 'Behind the Scenes', icon: '🎥',
+      videos: [
+        { id: 'b1', title: 'Making of The Baddie Empire S1', creator: 'Diamond Lee', tools: ['All AI Studios Tools'], prompts: ['Behind the scenes documentary style, candid creative process'], workflow: 'Full walkthrough of how Season 1 was created using the complete AI Studios pipeline', thumbnail: '', duration: '8:45', category: 'Behind the Scenes' },
+      ]
+    },
+    {
+      id: 'skits', label: 'Skits & Short Films', icon: '🎭',
+      videos: [
+        { id: 'sk1', title: 'Baddie vs Karen — Skit', creator: 'Nova Star', tools: ['Kling AI', 'VEED Fabric', 'ElevenLabs'], prompts: ['Comedy skit, two characters, bright lighting, clear facial expressions'], workflow: 'Step 1: Wrote script
+Step 2: Built characters
+Step 3: Generated scenes
+Step 4: Added dialogue with 2-character lip sync', thumbnail: '', duration: '1:12', category: 'Skits' },
+      ]
+    },
+  ]
+
+  const tools = [
+    { id: 'content', icon: '✦', label: 'Content Studio', color: '#00d4ff' },
+    { id: 'cineflow', icon: '⊳', label: 'CineFlow AI', color: '#0099ff' },
+    { id: 'lipsync', icon: '◈', label: 'Lip Sync Studio', color: '#00aaff' },
+    { id: 'image', icon: '⊹', label: 'Image Generator', color: '#00ccff' },
+    { id: 'scenevideos', icon: '◌', label: 'Video Generator', color: '#0077ff' },
+    { id: 'episodebuilder', icon: '🎬', label: 'Episode Builder', color: '#FF006E' },
+    { id: 'voice', icon: '🎙️', label: 'Voice Studio', color: '#A855F7' },
+    { id: 'network', icon: '★', label: 'The Network', color: '#00eeff' },
   ]
 
   return (
     <div className="pg-in">
-      <div style={{ marginBottom: '32px' }}>
-        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(0,212,255,0.5)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>AI Studios Dashboard</div>
+      {/* Header */}
+      <div style={{ marginBottom: '28px' }}>
+        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(0,212,255,0.5)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>AI Studios</div>
         <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '36px', fontWeight: 400, color: 'var(--w)', marginBottom: '6px' }}>
           Welcome, <span style={{ background: 'var(--ai-grad)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{user?.firstName || 'Creator'}</span>
         </div>
         <div style={{ fontSize: '13px', color: 'var(--mu3)' }}>Build shows, create content, generate videos — all in one place.</div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '36px' }}>
-        {[
-          { label: 'Tools Available', value: '30+', color: 'var(--blue)' },
-          { label: 'Video Models', value: '3', color: '#0099ff' },
-          { label: 'Show Formats', value: '6', color: '#00aaff' },
-          { label: 'AI Models', value: 'Gemini', color: '#00ccff' },
-        ].map(s => (
-          <div key={s.label} className="card" style={{ textAlign: 'center', padding: '16px' }}>
-            <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '22px', fontWeight: 800, color: s.color, marginBottom: '4px' }}>{s.value}</div>
-            <div style={{ fontSize: '10px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace", textTransform: 'uppercase', letterSpacing: '.6px' }}>{s.label}</div>
+      {/* Quick access tools */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '32px', flexWrap: 'wrap' as const }}>
+        {tools.map(t => (
+          <button key={t.id} onClick={() => setTool(t.id as StudioTool)}
+            style={{ padding: '8px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: 600, cursor: 'pointer', border: `0.5px solid ${t.color}40`, background: `${t.color}08`, color: t.color, fontFamily: "'DM Sans',sans-serif", transition: 'all .2s' }}
+            onMouseEnter={e => (e.currentTarget.style.background = `${t.color}18`)}
+            onMouseLeave={e => (e.currentTarget.style.background = `${t.color}08`)}>
+            {t.icon} {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Video library by category */}
+      <div>
+        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(0,212,255,0.4)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '20px' }}>
+          Student Content Library
+        </div>
+
+        {VIDEO_CATEGORIES.map(cat => (
+          <div key={cat.id} style={{ marginBottom: '32px' }}>
+            {/* Category header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '18px' }}>{cat.icon}</span>
+                <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '16px', fontWeight: 700, color: 'var(--w)' }}>{cat.label}</div>
+                <span style={{ fontSize: '10px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace" }}>({cat.videos.length})</span>
+              </div>
+              <button style={{ fontSize: '11px', color: 'var(--cyan)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'DM Mono',monospace" }}>See all →</button>
+            </div>
+
+            {/* Video row */}
+            <div style={{ display: 'flex', gap: '14px', overflowX: 'auto', paddingBottom: '8px', scrollbarWidth: 'none' }}>
+              {cat.videos.map(video => (
+                <div key={video.id} onClick={() => setSelectedVideo(video as unknown as Record<string, unknown>)}
+                  style={{ flexShrink: 0, width: '220px', background: 'var(--s1)', border: '0.5px solid rgba(0,212,255,0.12)', borderRadius: '12px', overflow: 'hidden', cursor: 'pointer', transition: 'all .2s' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(0,212,255,0.4)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(-3px)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(0,212,255,0.12)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(0)' }}>
+                  {/* Thumbnail */}
+                  <div style={{ height: '130px', background: 'linear-gradient(135deg, rgba(0,212,255,0.15), var(--bg3))', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' as const }}>
+                    <div style={{ fontSize: '36px', opacity: 0.3 }}>{cat.icon}</div>
+                    <div style={{ position: 'absolute' as const, bottom: '8px', right: '8px', padding: '2px 8px', background: 'rgba(0,0,0,0.85)', borderRadius: '4px', fontSize: '10px', color: '#fff', fontFamily: "'DM Mono',monospace" }}>{video.duration}</div>
+                    <div style={{ position: 'absolute' as const, top: '8px', left: '8px', padding: '2px 8px', background: 'rgba(0,212,255,0.15)', border: '0.5px solid rgba(0,212,255,0.3)', borderRadius: '20px', fontSize: '9px', color: 'var(--cyan)', fontFamily: "'DM Mono',monospace" }}>{video.category}</div>
+                  </div>
+                  {/* Info */}
+                  <div style={{ padding: '12px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--w)', marginBottom: '4px', lineHeight: 1.3 }}>{video.title}</div>
+                    <div style={{ fontSize: '10px', color: 'var(--mu3)', marginBottom: '8px' }}>by {video.creator}</div>
+                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' as const }}>
+                      {video.tools.slice(0, 2).map(t => (
+                        <span key={t} style={{ padding: '2px 7px', borderRadius: '20px', fontSize: '9px', background: 'rgba(0,212,255,0.08)', color: 'var(--cyan)', border: '0.5px solid rgba(0,212,255,0.2)', fontFamily: "'DM Mono',monospace" }}>{t}</span>
+                      ))}
+                      {video.tools.length > 2 && <span style={{ padding: '2px 7px', borderRadius: '20px', fontSize: '9px', background: 'rgba(0,212,255,0.08)', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace" }}>+{video.tools.length - 2}</span>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Add your video card */}
+              <div onClick={() => setTool('episodebuilder')}
+                style={{ flexShrink: 0, width: '220px', background: 'transparent', border: '1.5px dashed rgba(0,212,255,0.2)', borderRadius: '12px', display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: '20px', gap: '8px', transition: 'all .2s' }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(0,212,255,0.5)')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(0,212,255,0.2)')}>
+                <div style={{ fontSize: '28px', opacity: 0.3 }}>+</div>
+                <div style={{ fontSize: '11px', color: 'var(--mu3)', textAlign: 'center' as const }}>Add your {cat.label.toLowerCase()}</div>
+              </div>
+            </div>
           </div>
         ))}
       </div>
 
-      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(0,212,255,0.4)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '14px' }}>Studios</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
-        {sections.map(s => (
-          <div key={s.id} className="card" style={{ cursor: 'pointer', transition: 'all .2s', borderColor: `${s.color}22` }}
-            onClick={() => setTool(s.id as StudioTool)}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = `${s.color}55`; (e.currentTarget as HTMLElement).style.background = `${s.color}08` }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = `${s.color}22`; (e.currentTarget as HTMLElement).style.background = 'var(--s1)' }}>
-            <div style={{ fontSize: '20px', color: s.color, marginBottom: '8px' }}>{s.icon}</div>
-            <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '14px', fontWeight: 700, color: 'var(--w)', marginBottom: '4px' }}>{s.label}</div>
-            <div style={{ fontSize: '11px', color: 'var(--mu3)', lineHeight: '1.5', marginBottom: '10px' }}>{s.desc}</div>
-            <div style={{ fontSize: '10px', color: s.color, fontFamily: "'DM Mono',monospace" }}>Open →</div>
+      {/* Video Detail Modal */}
+      {selectedVideo && (
+        <div style={{ position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+          onClick={() => setSelectedVideo(null)}>
+          <div style={{ maxWidth: '800px', width: '100%', background: 'var(--s1)', border: '0.5px solid rgba(0,212,255,0.25)', borderRadius: '20px', overflow: 'hidden', maxHeight: '90vh', overflowY: 'auto' }}
+            onClick={e => e.stopPropagation()}>
+            {/* Modal header */}
+            <div style={{ padding: '24px 24px 0', borderBottom: '0.5px solid rgba(0,212,255,0.1)', paddingBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '24px', fontWeight: 400, color: 'var(--w)', marginBottom: '4px' }}>{String(selectedVideo.title)}</div>
+                <div style={{ fontSize: '12px', color: 'var(--mu3)' }}>by {String(selectedVideo.creator)} · {String(selectedVideo.category)}</div>
+              </div>
+              <button onClick={() => setSelectedVideo(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--mu3)', fontSize: '20px' }}>✕</button>
+            </div>
+
+            <div style={{ padding: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              {/* Video preview */}
+              <div>
+                <div style={{ height: '200px', background: 'var(--bg3)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '14px' }}>
+                  <div style={{ textAlign: 'center', opacity: 0.3 }}>
+                    <div style={{ fontSize: '40px', marginBottom: '8px' }}>▶</div>
+                    <div style={{ fontSize: '11px', color: 'var(--mu3)' }}>Video Preview</div>
+                  </div>
+                </div>
+                {/* Tools used */}
+                <div className="card" style={{ marginBottom: '12px' }}>
+                  <div className="ftitle">🛠️ Tools Used</div>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' as const }}>
+                    {(selectedVideo.tools as string[]).map(t => (
+                      <span key={t} style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '11px', background: 'rgba(0,212,255,0.08)', color: 'var(--cyan)', border: '0.5px solid rgba(0,212,255,0.2)' }}>{t}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                {/* AI Prompts */}
+                <div className="card" style={{ marginBottom: '12px' }}>
+                  <div className="ftitle">💬 AI Prompts Used</div>
+                  {(selectedVideo.prompts as string[]).map((p, i) => (
+                    <div key={i} style={{ padding: '10px 12px', background: 'var(--bg3)', borderRadius: '8px', marginBottom: '8px', fontSize: '12px', color: 'var(--w2)', lineHeight: '1.6', fontFamily: "'DM Mono',monospace", borderLeft: '3px solid var(--cyan)' }}>
+                      {p}
+                      <button onClick={() => navigator.clipboard?.writeText(p)} style={{ display: 'block', marginTop: '6px', fontSize: '10px', color: 'var(--cyan)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Copy prompt</button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Step by step */}
+                <div className="card">
+                  <div className="ftitle">📋 How It Was Made</div>
+                  <div style={{ fontSize: '12px', color: 'var(--mu3)', lineHeight: '1.9', whiteSpace: 'pre-line' as const }}>{String(selectedVideo.workflow)}</div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ padding: '0 24px 24px', display: 'flex', gap: '10px' }}>
+              <button onClick={() => setTool('episodebuilder')} className="ai-btn" style={{ flex: 1, fontSize: '13px' }}>🎬 Build Something Similar</button>
+              <button onClick={() => setSelectedVideo(null)} className="ghost-ai" style={{ padding: '11px 20px', fontSize: '13px' }}>Close</button>
+            </div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
+
 
 // ── CONTENT STUDIO ────────────────────────────────────────────
 function ContentStudio() {
