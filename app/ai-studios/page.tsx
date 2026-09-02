@@ -1252,7 +1252,7 @@ function AIBot({ onClose }: { onClose: () => void }) {
   )
 }
 
-// ── SIDEBAR NAV ───────────────────────────────────────────────
+// ── NAV ITEMS ───────────────────────────────────────────────────
 const NAV: { tool: StudioTool; label: string; icon: string }[] = [
   { tool: 'dashboard', label: 'Dashboard', icon: '◉' },
   { tool: 'content', label: 'Content Studio', icon: '✦' },
@@ -2518,8 +2518,18 @@ export default function AIStudiosPage() {
   const { user } = useUser()
   const router = useRouter()
   const [active, setActive] = useState<StudioTool>('dashboard')
-  const [hovered, setHovered] = useState<StudioTool | null>(null)
   const [botOpen, setBotOpen] = useState(false)
+
+  const footerLinks = [
+    { label: 'ElevenLabs', url: 'https://elevenlabs.io' },
+    { label: 'Kling AI', url: 'https://klingai.com' },
+    { label: 'Higgsfield', url: 'https://higgsfield.ai' },
+    { label: 'VEED', url: 'https://veed.io' },
+    { label: 'Runway', url: 'https://runwayml.com' },
+    { label: 'CapCut', url: 'https://capcut.com' },
+    { label: 'Sync.so', url: 'https://sync.so' },
+    { label: 'Google Flow', url: 'https://labs.google/flow' },
+  ]
 
   return (
     <>
@@ -2527,87 +2537,81 @@ export default function AIStudiosPage() {
       <SignedOut><RedirectToSignIn /></SignedOut>
       <SignedIn>
         <UniversalAccessGate appName="AI Studios™">
-        <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
+          <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' as const }}>
 
-          {/* SIDEBAR */}
-          <aside style={{ width: '230px', background: 'var(--bg2)', borderRight: '0.5px solid rgba(0,80,150,0.15)', padding: 0, flexShrink: 0, height: '100vh', position: 'sticky', top: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '16px 14px', borderBottom: '0.5px solid rgba(0,80,150,0.15)' }}>
-              <button onClick={() => router.push('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px', padding: 0 }}>
-                <span style={{ fontSize: '10px', color: 'var(--mu2)', fontFamily: "'DM Mono',monospace" }}>← Empire</span>
-              </button>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: 'linear-gradient(135deg,#00d4ff,#0066ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', flexShrink: 0 }}>⊳</div>
-                <div>
-                  <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '13px', fontWeight: 800, color: 'var(--w)' }}>AI Studios™</div>
-                  <div style={{ fontSize: '9px', color: 'var(--mu2)', fontFamily: "'DM Mono',monospace", textTransform: 'uppercase', letterSpacing: '.8px' }}>Envi Lee</div>
-                </div>
-              </div>
-            </div>
-
-            {user && (
-              <div style={{ padding: '10px 14px', borderBottom: '0.5px solid rgba(0,80,150,0.1)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'rgba(0,212,255,0.05)', borderRadius: '8px', border: '0.5px solid var(--blue-border)' }}>
-                  <div>
-                    <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--w)' }}>{user.firstName || 'Creator'}</div>
-                    <div style={{ fontSize: '9px', color: 'rgba(0,212,255,0.5)', fontFamily: "'DM Mono',monospace" }}>All Access</div>
+            {/* TOP NAV */}
+            <div style={{ position: 'sticky' as const, top: 0, zIndex: 100, background: 'rgba(0,0,0,0.95)', borderBottom: '0.5px solid rgba(0,212,255,0.15)', backdropFilter: 'blur(12px)' }}>
+              {/* Brand row */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <button onClick={() => router.push('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '10px', color: 'rgba(0,212,255,0.4)', fontFamily: "'DM Mono',monospace" }}>← Empire</button>
+                  <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '16px', fontWeight: 900, background: 'var(--ai-grad)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                    AI Studios™
                   </div>
-                  <UserButton afterSignOutUrl="/sign-in" appearance={{ elements: { avatarBox: { width: '26px', height: '26px' } } }} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <button onClick={() => setBotOpen(!botOpen)} style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '11px', cursor: 'pointer', border: '0.5px solid rgba(0,212,255,0.3)', background: 'rgba(0,212,255,0.08)', color: 'var(--cyan)', fontFamily: "'DM Sans',sans-serif" }}>
+                    ⊳ AI Bot
+                  </button>
+                  <UserButton afterSignOutUrl="/sign-in" appearance={{ elements: { avatarBox: { width: '28px', height: '28px' } } }} />
                 </div>
               </div>
-            )}
 
-            <div style={{ padding: '10px', flex: 1 }}>
-              <div style={{ fontSize: '9px', fontWeight: 600, color: 'var(--mu2)', textTransform: 'uppercase', letterSpacing: '1.2px', padding: '4px 6px 8px', fontFamily: "'DM Mono',monospace" }}>Tools</div>
-              {NAV.map(({ tool, label, icon }) => (
-                <button key={tool} onClick={() => setActive(tool)}
-                  onMouseEnter={() => setHovered(tool)}
-                  onMouseLeave={() => setHovered(null)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '7px', cursor: 'pointer', fontSize: '12px', border: `0.5px solid ${active === tool ? 'var(--blue-border)' : 'transparent'}`, background: active === tool ? 'rgba(0,212,255,0.07)' : hovered === tool ? 'rgba(0,212,255,0.03)' : 'none', color: active === tool ? 'var(--blue)' : hovered === tool ? 'var(--w)' : 'var(--mu3)', width: '100%', textAlign: 'left', fontFamily: "'DM Sans',sans-serif", transition: 'all .2s' }}>
-                  <span style={{ fontFamily: "'DM Mono',monospace", fontSize: '12px' }}>{icon}</span>
-                  {label}
-                </button>
-              ))}
+              {/* Tab row */}
+              <div style={{ display: 'flex', gap: '2px', padding: '0 20px', overflowX: 'auto', scrollbarWidth: 'none' }}>
+                {NAV.map(({ tool, label, icon }) => (
+                  <button key={tool} onClick={() => setActive(tool)}
+                    style={{ padding: '12px 14px', fontSize: '12px', cursor: 'pointer', border: 'none', background: 'transparent', color: active === tool ? 'var(--cyan)' : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif", whiteSpace: 'nowrap' as const, transition: 'all .2s', borderBottom: `2px solid ${active === tool ? 'var(--cyan)' : 'transparent'}`, fontWeight: active === tool ? 700 : 500 }}>
+                    {icon} {label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div style={{ padding: '12px 14px', borderTop: '0.5px solid rgba(0,80,150,0.15)' }}>
-              <div style={{ fontSize: '9px', color: 'var(--mu2)', fontFamily: "'DM Mono',monospace", marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '.8px' }}>Quick Links</div>
-              {[
-                { label: 'ElevenLabs', url: 'https://elevenlabs.io' },
-                { label: 'Kling AI', url: 'https://klingai.com' },
-                { label: 'Google Flow', url: 'https://labs.google/flow' },
-                { label: 'CapCut', url: 'https://capcut.com' },
-              ].map(l => (
-                <a key={l.label} href={l.url} target="_blank" rel="noreferrer"
-                  style={{ display: 'block', padding: '5px 8px', fontSize: '11px', color: 'var(--mu3)', textDecoration: 'none', fontFamily: "'DM Mono',monospace", borderRadius: '5px', marginBottom: '2px', transition: 'color .15s' }}
-                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--blue)')}
-                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--mu3)')}>
-                  {l.label} ↗
-                </a>
-              ))}
+            {/* MAIN CONTENT */}
+            <div style={{ flex: 1, padding: '28px', background: 'radial-gradient(ellipse at 80% 0%, rgba(0,100,200,0.04) 0%, transparent 50%)' }}>
+              {active === 'dashboard' && <Dashboard setTool={setActive} />}
+              {active === 'content' && <ContentStudio />}
+              {active === 'cineflow' && <CineFlowAI />}
+              {active === 'lipsync' && <LipSyncStudio />}
+              {active === 'show' && <ShowProduction />}
+              {active === 'animation' && <AnimationStudio />}
+              {active === 'image' && <ImageGenerator />}
+              {active === 'video' && <VideoGenerator />}
+              {active === 'network' && <TheNetwork />}
+              {active === 'saved' && <SavedWork />}
+              {active === 'voice' && <VoiceStudio />}
+              {active === 'episodebuilder' && <EpisodeBuilder />}
+              {active === 'scenestills' && <SceneStillGenerator />}
+              {active === 'scenevideos' && <SceneVideoGenerator />}
+              {active === 'episodeeditor' && <EpisodeEditor />}
             </div>
-          </aside>
 
-          {/* MAIN */}
-          <main style={{ flex: 1, overflowY: 'auto', padding: '28px', position: 'relative', background: 'radial-gradient(ellipse at 80% 0%, rgba(0,100,200,0.04) 0%, transparent 50%)' }}>
-            {active === 'dashboard' && <Dashboard setTool={setActive} />}
-            {active === 'content' && <ContentStudio />}
-            {active === 'cineflow' && <CineFlowAI />}
-            {active === 'lipsync' && <LipSyncStudio />}
-            {active === 'show' && <ShowProduction />}
-            {active === 'animation' && <AnimationStudio />}
-            {active === 'image' && <ImageGenerator />}
-            {active === 'video' && <VideoGenerator />}
-            {active === 'network' && <TheNetwork />}
-            {active === 'saved' && <SavedWork />}
-          </main>
+            {/* FOOTER */}
+            <div style={{ background: 'var(--bg2)', borderTop: '0.5px solid rgba(0,212,255,0.1)', padding: '14px 24px', display: 'flex', gap: '16px', flexWrap: 'wrap' as const, alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: '10px', color: 'rgba(0,212,255,0.3)', fontFamily: "'DM Mono',monospace" }}>QUICK LINKS:</div>
+              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' as const, flex: 1, justifyContent: 'center' }}>
+                {footerLinks.map(l => (
+                  <a key={l.label} href={l.url} target="_blank" rel="noreferrer"
+                    style={{ fontSize: '11px', color: 'var(--mu3)', textDecoration: 'none', fontFamily: "'DM Mono',monospace", transition: 'color .15s' }}
+                    onMouseEnter={e => (e.currentTarget.style.color = 'var(--cyan)')}
+                    onMouseLeave={e => (e.currentTarget.style.color = 'var(--mu3)')}>
+                    {l.label} ↗
+                  </a>
+                ))}
+              </div>
+              <div style={{ fontSize: '10px', color: 'rgba(0,212,255,0.2)', fontFamily: "'DM Mono',monospace" }}>Envi Lee Creator Studios™</div>
+            </div>
 
-          {/* BOT */}
+          </div>
+
+          {/* FLOATING BOT */}
           <button onClick={() => setBotOpen(!botOpen)}
-            style={{ position: 'fixed', bottom: '24px', right: '24px', width: '48px', height: '48px', borderRadius: '50%', background: 'linear-gradient(135deg,#00d4ff,#0066ff)', border: 'none', color: '#000', fontSize: '20px', cursor: 'pointer', boxShadow: '0 0 20px rgba(0,212,255,0.3)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            style={{ position: 'fixed' as const, bottom: '24px', right: '24px', width: '48px', height: '48px', borderRadius: '50%', background: 'linear-gradient(135deg,#00d4ff,#0066ff)', border: 'none', color: '#000', fontSize: '20px', cursor: 'pointer', boxShadow: '0 0 20px rgba(0,212,255,0.3)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {botOpen ? '✕' : '⊳'}
           </button>
           {botOpen && <AIBot onClose={() => setBotOpen(false)} />}
-        </div>
+
         </UniversalAccessGate>
       </SignedIn>
     </>
