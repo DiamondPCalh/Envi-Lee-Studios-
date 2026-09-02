@@ -183,13 +183,11 @@ export async function GET(req: NextRequest) {
         if (isComplete) {
           const out = data.output as Record<string, unknown> | undefined
           const jobs = data.jobs as Array<Record<string, unknown>> | undefined
-          videoUrl = String(
-            out?.video_url || out?.url ||
-            (jobs?.[0]?.results as Record<string, unknown>)?.raw as string | undefined ||
-            data.video_url || ''
-          ) || null
+          const jobResult = jobs?.[0]?.results as Record<string, unknown> | undefined
+          const rawResult = jobResult?.raw as Record<string, unknown> | undefined
+          videoUrl = String(out?.video_url || out?.url || rawResult?.url || data.video_url || '') || null
         }
-        return NextResponse.json({ status: isComplete ? 'completed' : 'processing', videoUrl, raw: data })
+        return NextResponse.json({ status: isComplete ? 'completed' : 'processing', videoUrl })
       }
     }
 
