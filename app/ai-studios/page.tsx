@@ -909,93 +909,221 @@ function AnimationStudio() {
 
 // ── IMAGE GENERATOR ───────────────────────────────────────────
 function ImageGenerator() {
+  const { user } = useUser()
   const [prompt, setPrompt] = useState('')
-  const [style, setStyle] = useState('cinematic')
-  const [size, setSize] = useState('landscape')
+  const [style, setStyle] = useState('realistic')
+  const [aspectRatio, setAspectRatio] = useState('portrait_4_3')
+  const [resolution, setResolution] = useState('2k')
+  const [numImages, setNumImages] = useState(1)
   const [facePhoto, setFacePhoto] = useState<string | null>(null)
-  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [imageUrls, setImageUrls] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
-  const [saved, setSaved] = useState(false)
   const [faceLocked, setFaceLocked] = useState(false)
 
-  async function generate() {
-    if (!prompt.trim()) { alert('Please enter a prompt'); return }
-    setLoading(true); setImageUrl(null)
-    try {
-      const res = await fetch('/api/generate/image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, style, size, facePhoto }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      setImageUrl(data.imageUrl)
-      if (data.faceLocked) setFaceLocked(true)
-    } catch (e) { alert(`Error: ${(e as Error).message}`) }
-    finally { setLoading(false) }
+  const aspectRatios = [
+    { id: 'portrait_4_3', label: '3:4', icon: '▭', group: 'row' },
+    { id: 'portrait_16_9', label: '9:16', icon: '▯', group: 'row' },
+    { id: 'square_hd', label: '1:1', icon: '□', group: 'row' },
+    { id: 'landscape_16_9', label: '16:9', icon: '▬', group: 'stack' },
+    { id: 'landscape_4_3', label: '4:3', icon: '▭', group: 'stack' },
+  ]
+
+  const resolutions = [
+    { id: '1k', label: '1K SD', desc: 'Standard quality, faster' },
+    { id: '2k', label: '2K HD', desc: 'High quality, recommended' },
+    { id: '4k', label: '4K HD', desc: 'Ultra quality, slower' },
+  ]
+
+  const styles = ['realistic', 'cinematic', 'fashion', 'luxury', 'portrait', 'streetwear', 'dramatic', 'vibrant']
+
+  // Determine grid layout based on aspect ratio and count
+  function getGridStyle(): React.CSSProperties {
+    if (numImages === 1) return { gridTemplateColumns: '1fr' }
+    const isStack = aspectRatios.find(a => a.id === aspectRatio)?.group === 'stack'
+    if (numImages === 2) return { gridTemplateColumns: isStack ? '1fr 1fr' : '1fr 1fr' }
+    if (numImages === 3) return { gridTemplateColumns: isStack ? '1fr 1fr 1fr' : '1fr 1fr 1fr' }
+    if (numImages === 4) {
+      if (isStack) return { gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr' }
+      return { gridTemplateColumns: '1fr 1fr 1fr 1fr' }
+    }
+    return { gridTemplateColumns: '1fr' }
   }
 
-  function save() {
-    if (!imageUrl) return
+  async function generate() {
+    if (!prompt.trim()) return
+    setLoading(true); setImageUrls([])
+    try {
+      const resMap: Record<string, string> = { '1k': 'landscape_16_9', '2k': 'portrait_4_3', '4k': 'portrait_4_3' }
+      const promises = Array(numImages).fill(null).map(() =>
+        fetch('/api/generate/image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, style, size: aspectRatio, facePhoto }),
+        }).then(r => r.json()).then(d => d.imageUrl || null)
+      )
+      const results = await Promise.all(promises)
+      setImageUrls(results.filter(Boolean))
+      if (facePhoto) setFaceLocked(true)
+    } catch (e) { console.error(e) }
+    setLoading(false)
+  }
+
+  function saveImage(url: string) {
     const existing = JSON.parse(localStorage.getItem('aiStudiosSaved') || '[]')
-    existing.unshift({ id: Date.now(), type: 'image', content: '', imageUrl, prompt, savedAt: new Date().toISOString() })
+    existing.unshift({ id: Date.now(), type: 'image', imageUrl: url, prompt, savedAt: new Date().toISOString() })
     localStorage.setItem('aiStudiosSaved', JSON.stringify(existing.slice(0, 100)))
-    setSaved(true); setTimeout(() => setSaved(false), 2000)
   }
 
   return (
-    <div className="pg-in">
-      <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '24px', fontWeight: 800, color: 'var(--w)', marginBottom: '4px' }}>
-        Image <span style={{ background: 'var(--ai-grad)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Generator</span>
-      </div>
-      <div style={{ fontSize: '12px', color: 'var(--mu3)', marginBottom: '24px' }}>Generate cinematic still images — drag a character photo to lock their face into every image.</div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-        <div>
-          <div className="card hi" style={{ marginBottom: '14px' }}>
-            <div className="ftitle">Face Reference (Optional)</div>
-            <DragDrop label="Drag character photo to lock face" sub="Uses Gemini 3 Pro Image for consistency" currentImage={facePhoto}
-              onImage={url => { setFacePhoto(url); setFaceLocked(true) }}
-              onClear={() => { setFacePhoto(null); setFaceLocked(false) }} height={130} />
-            {facePhoto && <div style={{ fontSize: '10px', color: 'var(--blue)', fontFamily: "'DM Mono',monospace", marginTop: '8px', textAlign: 'center' }}>🔒 Face reference locked in</div>}
-          </div>
-          <div className="card hi">
-            <div className="ftitle">Image Details</div>
-            <F label="Prompt"><textarea className="fta" placeholder="e.g. Black woman in luxury crop tee on NYC rooftop at golden hour, cinematic film still..." value={prompt} onChange={e => setPrompt(e.target.value)} /></F>
-            <F label="Style"><select className="fsel" value={style} onChange={e => setStyle(e.target.value)}>{['cinematic', 'fashion', 'luxury', 'streetwear', 'portrait', 'dramatic', 'vibrant'].map(s => <option key={s}>{s}</option>)}</select></F>
-            <F label="Size"><select className="fsel" value={size} onChange={e => setSize(e.target.value)}>{[['landscape', 'Landscape 16:9'], ['portrait', 'Portrait 3:4'], ['tiktok', 'TikTok 9:16'], ['square', 'Square 1:1']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></F>
-            <button className="ai-btn" onClick={generate} disabled={loading} style={{ width: '100%' }}>
-              {loading ? 'Generating…' : '✦ Generate Image'}
-            </button>
-          </div>
+    <div className="pg-in" style={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' as const }}>
+      {/* Header */}
+      <div style={{ marginBottom: '20px' }}>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '28px', fontWeight: 400, color: 'var(--w)', marginBottom: '4px' }}>
+          Image <span style={{ background: 'var(--ai-grad)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Generator</span>
         </div>
-        <div className="card accent">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', paddingBottom: '10px', borderBottom: '0.5px solid rgba(0,100,180,0.15)' }}>
-            <div className="ftitle" style={{ margin: 0, padding: 0, border: 'none' }}>Generated Image</div>
-            {faceLocked && <div style={{ fontSize: '9px', color: 'var(--blue)', fontFamily: "'DM Mono',monospace", padding: '2px 8px', background: 'var(--blue3)', border: '0.5px solid var(--blue-border)', borderRadius: '4px' }}>🔒 Face Locked</div>}
-          </div>
-          <div style={{ background: 'var(--bg3)', borderRadius: '10px', minHeight: '280px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: '12px', border: '0.5px solid rgba(0,100,180,0.1)' }}>
-            {loading ? (
-              <div style={{ textAlign: 'center', padding: '30px' }}>
-                <div className="lbar" style={{ width: '100px', margin: '0 auto 10px' }}><div className="lbar-fill" /></div>
-                <div style={{ fontSize: '13px', color: 'var(--blue)' }}>Generating…</div>
-                <div style={{ fontSize: '11px', color: 'var(--mu3)', marginTop: '6px' }}>Usually 5–15 seconds</div>
-              </div>
-            ) : imageUrl ? (
-              <img src={imageUrl} alt="generated" style={{ width: '100%', display: 'block', borderRadius: '10px' }} />
-            ) : (
-              <div style={{ textAlign: 'center', padding: '30px' }}>
-                <div style={{ fontSize: '36px', marginBottom: '10px', opacity: 0.1 }}>◈</div>
-                <div style={{ fontSize: '13px', color: 'var(--mu3)' }}>Image appears here</div>
+        <div style={{ fontSize: '12px', color: 'var(--mu3)' }}>Ultra realistic AI image generation — face locked, no plastic look, real skin texture.</div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '20px', flex: 1, minHeight: 0 }}>
+        {/* LEFT PANEL — Controls */}
+        <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column' as const, gap: '12px' }}>
+          
+          {/* Face reference */}
+          <div className="card hi">
+            <div className="ftitle">🔒 Face Reference (Optional)</div>
+            <DragDrop label="Drag your AI twin photo here" sub="Locks face across all generated images" currentImage={facePhoto}
+              onImage={url => { setFacePhoto(url); setFaceLocked(true) }}
+              onClear={() => { setFacePhoto(null); setFaceLocked(false) }} height={120} />
+            {facePhoto && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', padding: '6px 10px', background: 'rgba(0,212,255,0.08)', borderRadius: '6px', border: '0.5px solid rgba(0,212,255,0.2)' }}>
+                <span style={{ fontSize: '12px' }}>🔒</span>
+                <span style={{ fontSize: '11px', color: 'var(--cyan)', fontFamily: "'DM Mono',monospace" }}>Face locked — FLUX Kontext active</span>
               </div>
             )}
           </div>
-          {imageUrl && (
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <a href={imageUrl} download target="_blank" rel="noreferrer" className="ai-btn" style={{ flex: 1, textDecoration: 'none', textAlign: 'center', display: 'block', fontSize: '12px', padding: '9px' }}>⬇ Download</a>
-              <button onClick={save} style={{ flex: 1, padding: '9px', borderRadius: '7px', border: `0.5px solid ${saved ? 'var(--blue)' : 'rgba(0,100,180,0.2)'}`, background: saved ? 'var(--blue3)' : 'var(--s1)', color: saved ? 'var(--blue)' : 'var(--mu3)', fontSize: '12px', cursor: 'pointer' }}>{saved ? '✓ Saved!' : '⊹ Save'}</button>
-              <button onClick={generate} style={{ flex: 1, padding: '9px', borderRadius: '7px', border: '0.5px solid rgba(0,100,180,0.15)', background: 'var(--s1)', color: 'var(--blue)', fontSize: '12px', cursor: 'pointer' }}>↺ Redo</button>
-              <button onClick={() => setImageUrl(null)} className="del-btn" style={{ padding: '9px 12px' }}>✕</button>
+
+          {/* Prompt */}
+          <div className="card hi">
+            <div className="ftitle">Prompt</div>
+            <textarea className="fta" style={{ minHeight: '100px' }}
+              placeholder="e.g. Black woman in luxury penthouse, designer outfit, golden hour light, Sony A7R IV, RAW photo, ultra realistic, real skin texture, no AI look..."
+              value={prompt} onChange={e => setPrompt(e.target.value)} />
+          </div>
+
+          {/* Style */}
+          <div className="card hi">
+            <div className="ftitle">Photography Style</div>
+            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' as const }}>
+              {styles.map(s => (
+                <button key={s} onClick={() => setStyle(s)}
+                  style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '10px', cursor: 'pointer', border: `0.5px solid ${style === s ? 'rgba(0,212,255,0.5)' : 'rgba(0,212,255,0.15)'}`, background: style === s ? 'rgba(0,212,255,0.1)' : 'transparent', color: style === s ? 'var(--cyan)' : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif", textTransform: 'capitalize' as const }}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Aspect Ratio */}
+          <div className="card hi">
+            <div className="ftitle">Aspect Ratio</div>
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' as const }}>
+              {aspectRatios.map(a => (
+                <button key={a.id} onClick={() => setAspectRatio(a.id)}
+                  style={{ padding: '6px 12px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', border: `0.5px solid ${aspectRatio === a.id ? 'rgba(0,212,255,0.5)' : 'rgba(0,212,255,0.15)'}`, background: aspectRatio === a.id ? 'rgba(0,212,255,0.1)' : 'transparent', color: aspectRatio === a.id ? 'var(--cyan)' : 'var(--mu3)', fontFamily: "'DM Mono',monospace", display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <span>{a.icon}</span><span>{a.label}</span>
+                  {a.group === 'stack' && <span style={{ fontSize: '8px', color: 'var(--mu2)' }}>grid</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Resolution */}
+          <div className="card hi">
+            <div className="ftitle">Resolution</div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {resolutions.map(r => (
+                <button key={r.id} onClick={() => setResolution(r.id)}
+                  style={{ flex: 1, padding: '8px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', border: `0.5px solid ${resolution === r.id ? 'rgba(0,212,255,0.5)' : 'rgba(0,212,255,0.15)'}`, background: resolution === r.id ? 'rgba(0,212,255,0.1)' : 'transparent', color: resolution === r.id ? 'var(--cyan)' : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif", textAlign: 'center' as const }}>
+                  <div style={{ fontWeight: 700 }}>{r.label}</div>
+                  <div style={{ fontSize: '9px', marginTop: '2px', color: 'var(--mu2)' }}>{r.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Number of images */}
+          <div className="card hi">
+            <div className="ftitle">Number of Images</div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {[1, 2, 3, 4].map(n => (
+                <button key={n} onClick={() => setNumImages(n)}
+                  style={{ flex: 1, padding: '10px', borderRadius: '8px', fontSize: '14px', fontWeight: 900, cursor: 'pointer', border: `0.5px solid ${numImages === n ? 'rgba(0,212,255,0.5)' : 'rgba(0,212,255,0.15)'}`, background: numImages === n ? 'rgba(0,212,255,0.1)' : 'transparent', color: numImages === n ? 'var(--cyan)' : 'var(--mu3)', fontFamily: "'Syne',sans-serif" }}>
+                  {n}
+                </button>
+              ))}
+            </div>
+            {numImages > 1 && (
+              <div style={{ fontSize: '10px', color: 'var(--mu3)', marginTop: '8px', fontFamily: "'DM Mono',monospace" }}>
+                {aspectRatios.find(a => a.id === aspectRatio)?.group === 'stack' && numImages === 4
+                  ? '2×2 grid layout'
+                  : 'Row layout'}
+              </div>
+            )}
+          </div>
+
+          {/* Generate button — bottom left */}
+          <button className="ai-btn" onClick={generate} disabled={loading || !prompt.trim()} style={{ width: '100%', padding: '14px', fontSize: '14px', fontWeight: 800 }}>
+            {loading ? `✦ Generating ${numImages} image${numImages > 1 ? 's' : ''}…` : `✦ Generate ${numImages > 1 ? numImages + ' Images' : 'Image'}`}
+          </button>
+          {loading && <div className="lbar"><div className="lbar-fill" /></div>}
+        </div>
+
+        {/* RIGHT PANEL — Generated images */}
+        <div style={{ overflowY: 'auto' }}>
+          {loading ? (
+            <div className="card" style={{ height: '100%', minHeight: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+              <div>
+                <div className="lbar" style={{ width: '120px', margin: '0 auto 16px' }}><div className="lbar-fill" /></div>
+                <div style={{ fontSize: '14px', color: 'var(--cyan)', marginBottom: '8px' }}>
+                  {facePhoto ? '🔒 Face locked — generating with FLUX Kontext...' : '✦ Generating ultra realistic image...'}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--mu3)' }}>5-15 seconds · No plastic skin · Real texture</div>
+              </div>
+            </div>
+          ) : imageUrls.length > 0 ? (
+            <div>
+              {faceLocked && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', padding: '8px 14px', background: 'rgba(0,212,255,0.06)', borderRadius: '8px', border: '0.5px solid rgba(0,212,255,0.2)' }}>
+                  <span>🔒</span>
+                  <span style={{ fontSize: '11px', color: 'var(--cyan)', fontFamily: "'DM Mono',monospace" }}>Face locked with FLUX Kontext — same face across all images</span>
+                </div>
+              )}
+              <div style={{ display: 'grid', gap: '10px', ...getGridStyle() }}>
+                {imageUrls.map((url, i) => (
+                  <div key={i} style={{ background: 'var(--s1)', border: '0.5px solid rgba(0,212,255,0.15)', borderRadius: '12px', overflow: 'hidden' }}>
+                    <img src={url} alt={`Generated ${i + 1}`} style={{ width: '100%', display: 'block' }} />
+                    <div style={{ padding: '8px 10px', display: 'flex', gap: '6px' }}>
+                      <a href={url} download={`image_${i + 1}.jpg`} style={{ flex: 1, padding: '6px', borderRadius: '6px', background: 'var(--ai-grad)', color: '#000', fontSize: '11px', fontWeight: 700, textDecoration: 'none', textAlign: 'center' as const }}>⬇ Save</a>
+                      <button onClick={() => saveImage(url)} style={{ flex: 1, padding: '6px', borderRadius: '6px', border: '0.5px solid rgba(0,212,255,0.2)', background: 'transparent', color: 'var(--cyan)', fontSize: '11px', cursor: 'pointer' }}>⊹ Library</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
+                <button onClick={generate} className="ai-btn" style={{ flex: 1, fontSize: '12px' }}>↺ Regenerate</button>
+                <button onClick={() => setImageUrls([])} className="ghost-ai" style={{ padding: '10px 16px', fontSize: '12px' }}>✕ Clear</button>
+              </div>
+            </div>
+          ) : (
+            <div className="card" style={{ height: '100%', minHeight: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', opacity: 0.5 }}>
+              <div>
+                <div style={{ fontSize: '64px', marginBottom: '16px', opacity: 0.15 }}>⊹</div>
+                <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '22px', color: 'var(--w)', marginBottom: '8px' }}>Images appear here</div>
+                <div style={{ fontSize: '12px', color: 'var(--mu3)', lineHeight: '1.7' }}>
+                  Upload face reference → Write prompt → Generate<br/>
+                  Ultra realistic · Real skin texture · No plastic look
+                </div>
+              </div>
             </div>
           )}
         </div>
