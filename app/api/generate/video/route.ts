@@ -192,7 +192,7 @@ export async function GET(req: NextRequest) {
           const jobs = data.jobs as Array<Record<string, unknown>> | undefined
           videoUrl = String(
             out?.video_url || out?.url ||
-            jobs?.[0]?.results?.raw?.url ||
+            (jobs?.[0]?.results as Record<string, unknown>)?.raw as string | undefined ||
             data.video_url || ''
           ) || null
         }
