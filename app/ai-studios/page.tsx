@@ -2274,6 +2274,1013 @@ function SceneStillGenerator() {
 // ── SCENE VIDEO GENERATOR ─────────────────────────────────────
 function SceneVideoGenerator() {
   const { user } = useUser()
+
+  // ── State ──────────────────────────────────────────────────
+  const [tab, setTab] = useState<'generator' | 'storyboard'>('generator')
+
+  // Generator state
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null)
+  const [startFrame, setStartFrame] = useState<string | null>(null)
+  const [endFrame, setEndFrame] = useState<string | null>(null)
+  const [prompt, setPrompt] = useState('')
+  const [videoModel, setVideoModel] = useState('kling-video')
+  const [duration, setDuration] = useState('5')
+  const [motion, setMotion] = useState('medium')
+  const [generating, setGenerating] = useState(false)
+  const [polling, setPolling] = useState(false)
+  const [generatedVideo, setGeneratedVideo] = useState<string | null>(null)
+  const [status, setStatus] = useState('')
+
+  // Video library state
+  const [videoLibrary, setVideoLibrary] = useState<Record<string, unknown>[]>([])
+  const [selectedLibraryVideo, setSelectedLibraryVideo] = useState<string | null>(null)
+
+  // Storyboard state
+  const [folders, setFolders] = useState<{ id: string; name: string; items: Record<string, unknown>[] }[]>([])
+  const [activeFolderId, setActiveFolderId] = useState<string | null>(null)
+  const [newFolderName, setNewFolderName] = useState('')
+  const [droppingFile, setDroppingFile] = useState(false)
+
+  const imageRef = useRef<HTMLInputElement>(null)
+  const startRef = useRef<HTMLInputElement>(null)
+  const endRef = useRef<HTMLInputElement>(null)
+  const uploadRef = useRef<HTMLInputElement>(null)
+
+  const videoModels = [
+    { id: 'kling-video', label: 'Kling AI', badge: 'BEST', color: '#00d4ff' },
+    { id: 'higgsfield', label: 'Higgsfield DoP', badge: 'CINEMATIC', color: '#0099ff' },
+    { id: 'seedance', label: 'Seedance 2.0', badge: 'NEW', color: '#00aaff' },
+    { id: 'runway', label: 'Runway Gen-4', badge: 'CAMERA', color: '#0066ff' },
+  ]
+
+  useEffect(() => {
+    const saved = JSON.parse(localStorage.getItem('ai_video_library_' + user?.id) || '[]')
+    setVideoLibrary(saved)
+    const savedFolders = JSON.parse(localStorage.getItem('ai_storyboard_' + user?.id) || '[]')
+    setFolders(savedFolders)
+  }, [user?.id])
+
+  function saveVideoToLibrary(videoUrl: string, promptText: string) {
+    const newItem = { id: Date.now().toString(), videoUrl, prompt: promptText, model: videoModel, createdAt: new Date().toISOString() }
+    const updated = [newItem, ...videoLibrary]
+    setVideoLibrary(updated)
+    localStorage.setItem('ai_video_library_' + user?.id, JSON.stringify(updated.slice(0, 100)))
+  }
+
+  function readFile(file: File): Promise<string> {
+    return new Promise((res, rej) => {
+      const r = new FileReader()
+      r.onload = e => res(e.target?.result as string)
+      r.onerror = rej
+      r.readAsDataURL(file)
+    })
+  }
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>, type: 'main' | 'start' | 'end') {
+    const f = e.target.files?.[0]
+    if (!f) return
+    const url = await readFile(f)
+    if (type === 'main') setUploadedImage(url)
+    else if (type === 'start') setStartFrame(url)
+    else setEndFrame(url)
+  }
+
+  async function generateVideo() {
+    if (!uploadedImage && !startFrame) { setStatus('Upload an image first'); return }
+    setGenerating(true); setGeneratedVideo(null); setStatus('')
+
+    try {
+      // Upload image to Cloudinary first
+      setStatus('Uploading image...')
+      const uploadRes = await fetch('/api/upload/image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: uploadedImage || startFrame, folder: 'envi-lee-video' }),
+      })
+      const uploadData = await uploadRes.json()
+      if (!uploadData.imageUrl) { setStatus('Upload failed: ' + (uploadData.error || 'unknown')); setGenerating(false); return }
+
+      const motionPrompt = (prompt || 'Cinematic scene') + ', ' + motion + ' motion, cinematic video, smooth camera movement, ultra realistic'
+      setStatus('Sending to ' + videoModels.find(m => m.id === videoModel)?.label + '...')
+
+      const res = await fetch('/api/generate/video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl: uploadData.imageUrl,
+          prompt: motionPrompt,
+          model: videoModel,
+          duration: parseInt(duration),
+          motion,
+        }),
+      })
+      const data = await res.json()
+
+      if (data.videoUrl) {
+        setGeneratedVideo(data.videoUrl)
+        saveVideoToLibrary(data.videoUrl, prompt)
+        setStatus('Video ready!')
+      } else if (data.jobId) {
+        setPolling(true)
+        setStatus('Processing...')
+        pollVideo(data.jobId)
+      } else {
+        setStatus('Error: ' + (data.error || 'Unknown error'))
+      }
+    } catch (e) { setStatus('Error: ' + (e as Error).message) }
+    setGenerating(false)
+  }
+
+  async function pollVideo(jobId: string) {
+    for (let i = 0; i < 40; i++) {
+      await new Promise(r => setTimeout(r, 4000))
+      try {
+        const res = await fetch('/api/generate/video?jobId=' + jobId + '&model=' + videoModel)
+        const data = await res.json()
+        if (data.videoUrl) {
+          setGeneratedVideo(data.videoUrl)
+          saveVideoToLibrary(data.videoUrl, prompt)
+          setPolling(false)
+          setStatus('Video ready!')
+          return
+        }
+        setStatus('Processing... ' + (i + 1) + '/40')
+      } catch (e) { console.error(e) }
+    }
+    setPolling(false)
+    setStatus('Timed out — try again')
+  }
+
+  // Storyboard functions
+  function createFolder() {
+    if (!newFolderName.trim()) return
+    const newFolder = { id: Date.now().toString(), name: newFolderName.trim(), items: [] }
+    const updated = [...folders, newFolder]
+    setFolders(updated)
+    setActiveFolderId(newFolder.id)
+    setNewFolderName('')
+    localStorage.setItem('ai_storyboard_' + user?.id, JSON.stringify(updated))
+  }
+
+  async function handleDrop(e: React.DragEvent) {
+    e.preventDefault(); setDroppingFile(false)
+    if (!activeFolderId) { setStatus('Select or create a folder first'); return }
+    const files = Array.from(e.dataTransfer.files)
+    for (const file of files) {
+      const url = await readFile(file)
+      const item = { id: Date.now().toString(), type: file.type.startsWith('video') ? 'video' : 'image', url, name: file.name }
+      const updated = folders.map(f => f.id === activeFolderId ? { ...f, items: [...f.items, item] } : f)
+      setFolders(updated)
+      localStorage.setItem('ai_storyboard_' + user?.id, JSON.stringify(updated))
+    }
+  }
+
+  async function handleStoryboardUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!activeFolderId) { setStatus('Select or create a folder first'); return }
+    const files = Array.from(e.target.files || [])
+    for (const file of files) {
+      const url = await readFile(file)
+      const item = { id: Date.now().toString(), type: file.type.startsWith('video') ? 'video' : 'image', url, name: file.name }
+      const updated = folders.map(f => f.id === activeFolderId ? { ...f, items: [...f.items, item] } : f)
+      setFolders(updated)
+      localStorage.setItem('ai_storyboard_' + user?.id, JSON.stringify(updated))
+    }
+  }
+
+  const activeFolder = folders.find(f => f.id === activeFolderId)
+  const editors = [
+    { name: 'CapCut', url: 'https://capcut.com', icon: '✂️' },
+    { name: 'DaVinci Resolve', url: 'https://www.blackmagicdesign.com/products/davinciresolve', icon: '🎬' },
+    { name: 'Adobe Premiere', url: 'https://www.adobe.com/products/premiere.html', icon: '🎥' },
+    { name: 'Final Cut Pro', url: 'https://www.apple.com/final-cut-pro', icon: '🍎' },
+  ]
+
+  return (
+    <div className="pg-in" style={{ height: 'calc(100vh - 130px)', display: 'flex', flexDirection: 'column' as const }}>
+      {/* Header + tabs */}
+      <div style={{ marginBottom: '16px' }}>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '28px', fontWeight: 400, color: 'var(--w)', marginBottom: '12px' }}>
+          Scene Video <span style={{ background: 'var(--ai-grad)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Generator</span>
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {[['generator', '🎥 Video Generator'], ['storyboard', '📋 Private Storyboard Room']].map(([id, label]) => (
+            <button key={id} onClick={() => setTab(id as 'generator' | 'storyboard')}
+              style={{ padding: '8px 18px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', border: `1px solid ${tab === id ? 'rgba(0,212,255,0.5)' : 'rgba(0,212,255,0.15)'}`, background: tab === id ? 'rgba(0,212,255,0.1)' : 'transparent', color: tab === id ? 'var(--cyan)' : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif" }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── VIDEO GENERATOR TAB ── */}
+      {tab === 'generator' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr 260px', gap: '14px', flex: 1, minHeight: 0 }}>
+
+          {/* LEFT — Image + prompt */}
+          <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column' as const, gap: '10px' }}>
+            <div className="card hi">
+              <div className="ftitle">📸 Upload Image</div>
+              <input ref={imageRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleImageUpload(e, 'main')} />
+              <div onClick={() => imageRef.current?.click()} style={{ border: '1.5px dashed rgba(0,212,255,0.25)', borderRadius: '8px', minHeight: '140px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: 'var(--bg3)', marginBottom: '8px', overflow: 'hidden' }}>
+                {uploadedImage
+                  ? <img src={uploadedImage} alt="uploaded" style={{ width: '100%', display: 'block', borderRadius: '6px' }} />
+                  : <div style={{ textAlign: 'center', padding: '20px' }}><div style={{ fontSize: '28px', opacity: 0.2 }}>🖼️</div><div style={{ fontSize: '11px', color: 'var(--mu3)', marginTop: '6px' }}>Click to upload image</div></div>
+                }
+              </div>
+              {uploadedImage && <button onClick={() => setUploadedImage(null)} style={{ fontSize: '10px', color: '#ff6b6b', background: 'none', border: 'none', cursor: 'pointer' }}>✕ Remove</button>}
+            </div>
+
+            <div className="card hi">
+              <div className="ftitle">🎞️ Start / End Frames (Optional)</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div>
+                  <div style={{ fontSize: '9px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace", marginBottom: '4px' }}>START FRAME</div>
+                  <input ref={startRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleImageUpload(e, 'start')} />
+                  <div onClick={() => startRef.current?.click()} style={{ border: '1px dashed rgba(0,212,255,0.2)', borderRadius: '6px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: 'var(--bg3)', overflow: 'hidden' }}>
+                    {startFrame ? <img src={startFrame} alt="start" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '18px', opacity: 0.2 }}>▶</span>}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '9px', color: 'var(--mu3)', fontFamily: "'DM Mono',monospace", marginBottom: '4px' }}>END FRAME</div>
+                  <input ref={endRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleImageUpload(e, 'end')} />
+                  <div onClick={() => endRef.current?.click()} style={{ border: '1px dashed rgba(0,212,255,0.2)', borderRadius: '6px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: 'var(--bg3)', overflow: 'hidden' }}>
+                    {endFrame ? <img src={endFrame} alt="end" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '18px', opacity: 0.2 }}>⏹</span>}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="card hi">
+              <div className="ftitle">✍️ Video Prompt</div>
+              <textarea className="fta" style={{ minHeight: '80px' }}
+                placeholder="Describe what should happen in the video — camera movement, action, mood, lighting..."
+                value={prompt} onChange={e => setPrompt(e.target.value)} />
+            </div>
+
+            <div className="card hi">
+              <div className="ftitle">🎬 Model</div>
+              <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '5px' }}>
+                {videoModels.map(m => (
+                  <div key={m.id} onClick={() => setVideoModel(m.id)}
+                    style={{ padding: '8px 10px', borderRadius: '7px', border: `0.5px solid ${videoModel === m.id ? m.color + '60' : 'rgba(0,212,255,0.1)'}`, background: videoModel === m.id ? m.color + '10' : 'transparent', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', color: videoModel === m.id ? m.color : 'var(--mu3)', fontWeight: videoModel === m.id ? 700 : 400 }}>{m.label}</span>
+                    <span style={{ fontSize: '9px', padding: '2px 6px', borderRadius: '20px', background: m.color + '20', color: m.color, fontFamily: "'DM Mono',monospace" }}>{m.badge}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="card hi">
+              <div className="ftitle">⏱️ Duration & Motion</div>
+              <div style={{ display: 'flex', gap: '5px', marginBottom: '8px' }}>
+                {['3', '5', '10'].map(d => (
+                  <button key={d} onClick={() => setDuration(d)} style={{ flex: 1, padding: '7px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', border: `0.5px solid ${duration === d ? 'rgba(0,212,255,0.4)' : 'rgba(0,212,255,0.1)'}`, background: duration === d ? 'rgba(0,212,255,0.08)' : 'transparent', color: duration === d ? 'var(--cyan)' : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif" }}>{d}s</button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' as const }}>
+                {['subtle', 'medium', 'dynamic', 'cinematic'].map(m => (
+                  <button key={m} onClick={() => setMotion(m)} style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '10px', cursor: 'pointer', border: `0.5px solid ${motion === m ? 'rgba(0,212,255,0.4)' : 'rgba(0,212,255,0.1)'}`, background: motion === m ? 'rgba(0,212,255,0.08)' : 'transparent', color: motion === m ? 'var(--cyan)' : 'var(--mu3)', fontFamily: "'DM Sans',sans-serif", textTransform: 'capitalize' as const }}>{m}</button>
+                ))}
+              </div>
+            </div>
+
+            <button onClick={generateVideo} disabled={generating || polling || (!uploadedImage && !startFrame)}
+              className="ai-btn" style={{ width: '100%', padding: '13px', fontSize: '13px', fontWeight: 800 }}>
+              {generating ? 'Uploading...' : polling ? 'Generating...' : '⊳ Generate Video'}
+            </button>
+            {(generating || polling) && <div className="lbar"><div className="lbar-fill" /></div>}
+            {status && <div style={{ fontSize: '11px', color: status.includes('Error') ? '#ff6b6b' : 'var(--cyan)', textAlign: 'center', fontFamily: "'DM Mono',monospace", padding: '6px 10px', background: 'rgba(0,212,255,0.05)', borderRadius: '6px' }}>{status}</div>}
+          </div>
+
+          {/* CENTER — Video output */}
+          <div style={{ display: 'flex', flexDirection: 'column' as const }}>
+            <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column' as const }}>
+              <div className="ftitle">Generated Video</div>
+              <div style={{ flex: 1, background: 'var(--bg3)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '300px', overflow: 'hidden' }}>
+                {(generating || polling) ? (
+                  <div style={{ textAlign: 'center', padding: '40px' }}>
+                    <div style={{ fontSize: '40px', marginBottom: '12px', opacity: 0.2 }}>⊳</div>
+                    <div style={{ fontSize: '13px', color: 'var(--cyan)', marginBottom: '8px' }}>
+                      {videoModels.find(m => m.id === videoModel)?.label} is generating...
+                    </div>
+                    <div className="lbar" style={{ width: '120px', margin: '0 auto' }}><div className="lbar-fill" /></div>
+                    <div style={{ fontSize: '11px', color: 'var(--mu3)', marginTop: '10px' }}>Usually 1-3 minutes</div>
+                  </div>
+                ) : generatedVideo ? (
+                  <video src={generatedVideo} controls autoPlay loop style={{ width: '100%', display: 'block', borderRadius: '10px' }} />
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '40px', opacity: 0.3 }}>
+                    <div style={{ fontSize: '56px', marginBottom: '12px' }}>⊳</div>
+                    <div style={{ fontSize: '14px', color: 'var(--w)' }}>Your video appears here</div>
+                    <div style={{ fontSize: '12px', color: 'var(--mu3)', marginTop: '6px' }}>Upload image → Add prompt → Generate</div>
+                  </div>
+                )}
+              </div>
+              {generatedVideo && (
+                <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                  <a href={generatedVideo} download target="_blank" rel="noreferrer" className="ai-btn" style={{ flex: 1, textDecoration: 'none', textAlign: 'center', fontSize: '12px', padding: '10px' }}>⬇ Download</a>
+                  <button onClick={() => { const f = folders[0]; if (f) { const item = { id: Date.now().toString(), type: 'video', url: generatedVideo, name: 'Generated Video' }; const updated = folders.map(fo => fo.id === f.id ? { ...fo, items: [...fo.items, item] } : fo); setFolders(updated); localStorage.setItem('ai_storyboard_' + user?.id, JSON.stringify(updated)); } }} className="ghost-ai" style={{ padding: '10px 14px', fontSize: '12px' }}>📋 Add to Storyboard</button>
+                  <button onClick={() => setGeneratedVideo(null)} className="ghost-ai" style={{ padding: '10px 12px' }}>✕</button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* RIGHT — Video library */}
+          <div style={{ overflowY: 'auto' }}>
+            <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(0,212,255,0.4)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>My Videos ({videoLibrary.length})</span>
+            </div>
+
+            {/* Upload from outside */}
+            <input ref={uploadRef} type="file" accept="video/*,image/*" multiple style={{ display: 'none' }} onChange={async e => {
+              const files = Array.from(e.target.files || [])
+              const newItems = await Promise.all(files.map(async f => ({ id: Date.now().toString() + Math.random(), videoUrl: await readFile(f), prompt: f.name, model: 'uploaded', createdAt: new Date().toISOString() })))
+              const updated = [...newItems, ...videoLibrary]
+              setVideoLibrary(updated)
+              localStorage.setItem('ai_video_library_' + user?.id, JSON.stringify(updated.slice(0, 100)))
+            }} />
+            <button onClick={() => uploadRef.current?.click()} className="ghost-ai" style={{ width: '100%', marginBottom: '10px', fontSize: '11px', padding: '8px' }}>
+              ↑ Upload video or photo
+            </button>
+
+            {videoLibrary.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '30px', opacity: 0.3 }}>
+                <div style={{ fontSize: '32px', marginBottom: '8px' }}>🎬</div>
+                <div style={{ fontSize: '11px', color: 'var(--mu3)' }}>Generated videos appear here</div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '8px' }}>
+                {videoLibrary.map((vid: Record<string, unknown>, i) => (
+                  <div key={i} onClick={() => setSelectedLibraryVideo(String(vid.videoUrl))}
+                    style={{ background: 'var(--s1)', border: `0.5px solid ${selectedLibraryVideo === String(vid.videoUrl) ? 'rgba(0,212,255,0.4)' : 'rgba(0,212,255,0.1)'}`, borderRadius: '8px', overflow: 'hidden', cursor: 'pointer' }}>
+                    <video src={String(vid.videoUrl)} style={{ width: '100%', display: 'block', height: '90px', objectFit: 'cover' }} />
+                    <div style={{ padding: '6px 8px' }}>
+                      <div style={{ fontSize: '10px', color: 'var(--mu3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{String(vid.prompt || 'Video').slice(0, 30)}</div>
+                      <div style={{ fontSize: '9px', color: 'rgba(0,212,255,0.4)', fontFamily: "'DM Mono',monospace", marginTop: '2px' }}>{String(vid.model || 'uploaded')}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── STORYBOARD TAB ── */}
+      {tab === 'storyboard' && (
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '220px 1fr', gap: '16px', minHeight: 0 }}>
+          {/* Folder sidebar */}
+          <div style={{ overflowY: 'auto' }}>
+            <div className="card hi" style={{ marginBottom: '12px' }}>
+              <div className="ftitle">📁 My Folders</div>
+              <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
+                <input className="finp" placeholder="New folder..." value={newFolderName} onChange={e => setNewFolderName(e.target.value)} onKeyDown={e => e.key === 'Enter' && createFolder()} style={{ flex: 1, fontSize: '11px', padding: '7px 10px' }} />
+                <button onClick={createFolder} className="ai-btn" style={{ padding: '7px 10px', fontSize: '11px' }}>+</button>
+              </div>
+              {folders.length === 0 ? (
+                <div style={{ fontSize: '11px', color: 'var(--mu3)', textAlign: 'center', padding: '16px', opacity: 0.5 }}>No folders yet — create one above</div>
+              ) : (
+                folders.map(f => (
+                  <div key={f.id} onClick={() => setActiveFolderId(f.id)}
+                    style={{ padding: '8px 10px', borderRadius: '7px', cursor: 'pointer', marginBottom: '4px', border: `0.5px solid ${activeFolderId === f.id ? 'rgba(0,212,255,0.4)' : 'rgba(0,212,255,0.1)'}`, background: activeFolderId === f.id ? 'rgba(0,212,255,0.08)' : 'transparent' }}>
+                    <div style={{ fontSize: '12px', color: activeFolderId === f.id ? 'var(--cyan)' : 'var(--w)' }}>📁 {f.name}</div>
+                    <div style={{ fontSize: '10px', color: 'var(--mu3)', marginTop: '2px' }}>{f.items.length} items</div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Editor links */}
+            <div className="card">
+              <div className="ftitle">✂️ Open Editor</div>
+              {editors.map(e => (
+                <a key={e.name} href={e.url} target="_blank" rel="noreferrer"
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', borderRadius: '7px', textDecoration: 'none', marginBottom: '4px', border: '0.5px solid rgba(0,212,255,0.1)', background: 'var(--bg3)', color: 'var(--w)', fontSize: '12px', transition: 'all .15s' }}
+                  onMouseEnter={ev => (ev.currentTarget.style.borderColor = 'rgba(0,212,255,0.3)')}
+                  onMouseLeave={ev => (ev.currentTarget.style.borderColor = 'rgba(0,212,255,0.1)')}>
+                  <span>{e.icon}</span><span>{e.name}</span><span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--mu3)' }}>↗</span>
+                </a>
+              ))}
+            </div>
+          </div>
+
+          {/* Storyboard canvas */}
+          <div style={{ overflowY: 'auto' }}>
+            {!activeFolderId ? (
+              <div className="card" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', opacity: 0.4 }}>
+                <div>
+                  <div style={{ fontSize: '48px', marginBottom: '12px' }}>📋</div>
+                  <div style={{ fontSize: '16px', color: 'var(--w)', marginBottom: '8px' }}>Select or create a folder</div>
+                  <div style={{ fontSize: '12px', color: 'var(--mu3)' }}>Organize your videos and photos into project folders</div>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                  <div style={{ fontFamily: "'Syne',sans-serif", fontSize: '18px', fontWeight: 700, color: 'var(--w)' }}>📁 {activeFolder?.name}</div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input ref={uploadRef} type="file" accept="video/*,image/*" multiple style={{ display: 'none' }} onChange={handleStoryboardUpload} />
+                    <button onClick={() => uploadRef.current?.click()} className="ghost-ai" style={{ fontSize: '11px', padding: '7px 14px' }}>↑ Upload files</button>
+                  </div>
+                </div>
+
+                {/* Drop zone */}
+                <div onDragOver={e => { e.preventDefault(); setDroppingFile(true) }}
+                  onDragLeave={() => setDroppingFile(false)}
+                  onDrop={handleDrop}
+                  style={{ border: `2px dashed ${droppingFile ? 'rgba(0,212,255,0.6)' : 'rgba(0,212,255,0.2)'}`, borderRadius: '12px', padding: '20px', marginBottom: '16px', background: droppingFile ? 'rgba(0,212,255,0.05)' : 'transparent', textAlign: 'center', transition: 'all .2s' }}>
+                  <div style={{ fontSize: '11px', color: droppingFile ? 'var(--cyan)' : 'var(--mu3)', fontFamily: "'DM Mono',monospace" }}>
+                    {droppingFile ? 'Drop files here!' : 'Drag & drop videos or photos from anywhere'}
+                  </div>
+                </div>
+
+                {/* Items grid */}
+                {activeFolder?.items.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '40px', opacity: 0.3 }}>
+                    <div style={{ fontSize: '11px', color: 'var(--mu3)' }}>No files yet — drag and drop or upload above</div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px' }}>
+                    {activeFolder?.items.map((item: Record<string, unknown>) => (
+                      <div key={String(item.id)} style={{ background: 'var(--s1)', border: '0.5px solid rgba(0,212,255,0.15)', borderRadius: '10px', overflow: 'hidden' }}>
+                        {String(item.type) === 'video'
+                          ? <video src={String(item.url)} style={{ width: '100%', height: '100px', objectFit: 'cover', display: 'block' }} />
+                          : <img src={String(item.url)} alt={String(item.name)} style={{ width: '100%', height: '100px', objectFit: 'cover', display: 'block' }} />
+                        }
+                        <div style={{ padding: '6px 8px' }}>
+                          <div style={{ fontSize: '10px', color: 'var(--mu3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{String(item.name)}</div>
+                          <button onClick={() => {
+                            const updated = folders.map(f => f.id === activeFolderId ? { ...f, items: f.items.filter((it: Record<string, unknown>) => it.id !== item.id) } : f)
+                            setFolders(updated)
+                            localStorage.setItem('ai_storyboard_' + user?.id, JSON.stringify(updated))
+                          }} style={{ fontSize: '9px', color: '#ff6b6b', background: 'none', border: 'none', cursor: 'pointer', marginTop: '3px' }}>Remove</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+function EpisodeBuilder() {
+  const [view, setView] = useState<"list"|"build"|"preview">("list")
+  const [episodes, setEpisodes] = useState<EBEpisode[]>([])
+  const [current, setCurrent] = useState<EBEpisode | null>(null)
+  const [activeScene, setActiveScene] = useState(0)
+  const [previewEp, setPreviewEp] = useState<EBEpisode | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  function startNew() { const ep = ebNewEpisode(); setCurrent(ep); setActiveScene(0); setView("build") }
+  function openEpisode(ep: EBEpisode) { setCurrent(JSON.parse(JSON.stringify(ep))); setActiveScene(0); setView("build") }
+  function saveEpisode() {
+    if (!current) return
+    setEpisodes(prev => { const idx = prev.findIndex(e => e.id === current.id); if (idx >= 0) { const n = [...prev]; n[idx] = current; return n } return [...prev, current] })
+    setView("list")
+  }
+  function deleteEpisode(id: string) { setEpisodes(prev => prev.filter(e => e.id !== id)) }
+  function updateEp(field: keyof EBEpisode, val: unknown) { setCurrent(prev => prev ? ({ ...prev, [field]: val }) : null) }
+  function togglePlatform(p: string) { setCurrent(prev => prev ? ({ ...prev, platforms: prev.platforms.includes(p) ? prev.platforms.filter(x => x !== p) : [...prev.platforms, p] }) : null) }
+  function toggleRealism(id: string) { setCurrent(prev => prev ? ({ ...prev, realism: { ...prev.realism, [id]: !prev.realism[id] } }) : null) }
+  function addScene() { setCurrent(prev => { if (!prev) return null; const scenes = [...prev.scenes, ebNewScene(prev.scenes.length)]; setActiveScene(scenes.length - 1); return { ...prev, scenes } }) }
+  function updateScene(field: keyof EBScene, val: string) { setCurrent(prev => { if (!prev) return null; return { ...prev, scenes: prev.scenes.map((sc, i) => i === activeScene ? { ...sc, [field]: val } : sc) } }) }
+  function deleteScene(idx: number) { setCurrent(prev => { if (!prev) return null; const scenes = prev.scenes.filter((_, i) => i !== idx); setActiveScene(Math.max(0, idx - 1)); return { ...prev, scenes } }) }
+  function moveScene(idx: number, dir: number) {
+    setCurrent(prev => {
+      if (!prev) return null
+      const scenes = [...prev.scenes]; const swap = idx + dir
+      if (swap < 0 || swap >= scenes.length) return prev
+      ;[scenes[idx], scenes[swap]] = [scenes[swap], scenes[idx]]
+      setActiveScene(swap); return { ...prev, scenes }
+    })
+  }
+
+  function buildExportText(ep: EBEpisode) {
+    const sep = "=".repeat(60)
+    const dash = "-".repeat(60)
+    const header = "ENVI LEE CREATOR STUDIOS — EPISODE " + ep.number + ": \"" + ep.title.toUpperCase() + "\""
+    const meta = "VIBE: " + ep.vibe + " | RUNTIME: " + ep.runtime + " | PLATFORMS: " + ep.platforms.join(", ")
+    const synopsis = ep.synopsis ? ("\nSYNOPSIS\n" + ep.synopsis) : ""
+    const sceneBlocks = ep.scenes.map((sc, i) => {
+      const lines = [
+        "\nSCENE " + String(i+1).padStart(2,"0") + " — " + sc.title.toUpperCase(),
+        "Type: " + sc.tag,
+        sc.description ? ("\n" + sc.description) : "",
+        "\nAngle: " + sc.shotAngle + " | Location: " + sc.location + " | Camera: " + sc.cameraFeel,
+        "Lighting: " + sc.lighting + " | Wardrobe: " + sc.wardrobe + " | Key Visual: " + sc.keyVisual,
+        sc.aiPrompt ? ("\nAI PROMPT:\n" + sc.aiPrompt) : "",
+        sc.voiceover ? ("\nVOICEOVER: \"" + sc.voiceover + "\"") : "",
+        sc.platformNotes ? ("\nPLATFORM NOTES: " + sc.platformNotes) : "",
+        dash,
+      ]
+      return lines.join("\n")
+    })
+    const realism = EB_REALISM_RULES.map(r => (ep.realism[r.id] ? "✓" : "○") + " " + r.label)
+    return [header, sep, meta, synopsis, "\n" + sep + "\nSCENES\n" + sep, ...sceneBlocks, "\n" + sep + "\nREALISM CHECKLIST", ...realism].join("\n")
+  }
+
+  // ── STYLES ──
+  const ebS = {
+    input: { width:"100%", background:"#111", border:"1px solid rgba(212,168,67,0.2)", borderRadius:6, padding:"10px 14px", color:"#E2E2E2", fontSize:13, outline:"none", fontFamily:"inherit" } as React.CSSProperties,
+    textarea: { width:"100%", background:"#111", border:"1px solid rgba(212,168,67,0.2)", borderRadius:6, padding:"12px 14px", color:"#E2E2E2", fontSize:13, outline:"none", fontFamily:"'DM Mono',monospace", resize:"vertical" as const, lineHeight:1.7 } as React.CSSProperties,
+    select: { width:"100%", background:"#111", border:"1px solid rgba(212,168,67,0.2)", borderRadius:6, padding:"10px 14px", color:"#E2E2E2", fontSize:13, outline:"none", fontFamily:"inherit", cursor:"pointer" } as React.CSSProperties,
+    label: { fontSize:10, letterSpacing:"0.28em", textTransform:"uppercase" as const, color:"#D4A843", display:"block", marginBottom:6, fontWeight:500 },
+    card: { background:"#111", border:"1px solid rgba(212,168,67,0.18)", borderRadius:10, padding:24, marginBottom:16 } as React.CSSProperties,
+  }
+
+  // ── LIST VIEW ──
+  if (view === "list") return (
+    <div style={{ minHeight:"100vh", background:"#0D0D0D", color:"#E2E2E2", fontFamily:"'DM Sans',sans-serif" }}>
+      <div style={{ padding:"40px 40px 32px", borderBottom:"1px solid rgba(212,168,67,0.18)", display:"flex", justifyContent:"space-between", alignItems:"flex-end", flexWrap:"wrap" as const, gap:16 }}>
+        <div>
+          <span style={ebS.label}>Envi Lee Creator Studios</span>
+          <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:38, fontWeight:300, lineHeight:1 }}>
+            Episode <span style={{ fontStyle:"italic", color:"#D4A843" }}>Lab™</span>
+          </div>
+          <div style={{ fontSize:13, color:"#9690A4", marginTop:8 }}>Build cinematic scene briefs for your AI twin mini show</div>
+        </div>
+        <button onClick={startNew} style={{ background:"#7C3F8C", color:"#fff", border:"none", borderRadius:6, padding:"10px 20px", fontSize:13, fontWeight:600, cursor:"pointer" }}>+ New Episode</button>
+      </div>
+      <div style={{ padding:"32px 40px" }}>
+        {episodes.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"80px 0", color:"#666" }}>
+            <div style={{ fontFamily:"Georgia,serif", fontSize:52, marginBottom:16, opacity:0.15 }}>🎬</div>
+            <div style={{ fontFamily:"Georgia,serif", fontStyle:"italic", fontSize:22, marginBottom:8, color:"#9690A4" }}>No episodes yet</div>
+            <div style={{ fontSize:13, marginBottom:24 }}>Create your first episode to start building your mini show</div>
+            <button onClick={startNew} style={{ background:"#7C3F8C", color:"#fff", border:"none", borderRadius:6, padding:"10px 20px", fontSize:13, fontWeight:600, cursor:"pointer" }}>+ Build Episode 01</button>
+          </div>
+        ) : (
+          <div style={{ display:"flex", flexDirection:"column" as const, gap:12 }}>
+            {episodes.map(ep => (
+              <div key={ep.id} style={{ background:"#111", border:"1px solid rgba(212,168,67,0.18)", borderRadius:10, padding:"22px 28px", display:"flex", alignItems:"center", gap:20, flexWrap:"wrap" as const }}>
+                <div style={{ fontFamily:"Georgia,serif", fontSize:42, color:"rgba(212,168,67,0.15)", fontWeight:300, lineHeight:1, minWidth:60 }}>{(ep.number||"?").padStart(2,"0")}</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:18, fontFamily:"Georgia,serif" }}>{ep.title||"Untitled Episode"}</div>
+                  <div style={{ fontSize:12, color:"#9690A4", display:"flex", gap:12, flexWrap:"wrap" as const, marginTop:4 }}>
+                    <span>{ep.vibe}</span><span>·</span><span>{ep.scenes.length} scenes</span><span>·</span>
+                    <span>{ep.platforms.slice(0,2).join(", ")}{ep.platforms.length>2?` +${ep.platforms.length-2}`:""}</span>
+                    <span>·</span><span>{ep.createdAt}</span>
+                  </div>
+                </div>
+                <div style={{ display:"flex", gap:8 }}>
+                  <button onClick={() => { setPreviewEp(ep); setView("preview") }} style={{ background:"transparent", color:"#D4A843", border:"1px solid rgba(212,168,67,0.18)", borderRadius:6, padding:"9px 18px", fontSize:12, cursor:"pointer" }}>Preview</button>
+                  <button onClick={() => openEpisode(ep)} style={{ background:"#7C3F8C", color:"#fff", border:"none", borderRadius:6, padding:"10px 20px", fontSize:13, fontWeight:600, cursor:"pointer" }}>Edit</button>
+                  <button onClick={() => deleteEpisode(ep.id)} style={{ background:"transparent", color:"#cc6666", border:"1px solid #cc444433", borderRadius:6, padding:"9px 14px", fontSize:12, cursor:"pointer" }}>✕</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  // ── PREVIEW VIEW ──
+  if (view === "preview" && previewEp) {
+    const ep = previewEp
+    const exportTxt = buildExportText(ep)
+    return (
+      <div style={{ minHeight:"100vh", background:"#0D0D0D", color:"#E2E2E2", fontFamily:"'DM Sans',sans-serif" }}>
+        <div style={{ padding:"32px 40px 24px", borderBottom:"1px solid rgba(212,168,67,0.18)", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap" as const, gap:12 }}>
+          <div>
+            <div style={{ fontSize:10, letterSpacing:"0.3em", textTransform:"uppercase" as const, color:"#D4A843", marginBottom:6 }}>Episode Brief Preview</div>
+            <div style={{ fontFamily:"Georgia,serif", fontSize:26, fontWeight:300 }}>Episode {ep.number} — <em style={{ color:"#D4A843" }}>"{ep.title}"</em></div>
+          </div>
+          <div style={{ display:"flex", gap:10 }}>
+            <button onClick={() => { navigator.clipboard?.writeText(exportTxt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) }) }} style={{ background:"transparent", color:"#D4A843", border:"1px solid rgba(212,168,67,0.18)", borderRadius:6, padding:"9px 18px", fontSize:12, cursor:"pointer" }}>
+              {copied ? "✓ Copied!" : "Copy All as Text"}
+            </button>
+            <button onClick={() => setView("list")} style={{ background:"#7C3F8C", color:"#fff", border:"none", borderRadius:6, padding:"10px 20px", fontSize:13, fontWeight:600, cursor:"pointer" }}>← Back</button>
+          </div>
+        </div>
+        <div style={{ padding:"36px 40px", maxWidth:900 }}>
+          <div style={{ display:"flex", gap:24, flexWrap:"wrap" as const, marginBottom:28 }}>
+            {[["Vibe",ep.vibe],["Runtime",ep.runtime],["Platforms",ep.platforms.join(", ")||"—"]].map(([l,v]) => (
+              <div key={l}><div style={{ fontSize:9, letterSpacing:"0.3em", textTransform:"uppercase" as const, color:"#666", marginBottom:3 }}>{l}</div><div style={{ fontSize:13 }}>{v||"—"}</div></div>
+            ))}
+          </div>
+          {ep.synopsis && (
+            <div style={{ ...ebS.card, borderLeft:"3px solid #7C3F8C", marginBottom:28 }}>
+              <div style={ebS.label}>Synopsis</div>
+              <div style={{ fontFamily:"Georgia,serif", fontStyle:"italic", fontSize:17, color:"#D0D0D0", lineHeight:1.6 }}>{ep.synopsis}</div>
+            </div>
+          )}
+          {ep.scenes.map((sc, i) => (
+            <div key={sc.id} style={{ ...ebS.card, borderLeft:"3px solid rgba(212,168,67,0.3)", marginBottom:20 }}>
+              <div style={{ display:"flex", alignItems:"baseline", gap:14, marginBottom:12 }}>
+                <span style={{ fontFamily:"Georgia,serif", fontSize:36, color:"rgba(212,168,67,0.18)", lineHeight:1 }}>{String(i+1).padStart(2,"0")}</span>
+                <div>
+                  <div style={{ fontSize:18, fontFamily:"Georgia,serif" }}>{sc.title||"Untitled Scene"}</div>
+                  <span style={{ fontSize:10, letterSpacing:"0.2em", textTransform:"uppercase" as const, color:"#9690A4", border:"1px solid rgba(212,168,67,0.18)", padding:"2px 8px", borderRadius:3 }}>{sc.tag}</span>
+                </div>
+              </div>
+              {sc.description && <p style={{ fontSize:13.5, color:"#B8B8B8", lineHeight:1.75, marginBottom:16 }}>{sc.description}</p>}
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))", gap:1, background:"rgba(212,168,67,0.18)", border:"1px solid rgba(212,168,67,0.18)", marginBottom:16 }}>
+                {[["Angle",sc.shotAngle],["Location",sc.location],["Camera",sc.cameraFeel],["Lighting",sc.lighting],["Wardrobe",sc.wardrobe],["Key Visual",sc.keyVisual]].filter(([,v])=>v).map(([l,v]) => (
+                  <div key={l} style={{ background:"#161616", padding:"10px 14px" }}>
+                    <div style={{ fontSize:9, letterSpacing:"0.2em", textTransform:"uppercase" as const, color:"#666", marginBottom:3 }}>{l}</div>
+                    <div style={{ fontSize:12, lineHeight:1.4 }}>{v}</div>
+                  </div>
+                ))}
+              </div>
+              {sc.aiPrompt && (
+                <div style={{ background:"#0A0A0A", border:"1px solid rgba(212,168,67,0.2)", borderLeft:"3px solid #D4A843", padding:"16px 18px", marginBottom:12, borderRadius:4 }}>
+                  <div style={{ fontSize:9, letterSpacing:"0.28em", textTransform:"uppercase" as const, color:"#D4A843", marginBottom:8 }}>AI Generation Prompt</div>
+                  <div style={{ fontFamily:"'DM Mono',monospace", fontSize:12, color:"#C0C8B0", lineHeight:1.8, whiteSpace:"pre-wrap" as const }}>{sc.aiPrompt}</div>
+                  <button onClick={() => navigator.clipboard?.writeText(sc.aiPrompt)} style={{ background:"transparent", color:"#D4A843", border:"1px solid rgba(212,168,67,0.18)", borderRadius:6, padding:"4px 12px", fontSize:10, cursor:"pointer", marginTop:10 }}>Copy Prompt</button>
+                </div>
+              )}
+              {sc.voiceover && (
+                <div style={{ background:"rgba(124,63,140,0.08)", border:"1px solid rgba(124,63,140,0.25)", padding:"12px 16px", borderRadius:4, marginBottom:8 }}>
+                  <div style={{ fontSize:9, letterSpacing:"0.25em", textTransform:"uppercase" as const, color:"#9690A4", marginBottom:6 }}>Voiceover / Caption</div>
+                  <div style={{ fontFamily:"Georgia,serif", fontStyle:"italic", fontSize:17, color:"#D0C0E0" }}>"{sc.voiceover}"</div>
+                </div>
+              )}
+              {sc.platformNotes && <div style={{ marginTop:10, fontSize:12, color:"#666", fontStyle:"italic" }}>Platform notes: {sc.platformNotes}</div>}
+            </div>
+          ))}
+          <div style={ebS.card}>
+            <div style={ebS.label}>Realism Checklist</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+              {EB_REALISM_RULES.map(r => (
+                <div key={r.id} style={{ display:"flex", gap:10, alignItems:"center" }}>
+                  <span style={{ color:ep.realism[r.id]?"#7FC8A9":"#666", fontSize:14 }}>{ep.realism[r.id]?"✓":"○"}</span>
+                  <span style={{ fontSize:12, color:ep.realism[r.id]?"#E2E2E2":"#666" }}>{r.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          {ep.platforms.length > 0 && (
+            <div style={ebS.card}>
+              <div style={ebS.label}>Platform Repurpose Guide</div>
+              <div style={{ display:"flex", flexDirection:"column" as const, gap:12 }}>
+                {ep.platforms.map(p => (
+                  <div key={p} style={{ display:"grid", gridTemplateColumns:"180px 1fr", gap:16, paddingBottom:12, borderBottom:"1px solid rgba(212,168,67,0.18)" }}>
+                    <div style={{ fontSize:13, fontWeight:500 }}>{p}</div>
+                    <div style={{ fontSize:12, color:"#9690A4", lineHeight:1.6 }}>{EB_PLATFORM_GUIDES[p]||"Use full episode with platform-specific caption."}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // ── BUILD VIEW ──
+  if (!current) return null
+  const scene = current.scenes[activeScene]
+  return (
+    <div style={{ minHeight:"100vh", background:"#0D0D0D", color:"#E2E2E2", fontFamily:"'DM Sans',sans-serif", display:"grid", gridTemplateColumns:"260px 1fr" }}>
+      {/* Sidebar */}
+      <div style={{ background:"#111", borderRight:"1px solid rgba(212,168,67,0.18)", display:"flex", flexDirection:"column" as const, position:"sticky" as const, top:0, height:"100vh", overflow:"hidden" }}>
+        <div style={{ padding:"24px 20px 16px", borderBottom:"1px solid rgba(212,168,67,0.18)" }}>
+          <button onClick={() => setView("list")} style={{ background:"transparent", color:"#D4A843", border:"1px solid rgba(212,168,67,0.18)", borderRadius:6, padding:"5px 12px", fontSize:11, cursor:"pointer", marginBottom:14 }}>← Episodes</button>
+          <div style={{ fontSize:11, color:"#D4A843", letterSpacing:"0.25em", textTransform:"uppercase" as const, marginBottom:4 }}>Episode {current.number||"—"}</div>
+          <div style={{ fontSize:16, fontFamily:"Georgia,serif", lineHeight:1.2 }}>{current.title||"Untitled"}</div>
+        </div>
+        <div style={{ flex:1, overflow:"auto", padding:"16px 12px" }}>
+          <div style={{ fontSize:10, letterSpacing:"0.25em", textTransform:"uppercase" as const, color:"#666", marginBottom:10, paddingLeft:8 }}>Scenes</div>
+          {current.scenes.map((sc, i) => (
+            <div key={sc.id} onClick={() => setActiveScene(i)}
+              style={{ padding:"10px 12px", borderRadius:6, cursor:"pointer", marginBottom:4, background:i===activeScene?"rgba(124,63,140,0.2)":"transparent", border:`1px solid ${i===activeScene?"#7C3F8C":"transparent"}`, transition:"all 0.15s" }}>
+              <div style={{ fontSize:10, color:i===activeScene?"#D4A843":"#666", letterSpacing:"0.15em", marginBottom:2 }}>SCENE {String(i+1).padStart(2,"0")}</div>
+              <div style={{ fontSize:12, color:i===activeScene?"#E2E2E2":"#999", lineHeight:1.3 }}>{sc.title||"Untitled Scene"}</div>
+              <div style={{ fontSize:10, color:"#666", marginTop:2 }}>{sc.tag}</div>
+              <div style={{ display:"flex", gap:4, marginTop:6 }}>
+                {i>0 && <button onClick={e=>{e.stopPropagation();moveScene(i,-1)}} style={{ fontSize:10, background:"none", border:"1px solid rgba(212,168,67,0.18)", color:"#666", borderRadius:3, padding:"1px 6px", cursor:"pointer" }}>↑</button>}
+                {i<current.scenes.length-1 && <button onClick={e=>{e.stopPropagation();moveScene(i,1)}} style={{ fontSize:10, background:"none", border:"1px solid rgba(212,168,67,0.18)", color:"#666", borderRadius:3, padding:"1px 6px", cursor:"pointer" }}>↓</button>}
+                {current.scenes.length>1 && <button onClick={e=>{e.stopPropagation();deleteScene(i)}} style={{ fontSize:10, background:"none", border:"1px solid #cc444433", color:"#cc6666", borderRadius:3, padding:"1px 6px", cursor:"pointer", marginLeft:"auto" }}>✕</button>}
+              </div>
+            </div>
+          ))}
+          <button onClick={addScene} style={{ width:"100%", marginTop:8, padding:9, background:"rgba(212,168,67,0.08)", border:"1px dashed rgba(212,168,67,0.2)", borderRadius:6, color:"#D4A843", fontSize:12, cursor:"pointer" }}>+ Add Scene</button>
+        </div>
+        <div style={{ padding:"16px 12px", borderTop:"1px solid rgba(212,168,67,0.18)" }}>
+          <button onClick={saveEpisode} style={{ background:"#7C3F8C", color:"#fff", border:"none", borderRadius:6, padding:12, fontSize:13, fontWeight:600, cursor:"pointer", width:"100%" }}>Save Episode</button>
+        </div>
+      </div>
+
+      {/* Main */}
+      <div style={{ overflow:"auto", padding:"36px 40px" }}>
+        {/* Episode Details Panel */}
+        <EBDetailsPanel ep={current} onUpdate={updateEp} onTogglePlatform={togglePlatform} onToggleRealism={toggleRealism} ebS={ebS} />
+
+        {/* Scene Builder */}
+        {scene && (
+          <div style={{ marginTop:24 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:20 }}>
+              <div style={{ fontFamily:"Georgia,serif", fontSize:32, color:"rgba(212,168,67,0.2)", fontWeight:300 }}>{String(activeScene+1).padStart(2,"0")}</div>
+              <div>
+                <div style={ebS.label}>Scene Builder</div>
+                <div style={{ fontSize:14, color:"#9690A4" }}>Fill out each field — the AI prompt is what you paste into Midjourney, Runway, or Higgsfield</div>
+              </div>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16 }}>
+              <div><label style={ebS.label}>Scene Title</label><input style={ebS.input} value={scene.title} onChange={e=>updateScene("title",e.target.value)} placeholder='e.g. "The Door. The Silence."' /></div>
+              <div><label style={ebS.label}>Scene Type / Tag</label><select style={ebS.select} value={scene.tag} onChange={e=>updateScene("tag",e.target.value)}>{EB_SCENE_TAGS.map(t=><option key={t}>{t}</option>)}</select></div>
+            </div>
+            <div style={{ marginBottom:16 }}>
+              <label style={ebS.label}>Scene Description</label>
+              <textarea style={{ ...ebS.textarea, fontFamily:"inherit", minHeight:100 }} value={scene.description} onChange={e=>updateScene("description",e.target.value)} placeholder="What is happening? Who is where, what are they doing, what is the emotional beat?" />
+            </div>
+            <div style={{ ...ebS.card, marginBottom:16 }}>
+              <div style={{ ...ebS.label, marginBottom:16 }}>Shot Details</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:12 }}>
+                <div><label style={ebS.label}>Camera Angle</label><select style={ebS.select} value={scene.shotAngle} onChange={e=>updateScene("shotAngle",e.target.value)}><option value="">Select angle...</option>{EB_SHOT_ANGLES.map(a=><option key={a}>{a}</option>)}</select></div>
+                <div><label style={ebS.label}>Time of Day / Lighting</label><select style={ebS.select} value={scene.lighting} onChange={e=>updateScene("lighting",e.target.value)}><option value="">Select lighting...</option>{EB_TIME_OF_DAY.map(t=><option key={t}>{t}</option>)}</select></div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:12 }}>
+                <div><label style={ebS.label}>Location</label><input style={ebS.input} value={scene.location} onChange={e=>updateScene("location",e.target.value)} placeholder="e.g. AI Lab — dark room, rows of glowing desks" /></div>
+                <div><label style={ebS.label}>Camera Feel</label><input style={ebS.input} value={scene.cameraFeel} onChange={e=>updateScene("cameraFeel",e.target.value)} placeholder="e.g. Tracking shot, handheld, slightly off-center" /></div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+                <div><label style={ebS.label}>Wardrobe</label><input style={ebS.input} value={scene.wardrobe} onChange={e=>updateScene("wardrobe",e.target.value)} placeholder="e.g. All black structured blazer, gold jewelry" /></div>
+                <div><label style={ebS.label}>Key Visual Detail</label><input style={ebS.input} value={scene.keyVisual} onChange={e=>updateScene("keyVisual",e.target.value)} placeholder="e.g. Holograms flicker as she appears in doorway" /></div>
+              </div>
+            </div>
+            <div style={{ marginBottom:16 }}>
+              <label style={ebS.label}>AI Generation Prompt</label>
+              <div style={{ fontSize:11, color:"#9690A4", marginBottom:8 }}>Paste this directly into Midjourney, Runway, Higgsfield, or whichever tool you use</div>
+              <textarea style={{ ...ebS.textarea, minHeight:140, borderColor:"rgba(212,168,67,0.4)", borderLeftWidth:3 }} value={scene.aiPrompt} onChange={e=>updateScene("aiPrompt",e.target.value)} placeholder="Cinematic shot, [angle], [location], [character description], [action], [lighting], slight film grain, off-center framing..." />
+              {scene.aiPrompt && <button onClick={()=>navigator.clipboard?.writeText(scene.aiPrompt)} style={{ background:"transparent", color:"#D4A843", border:"1px solid rgba(212,168,67,0.18)", borderRadius:6, padding:"5px 14px", fontSize:11, cursor:"pointer", marginTop:8 }}>Copy Prompt</button>}
+            </div>
+            <div style={{ marginBottom:16 }}>
+              <label style={ebS.label}>Voiceover / Caption Line</label>
+              <input style={{ ...ebS.input, fontFamily:"Georgia,serif", fontStyle:"italic", fontSize:15, padding:"12px 16px" }} value={scene.voiceover} onChange={e=>updateScene("voiceover",e.target.value)} placeholder="She did not have to say a word. The room already answered." />
+            </div>
+            <div style={{ marginBottom:32 }}>
+              <label style={ebS.label}>Platform Cut Notes</label>
+              <textarea style={{ ...ebS.textarea, fontFamily:"inherit", minHeight:70 }} value={scene.platformNotes} onChange={e=>updateScene("platformNotes",e.target.value)} placeholder="e.g. Use this scene as the ONLY scene for X/Twitter post. For TikTok, pair with Scene 01 as the hook." />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function EBDetailsPanel({ ep, onUpdate, onTogglePlatform, onToggleRealism, ebS }: {
+  ep: EBEpisode; onUpdate: (f: keyof EBEpisode, v: unknown) => void
+  onTogglePlatform: (p: string) => void; onToggleRealism: (id: string) => void
+  ebS: Record<string, React.CSSProperties | Record<string, unknown>>
+}) {
+  const [open, setOpen] = useState(true)
+  return (
+    <div style={{ background:"#111", border:"1px solid rgba(212,168,67,0.18)", borderRadius:10, marginBottom:4 }}>
+      <button onClick={()=>setOpen(o=>!o)} style={{ width:"100%", background:"none", border:"none", padding:"18px 24px", display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer", color:"#E2E2E2" }}>
+        <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+          <span style={{ fontSize:11, letterSpacing:"0.25em", textTransform:"uppercase" as const, color:"#D4A843" }}>Episode Details</span>
+          {ep.title && <span style={{ fontSize:13, color:"#9690A4" }}>{ep.title}</span>}
+        </div>
+        <span style={{ color:"#666", fontSize:16 }}>{open?"▲":"▼"}</span>
+      </button>
+      {open && (
+        <div style={{ padding:"0 24px 24px" }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:14 }}>
+            <div><label style={ebS.label as React.CSSProperties}>Episode Number</label><input style={ebS.input as React.CSSProperties} value={ep.number} onChange={e=>onUpdate("number",e.target.value)} placeholder="01" /></div>
+            <div><label style={ebS.label as React.CSSProperties}>Episode Title</label><input style={ebS.input as React.CSSProperties} value={ep.title} onChange={e=>onUpdate("title",e.target.value)} placeholder='e.g. "She Arrived"' /></div>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:14 }}>
+            <div><label style={ebS.label as React.CSSProperties}>Vibe / Aesthetic</label><select style={ebS.select as React.CSSProperties} value={ep.vibe} onChange={e=>onUpdate("vibe",e.target.value)}>{EB_VIBES.map(v=><option key={v}>{v}</option>)}</select></div>
+            <div><label style={ebS.label as React.CSSProperties}>Runtime Target</label><input style={ebS.input as React.CSSProperties} value={ep.runtime} onChange={e=>onUpdate("runtime",e.target.value)} placeholder="e.g. 60-90 sec Reel / 3-5 min YouTube" /></div>
+          </div>
+          <div style={{ marginBottom:14 }}>
+            <label style={ebS.label as React.CSSProperties}>Episode Synopsis</label>
+            <textarea style={{ ...ebS.textarea as React.CSSProperties, fontFamily:"Georgia,serif", fontStyle:"italic", minHeight:70 }} value={ep.synopsis} onChange={e=>onUpdate("synopsis",e.target.value)} placeholder="One paragraph. What is this episode about? What does the audience feel by the end?" />
+          </div>
+          <div style={{ marginBottom:18 }}>
+            <label style={ebS.label as React.CSSProperties}>Platforms</label>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" as const }}>
+              {EB_PLATFORMS.map(p => (
+                <button key={p} onClick={()=>onTogglePlatform(p)} style={{ padding:"5px 14px", borderRadius:20, fontSize:11, fontWeight:500, cursor:"pointer", border:`1px solid ${ep.platforms.includes(p)?"#7C3F8C":"rgba(212,168,67,0.18)"}`, background:ep.platforms.includes(p)?"rgba(124,63,140,0.2)":"transparent", color:ep.platforms.includes(p)?"#fff":"#666", transition:"all 0.15s" }}>{p}</button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label style={ebS.label as React.CSSProperties}>Realism Rules Checklist</label>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+              {EB_REALISM_RULES.map(r => (
+                <label key={r.id} style={{ display:"flex", gap:10, alignItems:"center", cursor:"pointer" }}>
+                  <div onClick={()=>onToggleRealism(r.id)} style={{ width:16, height:16, borderRadius:3, border:`1px solid ${ep.realism[r.id]?"#7C3F8C":"rgba(212,168,67,0.18)"}`, background:ep.realism[r.id]?"#7C3F8C":"transparent", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", transition:"all 0.15s" }}>
+                    {ep.realism[r.id] && <span style={{ color:"#fff", fontSize:10 }}>✓</span>}
+                  </div>
+                  <span style={{ fontSize:12, color:"#9690A4", lineHeight:1.4 }}>{r.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+// ── SCENE STILL GENERATOR ─────────────────────────────────────
+function SceneStillGenerator() {
+  const [episodes, setEpisodes] = useState<Record<string, unknown>[]>([])
+  const [selectedEp, setSelectedEp] = useState<Record<string, unknown> | null>(null)
+  const [charRef, setCharRef] = useState('')
+  const [model, setModel] = useState('fal-ai/flux/dev')
+  const [generating, setGenerating] = useState<string | null>(null)
+  const [stills, setStills] = useState<Record<string, string>>({})
+  const fileRef = useRef<HTMLInputElement>(null)
+  const { user } = useUser()
+
+  useEffect(() => {
+    const saved = JSON.parse(localStorage.getItem(`eb_episodes_${user?.id}`) || '[]')
+    setEpisodes(saved)
+  }, [user?.id])
+
+  const models = [
+    { id: 'fal-ai/flux/dev', label: 'Flux Dev (fal.ai)', desc: 'High quality, best for realism' },
+    { id: 'fal-ai/flux-pro', label: 'Flux Pro (fal.ai)', desc: 'Professional quality' },
+    { id: 'fal-ai/stable-diffusion-v3-medium', label: 'SD3 Medium (fal.ai)', desc: 'Fast generation' },
+  ]
+
+  function handleCharUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    if (!f) return
+    const reader = new FileReader()
+    reader.onload = ev => setCharRef(ev.target?.result as string)
+    reader.readAsDataURL(f)
+  }
+
+  async function generateStill(scene: Record<string, string>, sceneId: string) {
+    setGenerating(sceneId)
+    try {
+      const prompt = scene.aiPrompt ||
+        `${scene.description || 'Cinematic scene'}, ${scene.shotAngle || 'eye level'}, ${scene.location || 'interior'}, ${scene.wardrobe || 'stylish outfit'}, ${scene.lighting || 'cinematic lighting'}, ultra realistic, Sony A7R IV 85mm f1.4, RAW photo, no filter, ${scene.keyVisual || ''}`
+
+      const res = await fetch('/api/generate/image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, style: 'cinematic', size: 'landscape', referenceImage: charRef || undefined }),
+      })
+      const data = await res.json()
+      if (data.imageUrl) {
+        setStills(prev => ({ ...prev, [sceneId]: data.imageUrl }))
+        // Save to localStorage for use in video generator
+        const savedStills = JSON.parse(localStorage.getItem(`scene_stills_${user?.id}`) || '{}')
+        savedStills[sceneId] = { imageUrl: data.imageUrl, sceneTitle: scene.title, prompt }
+        localStorage.setItem(`scene_stills_${user?.id}`, JSON.stringify(savedStills))
+      }
+    } catch (e) { console.error(e) }
+    setGenerating(null)
+  }
+
+  async function generateAllStills() {
+    if (!selectedEp) return
+    const scenes = (selectedEp.scenes as Record<string, string>[]) || []
+    for (const scene of scenes) {
+      await generateStill(scene, scene.id)
+      await new Promise(r => setTimeout(r, 1500))
+    }
+  }
+
+  return (
+    <div className="pg-in">
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(168,85,247,0.5)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>Pipeline Step 1</div>
+        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '32px', fontWeight: 400, color: 'var(--w)', marginBottom: '4px' }}>
+          Scene Still <span style={{ background: 'var(--ai-grad)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Generator</span>
+        </div>
+        <div style={{ fontSize: '13px', color: 'var(--mu3)' }}>Pull scenes directly from Episode Builder → generate character stills with exact angles, wardrobe, and lighting locked in.</div>
+      </div>
+
+      {/* Pipeline flow */}
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap' as const }}>
+        {[['🎬 Episode Builder', true], ['→', false], ['🖼️ Scene Stills', true], ['→', false], ['🎥 Scene Videos', false], ['→', false], ['🎙️ Voice + Lip Sync', false], ['→', false], ['🎞️ Episode Editor', false]].map(([label, active], i) => (
+          label === '→' ? <span key={i} style={{ color: 'var(--mu2)', fontSize: '16px' }}>→</span> :
+          <span key={i} style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontFamily: "'DM Mono',monospace", background: active ? 'var(--ai-grad)' : 'transparent', color: active ? '#000' : 'var(--mu3)', border: active ? 'none' : '0.5px solid rgba(0,207,255,0.15)' }}>{label as string}</span>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '20px' }}>
+        {/* Left config */}
+        <div>
+          <div className="card hi" style={{ marginBottom: '14px' }}>
+            <div className="ftitle">Setup</div>
+            <F label="Select Episode">
+              <select className="fsel" value={selectedEp ? (selectedEp.id as string) : ''} onChange={e => setSelectedEp(episodes.find(ep => ep.id === e.target.value) || null)}>
+                <option value="">Choose an episode...</option>
+                {episodes.map((ep: Record<string, unknown>) => (
+                  <option key={ep.id as string} value={ep.id as string}>Ep {ep.number as string}: {ep.title as string}</option>
+                ))}
+              </select>
+            </F>
+            {episodes.length === 0 && (
+              <div style={{ fontSize: '11px', color: 'var(--mu3)', padding: '8px', background: 'var(--bg3)', borderRadius: '6px', marginTop: '8px' }}>
+                No episodes found. Build one in Episode Builder™ first.
+              </div>
+            )}
+            <F label="Character Reference Photo (optional)">
+              <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleCharUpload} />
+              <div onClick={() => fileRef.current?.click()} style={{ border: '1.5px dashed rgba(0,207,255,0.2)', borderRadius: '8px', padding: '14px', textAlign: 'center', cursor: 'pointer', background: 'var(--bg3)' }}>
+                {charRef ? <img src={charRef} alt="ref" style={{ width: '100%', borderRadius: '6px', maxHeight: '120px', objectFit: 'cover' }} /> : <div style={{ fontSize: '12px', color: 'var(--mu3)' }}>Upload your AI twin photo to lock her face</div>}
+              </div>
+            </F>
+            <F label="Image Model">
+              <select className="fsel" value={model} onChange={e => setModel(e.target.value)}>
+                {models.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+              </select>
+              <div style={{ fontSize: '11px', color: 'var(--mu3)', marginTop: '4px' }}>{models.find(m => m.id === model)?.desc}</div>
+            </F>
+          </div>
+
+          {selectedEp && (
+            <button className="ai-btn" onClick={generateAllStills} disabled={!!generating} style={{ width: '100%', fontSize: '13px', marginBottom: '10px' }}>
+              {generating ? `🖼️ Generating scene ${generating}...` : `🖼️ Generate All ${(selectedEp.scenes as unknown[])?.length || 0} Scene Stills`}
+            </button>
+          )}
+
+          <div className="card" style={{ fontSize: '12px', color: 'var(--mu3)', lineHeight: '1.7' }}>
+            <div className="ftitle">How It Works</div>
+            {['Pick your episode from Episode Builder™', 'Upload your AI twin as character reference', 'AI pulls angle, wardrobe, lighting from each scene', 'Generates one still per scene automatically', 'Stills save and carry over to Scene Video Generator'].map(tip => (
+              <div key={tip} style={{ display: 'flex', gap: '7px', marginBottom: '5px', fontSize: '11px' }}>
+                <span style={{ color: 'var(--cyan)', flexShrink: 0 }}>✦</span>{tip}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Right - scene stills grid */}
+        <div>
+          {!selectedEp ? (
+            <div className="card" style={{ textAlign: 'center', padding: '60px 20px', opacity: 0.5 }}>
+              <div style={{ fontSize: '48px', marginBottom: '12px', opacity: 0.3 }}>🖼️</div>
+              <div style={{ fontSize: '13px', color: 'var(--mu3)' }}>Select an episode to generate scene stills</div>
+            </div>
+          ) : (
+            <div>
+              <div style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'rgba(0,207,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '14px' }}>
+                {(selectedEp.title as string)} — {(selectedEp.scenes as unknown[])?.length || 0} Scenes
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
+                {((selectedEp.scenes as Record<string, string>[]) || []).map((scene, i) => (
+                  <div key={scene.id} style={{ background: 'var(--s1)', border: '0.5px solid rgba(0,207,255,0.15)', borderRadius: '12px', overflow: 'hidden' }}>
+                    <div style={{ height: '160px', position: 'relative' as const, background: 'var(--bg3)' }}>
+                      {stills[scene.id] ? (
+                        <img src={stills[scene.id]} alt={scene.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' as const }}>
+                          {generating === scene.id ? (
+                            <div style={{ textAlign: 'center' }}>
+                              <div className="lbar" style={{ width: '60px', margin: '0 auto 8px' }}><div className="lbar-fill" /></div>
+                              <div style={{ fontSize: '10px', color: 'var(--cyan)' }}>Generating...</div>
+                            </div>
+                          ) : (
+                            <div style={{ textAlign: 'center', opacity: 0.3 }}>
+                              <div style={{ fontSize: '28px', marginBottom: '4px' }}>🖼️</div>
+                              <div style={{ fontSize: '10px', color: 'var(--mu3)' }}>Scene {i + 1}</div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {stills[scene.id] && (
+                        <div style={{ position: 'absolute', top: '6px', right: '6px', display: 'flex', gap: '4px' }}>
+                          <a href={stills[scene.id]} download style={{ padding: '3px 8px', borderRadius: '4px', background: 'rgba(0,0,0,0.85)', color: 'var(--cyan)', fontSize: '10px', textDecoration: 'none' }}>⬇</a>
+                          <button onClick={() => generateStill(scene, scene.id)} disabled={!!generating} style={{ padding: '3px 8px', borderRadius: '4px', background: 'rgba(0,0,0,0.85)', color: 'var(--orange)', fontSize: '10px', border: 'none', cursor: 'pointer' }}>↺</button>
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ padding: '10px 12px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--w)', marginBottom: '3px' }}>{scene.title || `Scene ${i + 1}`}</div>
+                      <div style={{ fontSize: '10px', color: 'var(--mu3)', marginBottom: '8px' }}>{scene.tag} • {scene.shotAngle || 'angle TBD'}</div>
+                      {!stills[scene.id] && (
+                        <button onClick={() => generateStill(scene, scene.id)} disabled={!!generating} className="ghost-ai" style={{ width: '100%', fontSize: '11px' }}>
+                          Generate Still
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {Object.keys(stills).length > 0 && (
+                <div style={{ marginTop: '16px', padding: '12px 16px', background: 'rgba(0,207,255,0.05)', border: '0.5px solid rgba(0,207,255,0.2)', borderRadius: '10px', fontSize: '12px', color: 'var(--cyan)' }}>
+                  ✦ {Object.keys(stills).length} stills generated — go to <strong>Scene Video Generator</strong> to animate them
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── SCENE VIDEO GENERATOR ─────────────────────────────────────
+function SceneVideoGenerator() {
+  const { user } = useUser()
   const [savedStills, setSavedStills] = useState<Record<string, {imageUrl: string; sceneTitle: string; prompt: string}>>({})
   const [selectedStill, setSelectedStill] = useState<{imageUrl: string; sceneTitle: string; prompt: string; id: string} | null>(null)
   const [videoModel, setVideoModel] = useState('kling-video')
