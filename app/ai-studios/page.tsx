@@ -361,7 +361,7 @@ function Dashboard({ setTool }: { setTool: (t: StudioTool) => void }) {
                 {/* Step by step */}
                 <div className="card">
                   <div className="ftitle">📋 How It Was Made</div>
-                  <div style={{ fontSize: '12px', color: 'var(--mu3)', lineHeight: '1.9', lineHeight: '2' }}>{String(selectedVideo.workflow)}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--mu3)', lineHeight: '1.9' }}>{String(selectedVideo.workflow)}</div>
                 </div>
               </div>
             </div>
